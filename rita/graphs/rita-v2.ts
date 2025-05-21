@@ -1,20 +1,23 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+/// <reference types="node" />
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { ChatOpenAI } from '@langchain/openai';
+import { StructuredTool } from '@langchain/core/tools';
 
 import { humanReviewNode } from '../nodes/humanReviewNode.js';
 import { MergedAnnotation } from '../states/states.js';
 import { weatherSearch } from '../tools/weatherSearch.js';
+import { initGraphQLMCPClient } from '../mcp/graphql.mcp.js';
 
-// const graphQLMCPClient = await initGraphQLMCPClient(
-//   process.env.GRAPHQL_MCP_ENDPOINT!
-// );
+const graphQLMCPClient = await initGraphQLMCPClient(
+  process.env.GRAPHQL_MCP_ENDPOINT as string
+);
 
 const model = new ChatOpenAI({
   model: 'gpt-4o',
   temperature: 0,
-}).bindTools([weatherSearch]); // ...graphQLMCPClient
+}).bindTools([weatherSearch, ...graphQLMCPClient]);
 
 const llmNode = async (state: typeof MergedAnnotation.State) => {
   const response = await model.invoke(state.messages);
@@ -25,17 +28,22 @@ const llmNode = async (state: typeof MergedAnnotation.State) => {
 
 const runTool = async (state: typeof MergedAnnotation.State) => {
   const newMessages: ToolMessage[] = [];
-  const tools = { weather_search: weatherSearch };
+  const tools: Record<string, StructuredTool> = { 
+    weather_search: weatherSearch,
+    ...graphQLMCPClient.reduce((acc, tool) => ({ ...acc, [tool.name]: tool }), {})
+  };
   const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
   const toolCalls = lastMessage.tool_calls!;
 
   for (const toolCall of toolCalls) {
-    const tool = tools[toolCall.name as keyof typeof tools];
-    const result = await tool.invoke(toolCall.args as { city: string });
+    const tool = tools[toolCall.name];
+    if (!tool) continue;
+    
+    const result = await tool.invoke(toolCall.args);
     newMessages.push(
       new ToolMessage({
         name: toolCall.name,
-        content: result,
+        content: String(result),
         tool_call_id: toolCall.id!,
       })
     );
