@@ -15,7 +15,7 @@ const graphQLMCPClient = await initGraphQLMCPClient(
 );
 
 const model = new ChatOpenAI({
-  model: 'gpt-4o',
+  model: process.env.MODEL || 'gpt-3.5-turbo',
   temperature: 0,
 });
 
