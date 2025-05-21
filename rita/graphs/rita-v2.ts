@@ -17,7 +17,12 @@ const graphQLMCPClient = await initGraphQLMCPClient(
 const model = new ChatOpenAI({
   model: 'gpt-4o',
   temperature: 0,
-}).bindTools([weatherSearch, ...graphQLMCPClient]);
+});
+
+// Bind tools after model creation
+model.bind({
+  tools: [weatherSearch, ...graphQLMCPClient]
+});
 
 const llmNode = async (state: typeof MergedAnnotation.State) => {
   const response = await model.invoke(state.messages);
