@@ -38,7 +38,7 @@ const create_rita_v2_graph = async () => {
     }).bindTools(mcpTools);
 
     const expensiveModel = new ChatOpenAI({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       temperature: 0,
     }).bindTools(mcpTools);
 
@@ -50,7 +50,7 @@ const create_rita_v2_graph = async () => {
       console.log('Authenticated user:', user);
       console.log('Access token:', accessToken);
 
-      const accessTempToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkRUSldkM2xSMmdnTmFWdkxfdF85dyJ9.eyJodHRwczovL29uYm9hcmRpbmcucHJvamVjdC1iLmRldi9hcGkvYXV0aCI6eyJyb2xlcyI6WyJvbmJvYXJkaW5nLWhyLW1hbmFnZXIiXSwiaXNTaWdudXAiOmZhbHNlfSwidXNlclJvbGVzIjpbIm9uYm9hcmRpbmctaHItbWFuYWdlciJdLCJpc3MiOiJodHRwczovL2Rldi1wcm9qZWN0LWIuZXUuYXV0aDAuY29tLyIsInN1YiI6ImF1dGgwfDY4MjU5MzFkYjBiMGYwYTY2Y2I0ZWYzZiIsImF1ZCI6WyJodHRwczovL3ZlcmlmeS1hdXRoLnByb2plY3QtYi5kZXYvIiwiaHR0cHM6Ly9kZXYtcHJvamVjdC1iLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOj…GUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyIsImd0eSI6InBhc3N3b3JkIiwiYXpwIjoiemtuZDFFYmRaNHJWOUJXU1g5eG5Vd041ODU0TklYMnciLCJwZXJtaXNzaW9ucyI6W119.VRzPz9WS3GHghGk-t41eiMhUcTyU3S38lXcdlfz2qFafefeyoSAVod9v71fRc8oWbn-5WvBeb78CzjKs7PKnjjYixvI7KWFKj5afAMdVXQHqpITDpKNHPEjCLRQP6AXowwKWLwQpIbjhLHeSyCnszlSYZH1FEJ2aqxjJ1US0XzGETnxB24Hi_fbWxfvBrrjgFjvt74kN8_IvNrUTJaCBz10Z8uwa_5MwghaoAQU-Sp-Iufgq-ayVfQkXOUEghzkoOFjBIEX31MTDSVymY8kioMrHoSofgTxE35WdaHdNvXT0R-Wxw5kE3CgPs57vdJasIRJERdDWg3sJ04oJUbPelQ'
+      // const accessTempToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkRUSldkM2xSMmdnTmFWdkxfdF85dyJ9.eyJodHRwczovL29uYm9hcmRpbmcucHJvamVjdC1iLmRldi9hcGkvYXV0aCI6eyJyb2xlcyI6WyJvbmJvYXJkaW5nLWhyLW1hbmFnZXIiXSwiaXNTaWdudXAiOmZhbHNlfSwidXNlclJvbGVzIjpbIm9uYm9hcmRpbmctaHItbWFuYWdlciJdLCJpc3MiOiJodHRwczovL2Rldi1wcm9qZWN0LWIuZXUuYXV0aDAuY29tLyIsInN1YiI6ImF1dGgwfDY4MjU5MzFkYjBiMGYwYTY2Y2I0ZWYzZiIsImF1ZCI6WyJodHRwczovL3ZlcmlmeS1hdXRoLnByb2plY3QtYi5kZXYvIiwiaHR0cHM6Ly9kZXYtcHJvamVjdC1iLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NDc5Mzc3OTksImV4cCI6MTc0ODAyNDE5OSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyIsImd0eSI6InBhc3N3b3JkIiwiYXpwIjoiemtuZDFFYmRaNHJWOUJXU1g5eG5Vd041ODU0TklYMnciLCJwZXJtaXNzaW9ucyI6W119.MdAYR9K3cvjylK11L00E9i0na3FNlLNHp0sDZznUk_Hy9mQZhutBSagDNblLAIu45ISnfFhwGg7HEuGHUJDgBZY_hD_UOsPWw0tkPNe13UqUSvIkjUNvX5hIHpUL0l8VkywFI5HADhrbJfteSyhUgP1yi1q9PxoP3E5sPzHAHGBA6TfVkS1khfustAtILvHtUzsQITmBSsRqCKpFduMY0B_dxk2ZMVcmCGS3eZGkPv9zySA9MMgE5L7mdrD1uaIx8KT7-9Al7MpAPhR5fZSm_Rg3sTf8i-eQqGN5bOrpUh6bApdf2JXEpPg3FFXO7H3E75aNaRXRZmGEpmZ9BdD_tw'
 
       const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
       if (!lastMessage || !lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
@@ -64,8 +64,13 @@ const create_rita_v2_graph = async () => {
         const tool = mcpTools.find(t => t.name === toolCall.name);
         let toolResult = '';
         if (tool) {
+          let toolArgs = toolCall.args;
+          const toolsRequiringToken = ['mcp__graphql__graphql-execute-query', 'mcp__graphql__graphql-execute-mutation'];
+          if (toolsRequiringToken.includes(tool.name)) {
+            toolArgs = { ...toolArgs, accessToken: accessToken };
+          }
           try {
-            const result = await tool.invoke(toolCall.args);
+            const result = await tool.invoke(toolArgs);
             toolResult = typeof result === 'string' ? result : JSON.stringify(result);
           } catch (e: any) {
             console.error(`Error invoking tool ${toolCall.name}:`, e);
@@ -105,7 +110,8 @@ const create_rita_v2_graph = async () => {
       const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
       const systemMessage = { role: "system", content: systemPrompt };
       const messages = [systemMessage, ...state.messages];
-      let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
+      // let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
+      let response = await expensiveModel.invoke(messages);
 
       // Fallback: if no tool call, try expensive model
       if (!response.tool_calls || response.tool_calls.length === 0) {
@@ -113,6 +119,29 @@ const create_rita_v2_graph = async () => {
       }
       return { messages: [response] };
     };
+
+    // const llmNodeExpensive = async (state: typeof MergedAnnotation.State, config: any) => {
+    //   // Access the authenticated user and token from config (try all possible locations)
+    //   const user = config?.user || config?.langgraph_auth_user || (config?.configurable && config.configurable.langgraph_auth_user);
+    //   const accessToken = user?.token;
+    //   console.log('Authenticated user:', user);
+    //   console.log('Access token:', accessToken);
+
+    //   const lastMsg = state.messages[state.messages.length - 1];
+    //   const userMessage = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
+    //   const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
+    //   const systemMessage = { role: "system", content: systemPrompt };
+    //   const messages = [systemMessage, ...state.messages];
+    //   // let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
+    //   let response = await expensiveModel.invoke(messages);
+
+    //   // Fallback: if no tool call, try expensive model
+    //   if (!response.tool_calls || response.tool_calls.length === 0) {
+    //     response = await expensiveModel.invoke(messages);
+    //   }
+    //   // Return a flag if tool calls are present
+    //   return { messages: [response], needs_tool_call: !!response.tool_calls?.length };
+    // };
 
     const routeAfterLLM = (
       state: typeof MergedAnnotation.State
@@ -126,6 +155,7 @@ const create_rita_v2_graph = async () => {
       return 'human_review_node';
     };
 
+
     const workflow = new StateGraph(MergedAnnotation)
       .addNode('llm_node', llmNode)
       .addNode('tool_node', toolNode)
@@ -133,14 +163,8 @@ const create_rita_v2_graph = async () => {
         ends: ['tool_node', 'llm_node'],
       })
       .addEdge(START, 'llm_node')
-      .addConditionalEdges('llm_node', routeAfterLLM, [
-        'human_review_node',
-        END,
-      ])
-      .addConditionalEdges('tool_node', (state) => {
-        return state.needs_llm_postprocess ? 'llm_node' : END;
-      }, ['llm_node', END])
-      .addEdge('llm_node', END);
+      .addConditionalEdges('llm_node', routeAfterLLM, ['human_review_node', END])
+      .addEdge('tool_node', 'llm_node');
 
     // Compile the graph
     const memory = new MemorySaver();
