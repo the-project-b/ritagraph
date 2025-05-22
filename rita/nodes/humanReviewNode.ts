@@ -36,7 +36,7 @@ async function humanReviewNode(
   const reviewData = humanReview.data;
 
   if (reviewAction === 'continue') {
-    return new Command({ goto: 'run_tool' });
+    return new Command({ goto: 'tool_node' });
   } else if (reviewAction === 'update') {
     const toolMessage = new ToolMessage({
       name: toolCall.name,
