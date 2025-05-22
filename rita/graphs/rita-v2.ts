@@ -27,7 +27,18 @@ const create_rita_v2_graph = async () => {
         .join(', ')}`
     );
 
-    const model = new ChatOpenAI({
+    const systemPrompt = `
+      You are connected to the MCP system, which provides the following tools:
+      ${mcpTools.map(tool => `- ${tool.name}: ${tool.description || ''}`).join('\n')}
+      If a user's request can be fulfilled by one of these tools, always call the tool instead of answering directly.
+      `;
+
+    const cheapModel = new ChatOpenAI({
+      model: 'gpt-3.5-turbo',
+      temperature: 0,
+    }).bindTools(mcpTools);
+
+    const expensiveModel = new ChatOpenAI({
       model: 'gpt-4-turbo-preview',
       temperature: 0,
     }).bindTools(mcpTools);
@@ -36,7 +47,17 @@ const create_rita_v2_graph = async () => {
 
     // Define the function that calls the model
     const llmNode = async (state: typeof MergedAnnotation.State) => {
-      const response = await model.invoke(state.messages);
+      const lastMsg = state.messages[state.messages.length - 1];
+      const userMessage = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
+      const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
+      const systemMessage = { role: "system", content: systemPrompt };
+      const messages = [systemMessage, ...state.messages];
+      let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
+
+      // Fallback: if no tool call, try expensive model
+      if (!response.tool_calls || response.tool_calls.length === 0) {
+        response = await expensiveModel.invoke(messages);
+      }
       return { messages: [response] };
     };
 
