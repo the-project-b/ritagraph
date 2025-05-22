@@ -5,5 +5,8 @@
   "graphs": {
     "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph"
   },
+  "auth": {
+    "path": "src/security/auth.ts:auth"
+  },
   "env": ".env"
 }

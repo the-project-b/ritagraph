@@ -1,9 +1,8 @@
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /// <reference types="node" />
-import { AIMessage, ToolMessage, BaseMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatOpenAI } from '@langchain/openai';
 
 import client from '../mcp/client.js';
@@ -44,7 +43,15 @@ const create_rita_v2_graph = async () => {
     }).bindTools(mcpTools);
 
     // const toolNode = new ToolNode(mcpTools); // below is custom implementation of the same thing. 
-    const toolNode = async (state: typeof MergedAnnotation.State) => {
+    const toolNode = async (state: typeof MergedAnnotation.State, config: any) => {
+      // Access the authenticated user and token from config (try all possible locations)
+      const user = config?.user || config?.langgraph_auth_user || (config?.configurable && config.configurable.langgraph_auth_user);
+      const accessToken = user?.token;
+      console.log('Authenticated user:', user);
+      console.log('Access token:', accessToken);
+
+      const accessTempToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkRUSldkM2xSMmdnTmFWdkxfdF85dyJ9.eyJodHRwczovL29uYm9hcmRpbmcucHJvamVjdC1iLmRldi9hcGkvYXV0aCI6eyJyb2xlcyI6WyJvbmJvYXJkaW5nLWhyLW1hbmFnZXIiXSwiaXNTaWdudXAiOmZhbHNlfSwidXNlclJvbGVzIjpbIm9uYm9hcmRpbmctaHItbWFuYWdlciJdLCJpc3MiOiJodHRwczovL2Rldi1wcm9qZWN0LWIuZXUuYXV0aDAuY29tLyIsInN1YiI6ImF1dGgwfDY4MjU5MzFkYjBiMGYwYTY2Y2I0ZWYzZiIsImF1ZCI6WyJodHRwczovL3ZlcmlmeS1hdXRoLnByb2plY3QtYi5kZXYvIiwiaHR0cHM6Ly9kZXYtcHJvamVjdC1iLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOj…GUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyIsImd0eSI6InBhc3N3b3JkIiwiYXpwIjoiemtuZDFFYmRaNHJWOUJXU1g5eG5Vd041ODU0TklYMnciLCJwZXJtaXNzaW9ucyI6W119.VRzPz9WS3GHghGk-t41eiMhUcTyU3S38lXcdlfz2qFafefeyoSAVod9v71fRc8oWbn-5WvBeb78CzjKs7PKnjjYixvI7KWFKj5afAMdVXQHqpITDpKNHPEjCLRQP6AXowwKWLwQpIbjhLHeSyCnszlSYZH1FEJ2aqxjJ1US0XzGETnxB24Hi_fbWxfvBrrjgFjvt74kN8_IvNrUTJaCBz10Z8uwa_5MwghaoAQU-Sp-Iufgq-ayVfQkXOUEghzkoOFjBIEX31MTDSVymY8kioMrHoSofgTxE35WdaHdNvXT0R-Wxw5kE3CgPs57vdJasIRJERdDWg3sJ04oJUbPelQ'
+
       const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
       if (!lastMessage || !lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
         return { messages: [], needs_llm_postprocess: false };
@@ -86,7 +93,13 @@ const create_rita_v2_graph = async () => {
     };
 
     // Define the function that calls the model
-    const llmNode = async (state: typeof MergedAnnotation.State) => {
+    const llmNode = async (state: typeof MergedAnnotation.State, config: any) => {
+      // Access the authenticated user and token from config (try all possible locations)
+      const user = config?.user || config?.langgraph_auth_user || (config?.configurable && config.configurable.langgraph_auth_user);
+      const accessToken = user?.token;
+      console.log('Authenticated user:', user);
+      console.log('Access token:', accessToken);
+
       const lastMsg = state.messages[state.messages.length - 1];
       const userMessage = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
       const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
