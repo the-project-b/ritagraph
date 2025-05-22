@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /// <reference types="node" />
-import { AIMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage, BaseMessage } from '@langchain/core/messages';
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatOpenAI } from '@langchain/openai';
@@ -43,7 +43,47 @@ const create_rita_v2_graph = async () => {
       temperature: 0,
     }).bindTools(mcpTools);
 
-    const toolNode = new ToolNode(mcpTools);
+    // const toolNode = new ToolNode(mcpTools); // below is custom implementation of the same thing. 
+    const toolNode = async (state: typeof MergedAnnotation.State) => {
+      const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+      if (!lastMessage || !lastMessage.tool_calls || lastMessage.tool_calls.length === 0) {
+        return { messages: [], needs_llm_postprocess: false };
+      }
+
+      const toolMessages: ToolMessage[] = [];
+      let needsLLMPostprocess = false;
+
+      for (const toolCall of lastMessage.tool_calls) {
+        const tool = mcpTools.find(t => t.name === toolCall.name);
+        let toolResult = '';
+        if (tool) {
+          try {
+            const result = await tool.invoke(toolCall.args);
+            toolResult = typeof result === 'string' ? result : JSON.stringify(result);
+          } catch (e: any) {
+            console.error(`Error invoking tool ${toolCall.name}:`, e);
+            toolResult = `Error: ${e.message || JSON.stringify(e)}`;
+          }
+        } else {
+          toolResult = 'Tool not found.';
+        }
+        if (toolCall.id) {
+          toolMessages.push(new ToolMessage({
+            content: toolResult,
+            name: toolCall.name,
+            tool_call_id: toolCall.id,
+          }));
+        } else {
+          console.warn(`Tool call for ${toolCall.name} is missing an ID. Skipping.`);
+        }
+        // If any tool call is 'mcp_localhost-sse_hello-world', set the flag.
+        // Adjust if your actual "end-triggering" tool has a different name.
+        if (toolCall.name === 'mcp_localhost-sse_hello-world') {
+          needsLLMPostprocess = true;
+        }
+      }
+      return { messages: toolMessages, needs_llm_postprocess: needsLLMPostprocess };
+    };
 
     // Define the function that calls the model
     const llmNode = async (state: typeof MergedAnnotation.State) => {
@@ -73,7 +113,6 @@ const create_rita_v2_graph = async () => {
       return 'human_review_node';
     };
 
-    // Create a new graph with MessagesAnnotation
     const workflow = new StateGraph(MergedAnnotation)
       .addNode('llm_node', llmNode)
       .addNode('tool_node', toolNode)
@@ -85,7 +124,10 @@ const create_rita_v2_graph = async () => {
         'human_review_node',
         END,
       ])
-      .addEdge('tool_node', 'llm_node');
+      .addConditionalEdges('tool_node', (state) => {
+        return state.needs_llm_postprocess ? 'llm_node' : END;
+      }, ['llm_node', END])
+      .addEdge('llm_node', END);
 
     // Compile the graph
     const memory = new MemorySaver();
