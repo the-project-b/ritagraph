@@ -129,17 +129,17 @@ const create_rita_v2_graph = async () => {
         userMessage.length > 200 || userMessage.includes("complex");
 
       // Create multiple system messages instead of just one
-      const mcpFirstStepSystemMessage = {
-        role: "system",
-        content: `You are a helpful assistant named RITA. You are a diligent and helpful assistant that can answer questions and help with tasks. ${mcpFirstStepContent}, you will also follow these instructions: ${mcpInstructionsContent} and you will use these examples to build your queries in an efficient way: ${mcpWorkingExamplesContent}`,
-      };
+      // const mcpFirstStepSystemMessage = {
+      //   role: "system",
+      //   content: `You are a helpful assistant named RITA. You are a diligent and helpful assistant that can answer questions and help with tasks. ${mcpFirstStepContent}, you will also follow these instructions: ${mcpInstructionsContent} and you will use these examples to build your queries in an efficient way: ${mcpWorkingExamplesContent}`,
+      // };
       // const mcpEffectivenessSystemMessage = { role: "system", content: mcpEffectivenessContent };
       // const mcpInstructionsSystemMessage = { role: "system", content: mcpInstructionsContent };
       // const mcpWorkingExamplesSystemMessage = { role: "system", content: mcpWorkingExamplesContent };
 
       // Include all system messages
       const messages = [
-        mcpFirstStepSystemMessage,
+        // mcpFirstStepSystemMessage,
         // mcpEffectivenessSystemMessage,
         // mcpInstructionsSystemMessage,
         // mcpWorkingExamplesSystemMessage,
