@@ -18,6 +18,10 @@ async function humanReviewNode(
   const lastMessage = _state.messages[_state.messages.length - 1] as AIMessage;
   const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
 
+  console.log('toolCall', toolCall);
+
+  // Since we only reach here for tools with 'with-approval', no need to check
+  // All tools reaching this node require human approval
   const humanReview = interrupt<
     {
       question: string;
@@ -49,7 +53,7 @@ async function humanReviewNode(
     });
 
     return new Command({
-      goto: 'call_llm',
+      goto: 'llm_node',
       update: { messages: [toolMessage] },
     });
   } else if (reviewAction === 'feedback') {
@@ -59,7 +63,7 @@ async function humanReviewNode(
       tool_call_id: toolCall.id!,
     });
     return new Command({
-      goto: 'call_llm',
+      goto: 'llm_node',
       update: { messages: [toolMessage] },
     });
   }
