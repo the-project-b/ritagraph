@@ -11,11 +11,9 @@ auth.authenticate(async (request: any) => {
     for (const [key, value] of request.headers.entries()) {
       allHeaders[key] = value;
     }
-    console.log('All headers:', allHeaders);
     authorization = request.headers.get('authorization') || request.headers.get('Authorization');
   } else if (request.headers) {
     // fallback for plain object
-    console.log('All headers (plain object):', request.headers);
     authorization = request.headers.authorization || request.headers.Authorization;
   }
   if (!authorization || typeof authorization !== 'string') {

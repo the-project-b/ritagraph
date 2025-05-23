@@ -6,6 +6,7 @@ import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { ChatOpenAI } from '@langchain/openai';
 
 // Import the text files directly
+import mcpFirstStepContent from '../prompts/hardcoded/mcp-first-step.ts';
 import mcpEffectivenessContent from '../prompts/hardcoded/mcp-effectiveness.ts';
 import mcpInstructionsContent from '../prompts/hardcoded/mcp-instructions.ts';
 import mcpWorkingExamplesContent from '../prompts/hardcoded/mcp-working-examples.ts';
@@ -109,12 +110,14 @@ const create_rita_v2_graph = async () => {
       const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
       
       // Create multiple system messages instead of just one
+      const mcpFirstStepSystemMessage = { role: "system", content: mcpFirstStepContent };
       const mcpEffectivenessSystemMessage = { role: "system", content: mcpEffectivenessContent };
       const mcpInstructionsSystemMessage = { role: "system", content: mcpInstructionsContent };
       const mcpWorkingExamplesSystemMessage = { role: "system", content: mcpWorkingExamplesContent };
       
       // Include all system messages
       const messages = [
+        mcpFirstStepSystemMessage,
         mcpEffectivenessSystemMessage, 
         mcpInstructionsSystemMessage, 
         mcpWorkingExamplesSystemMessage,

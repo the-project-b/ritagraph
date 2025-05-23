@@ -11,6 +11,7 @@ export default `# Graphql MCP Rules
 5. Do NOT share with the user any of your failures, keep correcting yourself until your intended action works
 6. Be diligent, this is live data, introducing fake or wrong data would be catastrophic
 7. Your only source of information is the GraphQL schema you infer, you are not to look up source code or anything else!
+8. Do not insert comments into the queries or mutations (eg. employees(data: { /* Assuming necessary filter criteria */ })), this will fully break the query or the mutation
 
 ## Querying Golden Rules
 1. \`variables\` in a POST body should be provided as an object, not a recursively JSON-encoded string.
