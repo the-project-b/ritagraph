@@ -32,8 +32,6 @@ auth.authenticate(async (request: any) => {
   if (!token) {
     throw new HTTPException(401, { message: 'Invalid Authorization header format' });
   }
-  // Optionally log the extracted token
-  console.log('Extracted token:', token);
   // No token validation for now (accept any token)
   return {
     identity: 'Projectb BE ololo',

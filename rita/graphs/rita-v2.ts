@@ -5,6 +5,11 @@ import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { ChatOpenAI } from '@langchain/openai';
 
+// Import the text files directly
+import mcpEffectivenessContent from '../prompts/hardcoded/mcp-effectiveness.ts';
+import mcpInstructionsContent from '../prompts/hardcoded/mcp-instructions.ts';
+import mcpWorkingExamplesContent from '../prompts/hardcoded/mcp-working-examples.ts';
+
 import client from '../mcp/client.js';
 import { humanReviewNode } from '../nodes/humanReviewNode.js';
 import { MergedAnnotation } from '../states/states.js';
@@ -25,12 +30,6 @@ const create_rita_v2_graph = async () => {
         .map((tool) => tool.name)
         .join(', ')}`
     );
-
-    const systemPrompt = `
-      You are connected to the MCP system, which provides the following tools:
-      ${mcpTools.map(tool => `- ${tool.name}: ${tool.description || ''}`).join('\n')}
-      If a user's request can be fulfilled by one of these tools, always call the tool instead of answering directly.
-      `;
 
     const cheapModel = new ChatOpenAI({
       model: 'gpt-3.5-turbo',
@@ -108,8 +107,20 @@ const create_rita_v2_graph = async () => {
       const lastMsg = state.messages[state.messages.length - 1];
       const userMessage = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
       const useExpensive = userMessage.length > 200 || userMessage.includes('complex');
-      const systemMessage = { role: "system", content: systemPrompt };
-      const messages = [systemMessage, ...state.messages];
+      
+      // Create multiple system messages instead of just one
+      const mcpEffectivenessSystemMessage = { role: "system", content: mcpEffectivenessContent };
+      const mcpInstructionsSystemMessage = { role: "system", content: mcpInstructionsContent };
+      const mcpWorkingExamplesSystemMessage = { role: "system", content: mcpWorkingExamplesContent };
+      
+      // Include all system messages
+      const messages = [
+        mcpEffectivenessSystemMessage, 
+        mcpInstructionsSystemMessage, 
+        mcpWorkingExamplesSystemMessage,
+        ...state.messages
+      ];
+      
       // let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
       let response = await expensiveModel.invoke(messages);
 
