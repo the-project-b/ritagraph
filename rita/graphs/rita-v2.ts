@@ -3,6 +3,7 @@
 /// <reference types="node" />
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
+import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
 
 // Import the text files directly
@@ -32,15 +33,22 @@ const create_rita_v2_graph = async () => {
         .join(', ')}`
     );
 
-    const cheapModel = new ChatOpenAI({
-      model: 'gpt-3.5-turbo',
+    const anthropicChadModel = new ChatAnthropic({
+      model: "claude-opus-4-20250514",
       temperature: 0,
+      maxTokens: undefined,
+      maxRetries: 2,
     }).bindTools(mcpTools);
 
-    const expensiveModel = new ChatOpenAI({
-      model: 'gpt-4o',
-      temperature: 0,
-    }).bindTools(mcpTools);
+    // const cheapModel = new ChatOpenAI({
+    //   model: 'gpt-3.5-turbo',
+    //   temperature: 0,
+    // }).bindTools(mcpTools);
+
+    // const expensiveModel = new ChatOpenAI({
+    //   model: 'gpt-4o',
+    //   temperature: 0,
+    // }).bindTools(mcpTools);
 
     // const toolNode = new ToolNode(mcpTools); // below is custom implementation of the same thing. 
     const toolNode = async (state: typeof MergedAnnotation.State, config: any) => {
@@ -111,11 +119,11 @@ const create_rita_v2_graph = async () => {
       ];
       
       // let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
-      let response = await expensiveModel.invoke(messages);
+      let response = await anthropicChadModel.invoke(messages);
 
       // Fallback: if no tool call, try expensive model
       if (!response.tool_calls || response.tool_calls.length === 0) {
-        response = await expensiveModel.invoke(messages);
+        response = await anthropicChadModel.invoke(messages);
       }
       return { messages: [response] };
     };

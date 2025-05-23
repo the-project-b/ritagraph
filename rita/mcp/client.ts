@@ -9,7 +9,7 @@ const client = new MultiServerMCPClient({
   // Whether to prefix tool names with the server name (optional, default: true)
   prefixToolNameWithServerName: false,
   // Optional additional prefix for tool names (optional, default: "mcp")
-  additionalToolNamePrefix: undefined,
+  additionalToolNamePrefix: '',
 
   mcpServers,
 });
