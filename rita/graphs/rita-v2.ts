@@ -33,34 +33,40 @@ const create_rita_v2_graph = async () => {
         .join(", ")}`
     );
 
-    const anthropicChadModel = new ChatAnthropic({
-      model: "claude-opus-4-20250514",
+    // const anthropicChadModel = new ChatAnthropic({
+    //   model: "claude-opus-4-20250514",
+    //   temperature: 0,
+    //   maxTokens: undefined,
+    //   maxRetries: 2,
+    // }).bindTools(mcpTools);
+
+    const cheapModel = new ChatOpenAI({
+      model: 'gpt-3.5-turbo',
       temperature: 0,
-      maxTokens: undefined,
-      maxRetries: 2,
     }).bindTools(mcpTools);
 
-    // const cheapModel = new ChatOpenAI({
-    //   model: 'gpt-3.5-turbo',
-    //   temperature: 0,
-    // }).bindTools(mcpTools);
-
-    // const expensiveModel = new ChatOpenAI({
-    //   model: 'gpt-4o',
-    //   temperature: 0,
-    // }).bindTools(mcpTools);
+    const expensiveModel = new ChatOpenAI({
+      model: 'gpt-4o',
+      temperature: 0,
+    }).bindTools(mcpTools);
 
     // const toolNode = new ToolNode(mcpTools); // below is custom implementation of the same thing.
     const toolNode = async (
       state: typeof MergedAnnotation.State,
       config: any
     ) => {
-      // Access the authenticated user and token from config (try all possible locations)
-      const user =
+      // Priority: 1. State accessToken, 2. Auth token from config
+      const authUser =
         config?.user ||
         config?.langgraph_auth_user ||
         (config?.configurable && config.configurable.langgraph_auth_user);
-      const accessToken = user?.token;
+      const authAccessToken = authUser?.token;
+      
+      // Use state accessToken if available, otherwise fall back to auth token
+      const accessToken = state.accessToken || authAccessToken;
+      
+      console.log("Using accessToken from:", state.accessToken ? "state" : "auth config");
+      console.log("Access token:", accessToken);
 
       const lastMessage = state.messages[
         state.messages.length - 1
@@ -113,14 +119,18 @@ const create_rita_v2_graph = async () => {
       state: typeof MergedAnnotation.State,
       config: any
     ) => {
-      // Access the authenticated user and token from config (try all possible locations)
-      const user =
+      // Priority: 1. State accessToken, 2. Auth token from config
+      const authUser =
         config?.user ||
         config?.langgraph_auth_user ||
         (config?.configurable && config.configurable.langgraph_auth_user);
-      const accessToken = user?.token;
-      console.log("Authenticated user:", user);
-      console.log("Access token:", accessToken);
+      const authAccessToken = authUser?.token;
+      
+      // Use state accessToken if available, otherwise fall back to auth token
+      const accessToken = state.accessToken || authAccessToken;
+      
+      console.log("LLM Node - Using accessToken from:", state.accessToken ? "state" : "auth config");
+      console.log("LLM Node - Access token:", accessToken);
 
       const lastMsg = state.messages[state.messages.length - 1];
       const userMessage =
@@ -146,12 +156,13 @@ const create_rita_v2_graph = async () => {
         ...state.messages,
       ];
 
-      // let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
-      let response = await anthropicChadModel.invoke(messages);
+      let response = await (useExpensive ? expensiveModel : cheapModel).invoke(messages);
+      // let response = await anthropicChadModel.invoke(messages);
 
       // Fallback: if no tool call, try expensive model
       if (!response.tool_calls || response.tool_calls.length === 0) {
-        response = await anthropicChadModel.invoke(messages);
+        // response = await anthropicChadModel.invoke(messages);
+        response = await expensiveModel.invoke(messages);
       }
       return { messages: [response] };
     };

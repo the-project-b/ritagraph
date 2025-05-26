@@ -3,7 +3,9 @@
   "dockerfile_lines": [],
   "dependencies": ["."],
   "graphs": {
-    "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph"
+    "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph",
+    "multi-agent-rita": "./graphs/multi-agent-rita.ts:create_multi_agent_rita_graph",
+    "multi-agent-rita-simple": "./graphs/multi-agent-rita-simple.ts:create_multi_agent_rita_simple_graph"
   },
   "auth": {
     "path": "src/security/auth.ts:auth"

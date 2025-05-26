@@ -2,6 +2,7 @@ import { Annotation, MessagesAnnotation } from '@langchain/langgraph';
 
 const StateAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
+  accessToken: Annotation<string | undefined>,
 });
 
 // const HumanResponseStateAnnotation = Annotation.Root({
