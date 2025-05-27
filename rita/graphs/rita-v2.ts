@@ -15,6 +15,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import client from "../mcp/client.js";
 import { humanReviewNode } from "../nodes/humanReviewNode.js";
 import { MergedAnnotation } from "../states/states.js";
+import { loadPromptFromLangSmith } from "../utils/promptLoader.js";
 
 const create_rita_v2_graph = async () => {
   try {
@@ -153,10 +154,8 @@ const create_rita_v2_graph = async () => {
       // const mcpInstructionsSystemMessage = { role: "system", content: mcpInstructionsContent };
       // const mcpWorkingExamplesSystemMessage = { role: "system", content: mcpWorkingExamplesContent };
 
-      // Add system message for GraphQL best practices
-      const graphqlSystemMessage = {
-        role: "system",
-        content: `🚨 CRITICAL GraphQL Rules - MUST FOLLOW EXACTLY:
+      // Load GraphQL system message from LangSmith
+      const fallbackGraphQLContent = `🚨 CRITICAL GraphQL Rules - MUST FOLLOW EXACTLY:
 
 1. 🛑 NEVER use 'execute-query' without first using the tree-shaking tools
 2. 🔍 MANDATORY workflow for ANY GraphQL request:
@@ -178,7 +177,16 @@ const create_rita_v2_graph = async () => {
 7. 🎯 Example for "get my companies":
    DO NOT assume userToCompanies structure - verify it first!
 
-This prevents "Cannot query field" errors and ensures correct queries.`
+This prevents "Cannot query field" errors and ensures correct queries.`;
+
+      const graphqlSystemContent = await loadPromptFromLangSmith(
+        'system_graphql_rules',
+        fallbackGraphQLContent
+      );
+
+      const graphqlSystemMessage = {
+        role: "system",
+        content: graphqlSystemContent
       };
 
       // Include all system messages
