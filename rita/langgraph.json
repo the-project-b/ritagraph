@@ -3,7 +3,8 @@
   "dockerfile_lines": [],
   "dependencies": ["."],
   "graphs": {
-    "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph"
+    "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph",
+    "dynamic": "./graphs/dynamic.ts:create_dynamic_graph"
   },
   "auth": {
     "path": "src/security/auth.ts:auth"
