@@ -92,7 +92,13 @@ const create_rita_v2_graph = async () => {
               typeof result === "string" ? result : JSON.stringify(result);
           } catch (e: any) {
             console.error(`Error invoking tool ${toolCall.name}:`, e);
-            toolResult = `Error: ${e.message || JSON.stringify(e)}`;
+            
+            // Check if it's a GraphQL field validation error
+            if (e.message && e.message.includes('Cannot query field')) {
+              toolResult = `GraphQL Error: ${e.message}. Please use the 'graphql-introspect-queries' tool first to check available fields, then retry with the correct field names.`;
+            } else {
+              toolResult = `Error: ${e.message || JSON.stringify(e)}`;
+            }
           }
         } else {
           toolResult = "Tool not found.";
@@ -147,8 +153,37 @@ const create_rita_v2_graph = async () => {
       // const mcpInstructionsSystemMessage = { role: "system", content: mcpInstructionsContent };
       // const mcpWorkingExamplesSystemMessage = { role: "system", content: mcpWorkingExamplesContent };
 
+      // Add system message for GraphQL best practices
+      const graphqlSystemMessage = {
+        role: "system",
+        content: `🚨 CRITICAL GraphQL Rules - MUST FOLLOW EXACTLY:
+
+1. 🛑 NEVER use 'execute-query' without first using the tree-shaking tools
+2. 🔍 MANDATORY workflow for ANY GraphQL request:
+   Step 1: ALWAYS call 'graphql-list-queries' first
+   Step 2: ALWAYS call 'graphql-get-query-details' for the specific query
+   Step 3: ALWAYS call 'graphql-get-type-details' for return types if needed
+   Step 4: ONLY THEN use 'execute-query' with verified field names
+
+3. ❌ FORBIDDEN: Making assumptions about field names or query structure
+4. ❌ FORBIDDEN: Using 'execute-query' as the first tool
+5. ❌ FORBIDDEN: Using 'graphql-introspect-queries' (it's broken)
+
+6. ✅ REQUIRED: Even for simple requests like "get my companies", you MUST:
+   - First: graphql-list-queries (to see available queries)
+   - Then: graphql-get-query-details with "userToCompanies" 
+   - Then: graphql-get-type-details for the return type
+   - Finally: execute-query with verified fields
+
+7. 🎯 Example for "get my companies":
+   DO NOT assume userToCompanies structure - verify it first!
+
+This prevents "Cannot query field" errors and ensures correct queries.`
+      };
+
       // Include all system messages
       const messages = [
+        graphqlSystemMessage,
         // mcpFirstStepSystemMessage,
         // mcpEffectivenessSystemMessage,
         // mcpInstructionsSystemMessage,

@@ -10,7 +10,7 @@
     "lint:fix": "yarn lint --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "langgraph:dev": "cd src/common/langgraph && npx @langchain/langgraph-cli dev"
+    "langgraph:dev": "npx @langchain/langgraph-cli dev"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",
   "license": "MIT",
