@@ -32,12 +32,6 @@ const create_dynamic_graph = async () => {
         .join(", ")}`
     );
 
-    // Create models - one with tools for LLM node, one without tools for prompt entry
-    const expensiveModelWithTools = new ChatOpenAI({
-      model: "gpt-4o",
-      temperature: 0,
-    }).bindTools(mcpTools);
-
     const expensiveModelWithoutTools = new ChatOpenAI({
       model: "gpt-4o",
       temperature: 0,
@@ -79,14 +73,14 @@ const create_dynamic_graph = async () => {
     // Routing logic - same as rita-v2 but with dynamic graph logging
     const routeAfterLLM = (
       state: typeof MergedAnnotation.State
-    ): typeof END | "human_review_node" | "tool_node" => {
+    ): typeof END | "human_review_node" | "tool_node" | "llm_node" => {
       const lastMessage = state.messages[
         state.messages.length - 1
       ] as AIMessage;
 
       if (!lastMessage.tool_calls?.length) {
-        console.log("Dynamic Graph - No tool calls, ending conversation");
-        return END;
+        console.log("Dynamic Graph - No tool calls, staying in conversation loop");
+        return "llm_node";
       }
 
       // Check if any tool call requires approval (contains 'with-approval')
@@ -120,6 +114,7 @@ const create_dynamic_graph = async () => {
       .addConditionalEdges("llm_node", routeAfterLLM, [
         "human_review_node",
         "tool_node",
+        "llm_node",
         END,
       ])
       .addEdge("tool_node", "llm_node");
