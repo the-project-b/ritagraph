@@ -13,4 +13,4 @@ export interface PlaceholderResolver {
 
 export interface PlaceholderRegistry {
   [key: string]: PlaceholderResolver;
-} 
+}

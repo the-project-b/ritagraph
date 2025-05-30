@@ -56,9 +56,11 @@ const create_dynamic_graph = async () => {
       }
 
       // Create the properly typed config for questionPromptNode with system prompt extraction
+      // Preserve all original config properties (including auth info) and only override configurable
       const typedConfig: LangGraphRunnableConfig<QuestionPromptNodeConfig> = {
         ...config,
         configurable: {
+          ...config.configurable, // Preserve existing configurable properties
           promptId,
           extractSystemPrompts: true, // Extract system prompts instead of generating messages
           model: expensiveModelWithoutTools,

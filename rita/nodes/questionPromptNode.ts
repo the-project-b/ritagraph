@@ -17,17 +17,28 @@ const createQuestionPromptNode = () => {
     state: typeof MergedAnnotation.State,
     config: LangGraphRunnableConfig<QuestionPromptNodeConfig>
   ) {
-    console.log("Question Prompt Node - Configurable:", config.configurable);
+    // console.log("Question Prompt Node - Configurable:", config.configurable);
 
     if (!config.configurable) {
       throw new Error("Configurable is required");
     }
 
+    // Priority: 1. State accessToken, 2. Auth token from config
+    const authUser =
+      (config as any)?.user ||
+      (config as any)?.langgraph_auth_user ||
+      ((config as any)?.configurable &&
+        (config as any).configurable.langgraph_auth_user);
+    const authAccessToken = authUser?.token;
+
+    // Use state accessToken if available, otherwise fall back to auth token
+    const accessToken = state.accessToken || authAccessToken;
+
+    console.log("Question Prompt Node - Access token:", accessToken);
+
     const langSmithPrompt = await hub.pull<Runnable>(
       config.configurable.promptId.replace("-/", "")
     );
-
-    console.log("LangSmith prompt:", langSmithPrompt);
 
     const lastMsg = state.messages[state.messages.length - 1];
     
@@ -48,9 +59,6 @@ const createQuestionPromptNode = () => {
         }
       }
     }
-
-    console.log("Combined template string:", combinedTemplateString);
-    console.log("Input variables from LangSmith:", promptTemplate.inputVariables);
 
     // Build the dynamic invoke object using the placeholder manager
     const baseInvokeObject = { question: lastMsg.content };

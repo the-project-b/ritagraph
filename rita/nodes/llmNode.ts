@@ -18,8 +18,8 @@ const createLlmNode = (mcpTools: any[]) => {
     state: typeof MergedAnnotation.State,
     config: LangGraphRunnableConfig<LlmNodeConfig>
   ) => {
-    console.log("LLM Node - State:", state);
-    console.log("LLM Node - Config:", config);
+    // console.log("LLM Node - State:", state);
+    // console.log("LLM Node - Config:", config);
 
     // Priority: 1. State accessToken, 2. Auth token from config
     const authUser =
