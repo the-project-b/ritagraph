@@ -12,8 +12,8 @@ import { createLlmNode } from "../nodes/llmNode.js";
 import { createToolNode } from "../nodes/toolNode.js";
 import { MergedAnnotation } from "../states/states.js";
 import { createQuestionPromptNode, QuestionPromptNodeConfig } from "../nodes/questionPromptNode.js";
-
-
+// Import placeholders to ensure they are registered
+import "../placeholders/index.js";
 
 const create_dynamic_graph = async () => {
   try {
@@ -73,8 +73,6 @@ const create_dynamic_graph = async () => {
     const llmNode = createLlmNode(mcpTools);
     const humanReviewNode = createHumanReviewNode();
     const questionPromptNode = createQuestionPromptNode();
-
-
 
     // Routing logic - same as rita-v2 but with dynamic graph logging
     const routeAfterLLM = (
