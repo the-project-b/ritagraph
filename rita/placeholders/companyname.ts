@@ -1,9 +1,9 @@
 import { PlaceholderResolver, PlaceholderContext } from "./types";
 import { userService } from "../utils/user-service.js";
 
-export const usernameResolver: PlaceholderResolver = {
-  name: "auto_username",
+export const companynameResolver: PlaceholderResolver = {
+  name: "auto_companyname",
   resolve: async (context: PlaceholderContext): Promise<string> => {
-    return await userService.getUserName(context);
+    return await userService.getCompanyName(context);
   },
-};
+}; 

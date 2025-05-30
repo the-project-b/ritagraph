@@ -1,10 +1,14 @@
 import { placeholderManager } from "./manager";
 import { usernameResolver } from "./username";
+import { companynameResolver } from "./companyname";
+import { userSummaryResolver } from "./user-summary";
 import { timestampResolver, dateResolver, timeResolver } from "./timestamp";
 import { messageCountResolver, lastMessageResolver, conversationSummaryResolver } from "./conversation";
 
 // Register all placeholder resolvers
 placeholderManager.register(usernameResolver);
+placeholderManager.register(companynameResolver);
+placeholderManager.register(userSummaryResolver);
 placeholderManager.register(timestampResolver);
 placeholderManager.register(dateResolver);
 placeholderManager.register(timeResolver);
