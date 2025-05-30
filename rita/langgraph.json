@@ -7,7 +7,7 @@
     "dynamic": "./graphs/dynamic.ts:create_dynamic_graph"
   },
   "auth": {
-    "path": "src/security/auth.ts:auth"
+    "path": "security/auth.ts:auth"
   },
   "env": ".env"
 }
