@@ -181,6 +181,22 @@ export const ME_QUERY = gql`
   ${ME_FIELDS_ADMIN_FRAGMENT}
 `;
 
+export const EMPLOYEES_BY_COMPANY_QUERY = gql`
+  query EmployeesByCompany($data: EmployeeStatusInput!) {
+    employeesByCompany(data: $data) {
+      id
+      firstName
+      lastName
+      role
+      employeeContract {
+        id
+        personalNumber
+        personalNumberPayroll
+      }
+    }
+  }
+`;
+
 // Type definitions
 export interface MeResponse {
   me: {
@@ -215,4 +231,26 @@ export interface MeResponse {
       status: string;
     };
   };
+}
+
+export interface EmployeeContract {
+  id: string;
+  personalNumber?: string;
+  personalNumberPayroll?: string;
+}
+
+export interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  employeeContract?: EmployeeContract[];
+}
+
+export interface EmployeesByCompanyResponse {
+  employeesByCompany: Employee[];
+}
+
+export interface EmployeesByCompanyInput {
+  companyId: string;
 } 
