@@ -8,7 +8,7 @@
     "multi-agent": "./graphs/multi-agent-test.ts:create_multi_agent_rita_graph"
   },
   "auth": {
-    "path": "src/security/auth.ts:auth"
+    "path": "security/auth.ts:auth"
   },
   "env": ".env"
 }

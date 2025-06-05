@@ -12,8 +12,8 @@ import { createLlmNode } from "../nodes/llmNode.js";
 import { createToolNode } from "../nodes/toolNode.js";
 import { MergedAnnotation } from "../states/states.js";
 import { createQuestionPromptNode, QuestionPromptNodeConfig } from "../nodes/questionPromptNode.js";
-
-
+// Import placeholders to ensure they are registered
+import "../placeholders/index.js";
 
 const create_dynamic_graph = async () => {
   try {
@@ -31,12 +31,6 @@ const create_dynamic_graph = async () => {
         .map((tool) => tool.name)
         .join(", ")}`
     );
-
-    // Create models - one with tools for LLM node, one without tools for prompt entry
-    const expensiveModelWithTools = new ChatOpenAI({
-      model: "gpt-4o",
-      temperature: 0,
-    }).bindTools(mcpTools);
 
     const expensiveModelWithoutTools = new ChatOpenAI({
       model: "gpt-4o",
@@ -56,9 +50,11 @@ const create_dynamic_graph = async () => {
       }
 
       // Create the properly typed config for questionPromptNode with system prompt extraction
+      // Preserve all original config properties (including auth info) and only override configurable
       const typedConfig: LangGraphRunnableConfig<QuestionPromptNodeConfig> = {
         ...config,
         configurable: {
+          ...config.configurable, // Preserve existing configurable properties
           promptId,
           extractSystemPrompts: true, // Extract system prompts instead of generating messages
           model: expensiveModelWithoutTools,
@@ -74,19 +70,17 @@ const create_dynamic_graph = async () => {
     const humanReviewNode = createHumanReviewNode();
     const questionPromptNode = createQuestionPromptNode();
 
-
-
     // Routing logic - same as rita-v2 but with dynamic graph logging
     const routeAfterLLM = (
       state: typeof MergedAnnotation.State
-    ): typeof END | "human_review_node" | "tool_node" => {
+    ): typeof END | "human_review_node" | "tool_node" | "llm_node" => {
       const lastMessage = state.messages[
         state.messages.length - 1
       ] as AIMessage;
 
       if (!lastMessage.tool_calls?.length) {
-        console.log("Dynamic Graph - No tool calls, ending conversation");
-        return END;
+        console.log("Dynamic Graph - No tool calls, staying in conversation loop");
+        return "llm_node";
       }
 
       // Check if any tool call requires approval (contains 'with-approval')
@@ -120,6 +114,7 @@ const create_dynamic_graph = async () => {
       .addConditionalEdges("llm_node", routeAfterLLM, [
         "human_review_node",
         "tool_node",
+        "llm_node",
         END,
       ])
       .addEdge("tool_node", "llm_node");
