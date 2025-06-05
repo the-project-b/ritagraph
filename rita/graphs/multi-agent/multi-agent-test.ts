@@ -592,7 +592,7 @@ const create_multi_agent_rita_graph = async () => {
         });
 
         // Execute query task
-        const result = await executeQueryTask(currentTask);
+        const result = await executeQueryTask(currentTask, state, config);
         
         // Update task result and get new state
         const updatedState = updateTaskResultInState(state, currentTask.id, result);
@@ -606,6 +606,36 @@ const create_multi_agent_rita_graph = async () => {
           duration: Date.now() - startTime
         });
 
+        // Format user-friendly message from the result
+        let userMessage = `Completed query task: ${currentTask.description}`;
+        
+        if (result.success && result.summary) {
+          userMessage += `\n✅ ${result.summary}`;
+          
+          // If there's employee data, show a preview
+          if (result.data?.employees?.employees && Array.isArray(result.data.employees.employees)) {
+            const employees = result.data.employees.employees;
+            const employeeCount = employees.length;
+            
+            if (employeeCount > 0) {
+              userMessage += `\n\n👥 Found ${employeeCount} employee${employeeCount !== 1 ? 's' : ''}:`;
+              
+              // Show first 3 employees as preview
+              const previewEmployees = employees.slice(0, 3);
+              previewEmployees.forEach((emp: any, index: number) => {
+                const name = emp.firstName ? `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}` : emp.email;
+                userMessage += `\n${index + 1}. ${name} (${emp.email})`;
+              });
+              
+              if (employeeCount > 3) {
+                userMessage += `\n... and ${employeeCount - 3} more`;
+              }
+            }
+          }
+        } else if (!result.success) {
+          userMessage += `\n❌ Error: ${result.error || 'Unknown error occurred'}`;
+        }
+
         // Return to supervisor for next task
         return new Command({
           goto: AgentType.SUPERVISOR,
@@ -613,7 +643,7 @@ const create_multi_agent_rita_graph = async () => {
             messages: [
               ...state.messages,
               new AIMessage({
-                content: `Completed query task: ${currentTask.description}\nResult: ${JSON.stringify(result)}`
+                content: userMessage
               })
             ],
             memory: updatedState.memory
@@ -678,6 +708,18 @@ const create_multi_agent_rita_graph = async () => {
           duration: Date.now() - startTime
         });
 
+        // Format user-friendly message from the result
+        let userMessage = `Completed mutation task: ${currentTask.description}`;
+        
+        if ((result as any).success) {
+          userMessage += `\n✅ Operation completed successfully`;
+          if ((result as any).data && typeof (result as any).data === 'string') {
+            userMessage += `\n📝 ${(result as any).data}`;
+          }
+        } else {
+          userMessage += `\n❌ Error: ${(result as any).error || 'Unknown error occurred'}`;
+        }
+
         // Return to supervisor for next task
         return new Command({
           goto: AgentType.SUPERVISOR,
@@ -685,7 +727,7 @@ const create_multi_agent_rita_graph = async () => {
             messages: [
               ...state.messages,
               new AIMessage({
-                content: `Completed mutation task: ${currentTask.description}\nResult: ${JSON.stringify(result)}`
+                content: userMessage
               })
             ],
             memory: updatedState.memory

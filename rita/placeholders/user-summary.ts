@@ -8,6 +8,7 @@ export const userSummaryResolver: PlaceholderResolver = {
     // only one GraphQL request will be made thanks to caching
     const userName = await userService.getUserName(context);
     const companyName = await userService.getCompanyName(context);
+    const companyId = await userService.getCompanyId(context);
     const userEmail = await userService.getUserEmail(context);
     const userRole = await userService.getUserRole(context);
     const userLanguage = await userService.getUserLanguage(context);

@@ -509,13 +509,13 @@ export function updateTaskResultInState(state: ExtendedState, taskId: string, re
 /**
  * Executes a query task
  */
-export async function executeQueryTask(task: Task) {
+export async function executeQueryTask(task: Task, state: any, config: any) {
   try {
     // Create query agent
     const queryAgent = await createQueryAgent();
     
     // Execute the task using the query agent
-    const result = await queryAgent.executeTask(task);
+    const result = await queryAgent.executeTask(task, state, config);
     
     // Add timestamp and format the response
     const now = new Date();

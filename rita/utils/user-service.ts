@@ -102,6 +102,19 @@ class UserService {
   }
 
   /**
+   * Get user's company id
+   */
+  async getCompanyId(context: PlaceholderContext): Promise<string> {
+    try {
+      const userData = await this.getUserData(context);
+      return userData.me.company.id;
+    } catch (error) {
+      console.warn("UserService: Failed to get company id, using fallback");
+      return "companyclient4";
+    }
+  }
+
+  /**
    * Get user's email
    */
   async getUserEmail(context: PlaceholderContext): Promise<string> {
