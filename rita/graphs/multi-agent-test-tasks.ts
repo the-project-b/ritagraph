@@ -95,7 +95,7 @@ Respond with a JSON array of tasks in this format:
   }
 ]
 
-Example input: "get user info and update their email"
+Example input: "get user info and update his email"
 Example output:
 [
   {
@@ -105,7 +105,7 @@ Example output:
     "dependencies": []
   },
   {
-    "description": "update their email",
+    "description": "update his email",
     "type": "mutation",
     "targetAgent": "mutation_agent",
     "dependencies": ["task_0"]
