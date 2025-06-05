@@ -1,6 +1,3 @@
-/* eslint-disable no-console */
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-/// <reference types="node" />
 import { AIMessage, ToolMessage } from "@langchain/core/messages";
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
@@ -9,23 +6,22 @@ import { z } from "zod";
 import { Command } from "@langchain/langgraph";
 import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 
-import client from "../mcp/client.js";
-import { MergedAnnotation, ExtendedState } from "../states/states.js";
-
-// Import task handlers
+import { MergedAnnotation, ExtendedState } from "../../states/states";
+import { Task, TaskState } from './types';
+import { AgentType } from './types/agents';
 import {
-  Task,
-  TaskState,
   extractTasks,
-  updateTaskState,
-  getNextTask,
   updateTaskResult,
-  getTaskProgress
-} from './multi-agent-test-tasks';
+  getTaskProgress,
+  updateMemoryWithTaskState,
+  updateTaskProgress,
+  updateCurrentTask,
+  updateTaskResultInState,
+  executeQueryTask,
+  executeMutationTask
+} from './tasks/tasks-handling';
 
-// Define agent types and interfaces
-type AgentType = 'supervisor_agent' | 'query_agent' | 'mutation_agent' | 'tool_node';
-
+// Define interfaces
 interface AgentDecision {
   agent: AgentType;
   timestamp: string;
@@ -77,30 +73,6 @@ const assign = <T extends Record<string, any>>(updater: (state: T, ...args: any[
     ...updater(state, ...args),
   });
 
-// State update helpers using assign
-const updateMemoryWithTaskState = assign<ExtendedState>((state, { tasks }: { tasks: Task[] }) => ({
-  memory: new Map(state.memory || new Map()).set("tasks", tasks),
-}));
-
-const updateTaskProgress = assign<ExtendedState>((state, { taskId, result, error }: { taskId: string; result?: any; error?: string }) => {
-  const tasks = (state.memory || new Map()).get("tasks") as Task[];
-  const updatedTasks = tasks.map(task =>
-    task.id === taskId
-      ? { ...task, status: error ? "failed" : "completed", result, error }
-      : task
-  );
-  return {
-    memory: new Map(state.memory || new Map()).set("tasks", updatedTasks),
-  };
-});
-
-const updateCurrentTask = assign<ExtendedState>((state, { taskIndex }: { taskIndex: number }) => {
-  const tasks = (state.memory || new Map()).get("tasks") as Task[];
-  return {
-    memory: new Map(state.memory || new Map()).set("currentTaskIndex", taskIndex),
-  };
-});
-
 const trackAgentDecision = assign<ExtendedState>((state, { decision }: { decision: Omit<AgentDecision, "timestamp"> }) => {
   const decisions = (state.memory || new Map()).get("agentDecisions") as AgentDecision[] || [];
   const newDecision = {
@@ -108,6 +80,7 @@ const trackAgentDecision = assign<ExtendedState>((state, { decision }: { decisio
     timestamp: new Date().toISOString(),
   };
   return {
+    ...state,
     memory: new Map(state.memory || new Map()).set("agentDecisions", [...decisions, newDecision]),
   };
 });
@@ -146,8 +119,8 @@ const createTransferTools = () => {
 // Create router for tool node
 const createToolRouter = () => {
   const routes = new Map([
-    ['transfer_to_query_agent', 'query_agent'],
-    ['transfer_to_mutation_agent', 'mutation_agent'],
+    ['transfer_to_query_agent', AgentType.QUERY],
+    ['transfer_to_mutation_agent', AgentType.MUTATION],
     ['end_task', END]
   ]);
 
@@ -156,9 +129,6 @@ const createToolRouter = () => {
 
 /**
  * Creates a supervisor agent core with specific tools and prompt.
- * 
- * @param model - The language model to use
- * @returns Configured supervisor agent
  */
 const createSupervisorAgentCore = (model: ChatOpenAI) => {
   const transferTools = createTransferTools();
@@ -200,15 +170,42 @@ CRITICAL INSTRUCTIONS:
 };
 
 /**
+ * Gets the next available task that can be executed.
+ */
+const getNextTask = (state: ExtendedState): { task: Task | null; updatedState: ExtendedState } => {
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState || !taskState.tasks?.length) {
+    return { task: null, updatedState: state };
+  }
+
+  const nextTask = taskState.tasks[taskState.currentTaskIndex];
+  if (!nextTask) {
+    return { task: null, updatedState: state };
+  }
+
+  const updatedTaskState = {
+    ...taskState,
+    currentTaskIndex: taskState.currentTaskIndex + 1,
+    tasks: taskState.tasks.map((task, index) => 
+      index === taskState.currentTaskIndex ? { ...task, status: 'in_progress' } : task
+    )
+  };
+
+  return {
+    task: nextTask,
+    updatedState: {
+      ...state,
+      memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+    }
+  };
+};
+
+/**
  * Wrapper function that handles routing and task execution.
- * 
- * @param state - The current state
- * @param config - Configuration object
- * @returns Command for next step in the flow
  */
 const supervisorAgent = async (state: ExtendedState, config: any) => {
   const startTime = Date.now();
-  logEvent('info', 'supervisor_agent', 'flow_start', { startTime });
+  logEvent('info', AgentType.SUPERVISOR, 'flow_start', { startTime });
   
   // Clean and deduplicate messages
   const cleanMessages = state.messages
@@ -224,7 +221,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
         acc.seen.add(msgKey);
         acc.messages.push(msg);
       } else {
-        logEvent('info', 'supervisor_agent', 'duplicate_message_skipped', {
+        logEvent('info', AgentType.SUPERVISOR, 'duplicate_message_skipped', {
           type: msg.constructor.name,
           content: msg.content
         });
@@ -242,19 +239,28 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
   if (!existingTaskState && typeof originalRequest === 'string') {
     const tasks = await extractTasks(originalRequest);
     // Initialize task state
-    state = await updateTaskState(state, tasks);
-    logEvent('info', 'supervisor_agent', 'tasks_extracted', { 
+    state = updateMemoryWithTaskState(state, { tasks });
+    logEvent('info', AgentType.SUPERVISOR, 'tasks_extracted', { 
       tasks: tasks.map(t => ({ id: t.id, type: t.type, dependencies: t.dependencies }))
     });
   }
 
   // Get task progress
-  const progress = getTaskProgress(state);
-  logEvent('info', 'supervisor_agent', 'task_progress', progress);
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState) {
+    logEvent('info', AgentType.SUPERVISOR, 'no_task_state');
+    return new Command({
+      goto: END,
+      update: { messages: state.messages }
+    });
+  }
+
+  const progress = getTaskProgress(taskState);
+  logEvent('info', AgentType.SUPERVISOR, 'task_progress', progress);
 
   // If all tasks are completed or failed, end the flow
   if (progress.completed + progress.failed === progress.total && progress.total > 0) {
-    logEvent('info', 'supervisor_agent', 'all_tasks_completed', {
+    logEvent('info', AgentType.SUPERVISOR, 'all_tasks_completed', {
       completed: progress.completed,
       failed: progress.failed,
       total: progress.total
@@ -274,7 +280,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
 
   // If no tasks are pending, end the flow
   if (progress.pending === 0 && progress.total > 0) {
-    logEvent('info', 'supervisor_agent', 'no_pending_tasks');
+    logEvent('info', AgentType.SUPERVISOR, 'no_pending_tasks');
     return new Command({
       goto: END,
       update: { 
@@ -291,7 +297,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
   // Get the next task to execute
   const { task, updatedState } = getNextTask(state);
   if (!task) {
-    logEvent('info', 'supervisor_agent', 'no_available_tasks');
+    logEvent('info', AgentType.SUPERVISOR, 'no_available_tasks');
     return new Command({
       goto: END,
       update: { 
@@ -307,7 +313,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
 
   // Update state with the next task
   state = updatedState;
-  logEvent('info', 'supervisor_agent', 'task_selected', { 
+  logEvent('info', AgentType.SUPERVISOR, 'task_selected', { 
     taskId: task.id,
     type: task.type,
     description: task.description,
@@ -335,7 +341,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
     ...state,
     messages: [...state.messages, systemMessage]
   }, config);
-  logEvent('info', 'supervisor_agent', 'core_completed', {
+  logEvent('info', AgentType.SUPERVISOR, 'core_completed', {
     duration: Date.now() - coreStartTime
   });
 
@@ -351,7 +357,7 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
     const lines = cleanedContent.split('\n');
     const uniqueLines = [...new Set(lines)];
     if (lines.length !== uniqueLines.length) {
-      logEvent('info', 'supervisor_agent', 'duplicate_lines_removed', {
+      logEvent('info', AgentType.SUPERVISOR, 'duplicate_lines_removed', {
         originalLines: lines.length,
         uniqueLines: uniqueLines.length
       });
@@ -368,22 +374,22 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
     
     // Track the decision
     state = await trackAgentDecision(state, {
-      agent: 'supervisor_agent',
+      agent: AgentType.SUPERVISOR,
       action: toolCall.name,
       reason,
-      remainingTasks: state.memory?.get('taskState')?.tasks
+      remainingTasks: taskState.tasks
         .filter(t => t.status === 'pending')
         .map(t => t.description)
     });
 
-    logEvent('info', 'supervisor_agent', 'transfer_initiated', {
+    logEvent('info', AgentType.SUPERVISOR, 'transfer_initiated', {
       targetAgent: toolCall.name.replace('transfer_to_', ''),
       reason,
       currentTask: task
     });
 
     return new Command({
-      goto: "tool_node",
+      goto: AgentType.TOOL,
       update: {
         messages: [
           ...state.messages,
@@ -410,22 +416,22 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
   
   // Track the decision
   state = await trackAgentDecision(state, {
-    agent: 'supervisor_agent',
+    agent: AgentType.SUPERVISOR,
     action: transferTool,
     reason,
-    remainingTasks: state.memory?.get('taskState')?.tasks
+    remainingTasks: taskState.tasks
       .filter(t => t.status === 'pending')
       .map(t => t.description)
   });
 
-  logEvent('info', 'supervisor_agent', 'transfer_initiated', {
+  logEvent('info', AgentType.SUPERVISOR, 'transfer_initiated', {
     targetAgent: transferTool.replace('transfer_to_', ''),
     reason,
     currentTask: task
   });
 
   return new Command({
-    goto: "tool_node",
+    goto: AgentType.TOOL,
     update: {
       messages: [
         ...state.messages,
@@ -442,12 +448,12 @@ const toolNode = async (
   config: any
 ) => {
   const startTime = Date.now();
-  logEvent('info', 'tool_node', 'flow_start', { startTime });
+  logEvent('info', AgentType.TOOL, 'flow_start', { startTime });
   
   const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
   
   if (!lastMessage?.tool_calls?.length) {
-    logEvent('info', 'tool_node', 'no_tool_calls', {
+    logEvent('info', AgentType.TOOL, 'no_tool_calls', {
       messageType: lastMessage?.constructor.name,
       hasToolCalls: !!lastMessage?.tool_calls,
       messageContent: lastMessage?.content
@@ -461,7 +467,7 @@ const toolNode = async (
   // Get the current task from task state
   const taskState = state.memory?.get('taskState') as TaskState;
   if (!taskState) {
-    logEvent('info', 'tool_node', 'no_task_state');
+    logEvent('info', AgentType.TOOL, 'no_task_state');
     return new Command({
       goto: END,
       update: { messages: state.messages }
@@ -470,7 +476,7 @@ const toolNode = async (
 
   const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
   if (!currentTask) {
-    logEvent('info', 'tool_node', 'no_current_task');
+    logEvent('info', AgentType.TOOL, 'no_current_task');
     return new Command({
       goto: END,
       update: { messages: state.messages }
@@ -481,7 +487,7 @@ const toolNode = async (
   const transferTools = createTransferTools();
   const toolNodeHandler = new ToolNode(transferTools);
   
-  logEvent('info', 'tool_node', 'executing_tools', {
+  logEvent('info', AgentType.TOOL, 'executing_tools', {
     toolCalls: lastMessage.tool_calls.map(call => ({
       name: call.name,
       args: call.args
@@ -491,7 +497,7 @@ const toolNode = async (
   // Execute tools in parallel
   const result = await toolNodeHandler.invoke(state);
   
-  logEvent('info', 'tool_node', 'tools_executed', {
+  logEvent('info', AgentType.TOOL, 'tools_executed', {
     results: result.messages.map(msg => ({
       type: msg.constructor.name,
       content: msg.content,
@@ -503,9 +509,9 @@ const toolNode = async (
   const firstToolCall = lastMessage.tool_calls[0];
   
   // Determine next node based on task type
-  const nextNode = currentTask.type === 'query' ? 'query_agent' : 'mutation_agent';
+  const nextNode = currentTask.type === 'query' ? AgentType.QUERY : AgentType.MUTATION;
   
-  logEvent('info', 'tool_node', 'preparing_handoff', { 
+  logEvent('info', AgentType.TOOL, 'preparing_handoff', { 
     targetAgent: nextNode,
     nextNode,
     taskType: currentTask.type,
@@ -515,13 +521,12 @@ const toolNode = async (
     }
   });
 
-  logEvent('info', 'tool_node', 'flow_end', {
+  logEvent('info', AgentType.TOOL, 'flow_end', {
     duration: Date.now() - startTime,
     nextNode,
     messagesProcessed: result.messages.length
   });
 
-  // Pass the state through to the next node
   return new Command({
     goto: nextNode,
     update: { 
@@ -533,37 +538,24 @@ const toolNode = async (
 
 const create_multi_agent_rita_graph = async () => {
   try {
-    console.log("Initializing MCP client for multi-agent setup...");
+    console.log("Initializing Multi-Agent RITA Graph...");
 
-    // Get all MCP tools
-    const allMcpTools = await client.getTools();
-
-    if (allMcpTools.length === 0) {
-      throw new Error("No tools found");
-    }
-
-    // Model
-    const model = new ChatOpenAI({
-      model: 'gpt-4',
-      temperature: 0,
-    });
-
-    // Build the simplified workflow
+    // Create the nodes
     const workflow = new StateGraph(MergedAnnotation)
-      .addNode("supervisor_agent", supervisorAgent, {
-        ends: ["tool_node", END]
+      .addNode(AgentType.SUPERVISOR, supervisorAgent, {
+        ends: [AgentType.TOOL, END]
       })
-      .addNode("tool_node", toolNode, {
-        ends: ["query_agent", "mutation_agent", END]
+      .addNode(AgentType.TOOL, toolNode, {
+        ends: [AgentType.QUERY, AgentType.MUTATION, END]
       })
-      .addNode("query_agent", async (state: ExtendedState, config: any) => {
+      .addNode(AgentType.QUERY, async (state: ExtendedState, config: any) => {
         const startTime = Date.now();
-        logEvent('info', 'query_agent', 'flow_start', { startTime });
+        logEvent('info', AgentType.QUERY, 'flow_start', { startTime });
 
         // Get the current task from task state
         const taskState = state.memory?.get('taskState') as TaskState;
         if (!taskState) {
-          logEvent('info', 'query_agent', 'no_task_state');
+          logEvent('info', AgentType.QUERY, 'no_task_state');
           return new Command({
             goto: END,
             update: { messages: state.messages }
@@ -573,7 +565,7 @@ const create_multi_agent_rita_graph = async () => {
         const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
         
         if (!currentTask) {
-          logEvent('info', 'query_agent', 'no_current_task');
+          logEvent('info', AgentType.QUERY, 'no_current_task');
           return new Command({
             goto: END,
             update: { messages: state.messages }
@@ -582,18 +574,18 @@ const create_multi_agent_rita_graph = async () => {
 
         // Skip if this is a mutation task
         if (currentTask.type === 'mutation') {
-          logEvent('info', 'query_agent', 'skipping_task', {
+          logEvent('info', AgentType.QUERY, 'skipping_task', {
             taskId: currentTask.id,
             description: currentTask.description,
             reason: 'Task is mutation type, should be handled by mutation agent'
           });
           return new Command({
-            goto: "supervisor_agent",
+            goto: AgentType.SUPERVISOR,
             update: { messages: state.messages }
           });
         }
 
-        logEvent('info', 'query_agent', 'executing_task', {
+        logEvent('info', AgentType.QUERY, 'executing_task', {
           taskId: currentTask.id,
           description: currentTask.description,
           type: currentTask.type
@@ -603,20 +595,20 @@ const create_multi_agent_rita_graph = async () => {
         const result = await executeQueryTask(currentTask);
         
         // Update task result and get new state
-        const updatedState = updateTaskResult(state, currentTask.id, result);
+        const updatedState = updateTaskResultInState(state, currentTask.id, result);
         
-        logEvent('info', 'query_agent', 'task_completed', {
+        logEvent('info', AgentType.QUERY, 'task_completed', {
           taskId: currentTask.id,
           result
         });
 
-        logEvent('info', 'query_agent', 'flow_end', {
+        logEvent('info', AgentType.QUERY, 'flow_end', {
           duration: Date.now() - startTime
         });
 
         // Return to supervisor for next task
         return new Command({
-          goto: "supervisor_agent",
+          goto: AgentType.SUPERVISOR,
           update: { 
             messages: [
               ...state.messages,
@@ -628,14 +620,14 @@ const create_multi_agent_rita_graph = async () => {
           }
         });
       })
-      .addNode("mutation_agent", async (state: ExtendedState) => {
+      .addNode(AgentType.MUTATION, async (state: ExtendedState) => {
         const startTime = Date.now();
-        logEvent('info', 'mutation_agent', 'flow_start', { startTime });
+        logEvent('info', AgentType.MUTATION, 'flow_start', { startTime });
 
         // Get the current task from task state
         const taskState = state.memory?.get('taskState') as TaskState;
         if (!taskState) {
-          logEvent('info', 'mutation_agent', 'no_task_state');
+          logEvent('info', AgentType.MUTATION, 'no_task_state');
           return new Command({
             goto: END,
             update: { messages: state.messages }
@@ -645,7 +637,7 @@ const create_multi_agent_rita_graph = async () => {
         const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
         
         if (!currentTask) {
-          logEvent('info', 'mutation_agent', 'no_current_task');
+          logEvent('info', AgentType.MUTATION, 'no_current_task');
           return new Command({
             goto: END,
             update: { messages: state.messages }
@@ -654,18 +646,18 @@ const create_multi_agent_rita_graph = async () => {
 
         // Skip if this is a query task
         if (currentTask.type === 'query') {
-          logEvent('info', 'mutation_agent', 'skipping_task', {
+          logEvent('info', AgentType.MUTATION, 'skipping_task', {
             taskId: currentTask.id,
             description: currentTask.description,
             reason: 'Task is query type, should be handled by query agent'
           });
           return new Command({
-            goto: "supervisor_agent",
+            goto: AgentType.SUPERVISOR,
             update: { messages: state.messages }
           });
         }
 
-        logEvent('info', 'mutation_agent', 'executing_task', {
+        logEvent('info', AgentType.MUTATION, 'executing_task', {
           taskId: currentTask.id,
           description: currentTask.description,
           type: currentTask.type
@@ -675,20 +667,20 @@ const create_multi_agent_rita_graph = async () => {
         const result = await executeMutationTask(currentTask);
         
         // Update task result and get new state
-        const updatedState = updateTaskResult(state, currentTask.id, result);
+        const updatedState = updateTaskResultInState(state, currentTask.id, result);
         
-        logEvent('info', 'mutation_agent', 'task_completed', {
+        logEvent('info', AgentType.MUTATION, 'task_completed', {
           taskId: currentTask.id,
           result
         });
 
-        logEvent('info', 'mutation_agent', 'flow_end', {
+        logEvent('info', AgentType.MUTATION, 'flow_end', {
           duration: Date.now() - startTime
         });
 
         // Return to supervisor for next task
         return new Command({
-          goto: "supervisor_agent",
+          goto: AgentType.SUPERVISOR,
           update: { 
             messages: [
               ...state.messages,
@@ -700,9 +692,9 @@ const create_multi_agent_rita_graph = async () => {
           }
         });
       })
-      .addEdge(START, "supervisor_agent")
-      .addEdge("tool_node", "query_agent")
-      .addEdge("tool_node", "mutation_agent");
+      .addEdge(START, AgentType.SUPERVISOR)
+      .addEdge(AgentType.TOOL, AgentType.QUERY)
+      .addEdge(AgentType.TOOL, AgentType.MUTATION);
 
     // Compile the graph
     const memory = new MemorySaver();
@@ -716,16 +708,5 @@ const create_multi_agent_rita_graph = async () => {
     process.exit(1);
   }
 };
-
-// Helper functions for task execution
-async function executeQueryTask(task: Task) {
-  // Implement query task execution logic
-  return { success: true, data: `Executed query task: ${task.description}` };
-}
-
-async function executeMutationTask(task: Task) {
-  // Implement mutation task execution logic
-  return { success: true, data: `Executed mutation task: ${task.description}` };
-}
 
 export { create_multi_agent_rita_graph }; 
