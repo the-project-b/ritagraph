@@ -9,16 +9,18 @@ import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 import { MergedAnnotation, ExtendedState } from "../../states/states";
 import { Task, TaskState } from './types';
 import { AgentType } from './types/agents';
+import { createTypeDetailsAgent } from './agents/type-details-agent';
 import {
   extractTasks,
   updateTaskResult,
   getTaskProgress,
   updateMemoryWithTaskState,
   updateTaskProgress,
-  updateCurrentTask,
   updateTaskResultInState,
   executeQueryTask,
-  executeMutationTask
+  executeMutationTask,
+  executeTypeDetailsTask,
+  injectTypeDetailsTaskIfNeeded
 } from './tasks/tasks-handling';
 
 // Define interfaces
@@ -64,6 +66,127 @@ const logEvent = (level: StructuredLog['level'], agent: AgentType, event: string
     details
   };
   console.log(JSON.stringify(log));
+};
+
+// Generate initial plan message for user
+const generateInitialPlanMessage = (request: string, tasks: Task[]): string | null => {
+  if (!tasks.length) return null;
+
+  // Determine the main action based on task types
+  const hasQuery = tasks.some(t => t.type === 'query');
+  const hasMutation = tasks.some(t => t.type === 'mutation');
+  const taskCount = tasks.filter(t => t.type !== 'type_details').length; // Don't count internal type details tasks
+
+  let actionDescription = '';
+  
+  if (hasQuery && hasMutation) {
+    actionDescription = `retrieve and update data (${taskCount} operations)`;
+  } else if (hasQuery) {
+    if (request.toLowerCase().includes('employee')) {
+      actionDescription = 'retrieve employee information';
+    } else if (request.toLowerCase().includes('user')) {
+      actionDescription = 'retrieve user information';
+    } else if (request.toLowerCase().includes('list') || request.toLowerCase().includes('get') || request.toLowerCase().includes('find')) {
+      actionDescription = 'retrieve the requested information';
+    } else {
+      actionDescription = 'retrieve data';
+    }
+  } else if (hasMutation) {
+    actionDescription = 'perform the requested changes';
+  } else {
+    actionDescription = 'process your request';
+  }
+
+  // Generate contextual message
+  if (request.toLowerCase().includes('employee')) {
+    return `🔍 I'll help you ${actionDescription}. Let me analyze the employee data structure and fetch the results.`;
+  } else if (request.toLowerCase().includes('user') && request.toLowerCase().includes('me')) {
+    return `👤 I'll retrieve your user profile information.`;
+  } else if (request.toLowerCase().includes('list') || request.toLowerCase().includes('all')) {
+    return `📋 I'll ${actionDescription}. This may require analyzing data structures first.`;
+  } else if (hasMutation) {
+    return `⚙️ I'll ${actionDescription}. Let me process this safely.`;
+  } else {
+    return `🔍 I'll ${actionDescription} for you.`;
+  }
+};
+
+// Generate detailed completion summary
+const generateCompletionSummary = (taskState: TaskState, progress: any): string => {
+  const completedTasks = taskState.tasks.filter(task => task.status === 'completed');
+  const failedTasks = taskState.tasks.filter(task => task.status === 'failed');
+  const userTasks = taskState.tasks.filter(task => task.type !== 'type_details'); // Filter out internal tasks
+
+  let summary = '';
+
+  // Header with overall status
+  if (progress.failed === 0) {
+    summary = `## ✅ All Operations Completed Successfully\n`;
+  } else {
+    summary = `## ⚠️ Operations Completed with Issues\n`;
+  }
+
+  // Summary stats
+  summary += `**Summary:** ${progress.completed} completed, ${progress.failed} failed out of ${progress.total} total operations\n\n`;
+
+  // Detailed breakdown of completed tasks
+  if (completedTasks.length > 0) {
+    summary += `### 🎉 Successfully Completed:\n`;
+    completedTasks.forEach((task, index) => {
+      if (task.type !== 'type_details') { // Don't show internal type details tasks
+        const taskNumber = index + 1;
+        const icon = task.type === 'query' ? '📊' : task.type === 'mutation' ? '⚙️' : '🔧';
+        summary += `${taskNumber}. ${icon} **${task.description}**\n`;
+        
+        // Add result summary if available
+        if (task.result && task.result.success) {
+          if (task.result.summary) {
+            summary += `   └─ ${task.result.summary}\n`;
+          } else if (task.result.data) {
+            // Try to extract meaningful info from the result
+            if (typeof task.result.data === 'string') {
+              summary += `   └─ ${task.result.data}\n`;
+            } else if (task.result.data.employees?.employees) {
+              const count = task.result.data.employees.employees.length;
+              summary += `   └─ Retrieved ${count} employee${count !== 1 ? 's' : ''}\n`;
+            } else if (task.result.data.me) {
+              summary += `   └─ Retrieved user profile information\n`;
+            } else {
+              summary += `   └─ Data retrieved successfully\n`;
+            }
+          }
+        }
+        summary += '\n';
+      }
+    });
+  }
+
+  // Detailed breakdown of failed tasks
+  if (failedTasks.length > 0) {
+    summary += `### ❌ Failed Operations:\n`;
+    failedTasks.forEach((task, index) => {
+      if (task.type !== 'type_details') {
+        const taskNumber = index + 1;
+        summary += `${taskNumber}. **${task.description}**\n`;
+        if (task.error) {
+          summary += `   └─ Error: ${task.error}\n`;
+        }
+        summary += '\n';
+      }
+    });
+  }
+
+  // Performance info with execution time
+  const executionEndTime = Date.now();
+  const executionStartTime = taskState.executionStartTime || executionEndTime;
+  const durationMs = executionEndTime - executionStartTime;
+  const durationSeconds = Math.round(durationMs / 1000);
+  
+  const completionTime = new Date(executionEndTime).toLocaleTimeString();
+  
+  summary += `---\n*Execution completed at ${completionTime} and took ${durationSeconds} second${durationSeconds !== 1 ? 's' : ''}*`;
+
+  return summary;
 };
 
 // Utility function to update state
@@ -113,7 +236,20 @@ const createTransferTools = () => {
     }
   );
 
-  return [queryAgentTool, mutationAgentTool];
+  const typeDetailsAgentTool = tool(
+    async ({ reason }: { reason: string }) => {
+      return `Transferring to type details agent: ${reason}`;
+    },
+    {
+      name: "transfer_to_type_details_agent",
+      description: "Transfer to type details agent for GraphQL type introspection",
+      schema: z.object({
+        reason: z.string().describe("Reason for the transfer"),
+      }),
+    }
+  );
+
+  return [queryAgentTool, mutationAgentTool, typeDetailsAgentTool];
 };
 
 // Create router for tool node
@@ -121,6 +257,7 @@ const createToolRouter = () => {
   const routes = new Map([
     ['transfer_to_query_agent', AgentType.QUERY],
     ['transfer_to_mutation_agent', AgentType.MUTATION],
+    ['transfer_to_type_details_agent', AgentType.TYPE_DETAILS],
     ['end_task', END]
   ]);
 
@@ -150,21 +287,24 @@ TASK EXECUTION RULES:
    - Use transfer_to_mutation_agent
    - Example: "update email" -> transfer_to_mutation_agent
 
+3. For GraphQL type introspection tasks (type details, schema analysis):
+   - Use transfer_to_type_details_agent
+   - Example: "analyze GraphQL types" -> transfer_to_type_details_agent
+
 DECISION PROCESS:
 1. Review the current task description and type
 2. Use the task's target agent to determine which transfer tool to use
 3. Provide a clear reason for the transfer
 
 RESPONSE FORMAT:
-"I'll help you [action]. [Brief explanation]"
-[Use the task's target agent transfer tool]
+[Use the task's target agent transfer tool directly without explanatory text]
 
 CRITICAL INSTRUCTIONS:
 - ALWAYS use a transfer tool for each task
 - Use the task's target agent to determine which transfer tool to use
 - Provide a specific reason for the transfer
 - Keep responses focused on the current task
-- Use the exact tool names: transfer_to_query_agent or transfer_to_mutation_agent`,
+- Use the exact tool names: transfer_to_query_agent, transfer_to_mutation_agent, or transfer_to_type_details_agent`,
     name: "supervisor_agent"
   });
 };
@@ -178,21 +318,54 @@ const getNextTask = (state: ExtendedState): { task: Task | null; updatedState: E
     return { task: null, updatedState: state };
   }
 
-  const nextTask = taskState.tasks[taskState.currentTaskIndex];
-  if (!nextTask) {
+  console.log(`🎯 TASK SELECTOR - Looking for next task among ${taskState.tasks.length} tasks`);
+  console.log(`🎯 TASK SELECTOR - Completed tasks:`, Array.from(taskState.completedTasks));
+  console.log(`🎯 TASK SELECTOR - Failed tasks:`, Array.from(taskState.failedTasks));
+
+  // Find the next available task that:
+  // 1. Is pending
+  // 2. Has all dependencies completed
+  const availableTask = taskState.tasks.find(task => {
+    console.log(`🎯 TASK SELECTOR - Checking task ${task.id}: status=${task.status}, dependencies=[${task.dependencies.join(', ')}]`);
+    
+    if (task.status !== 'pending') {
+      console.log(`🎯 TASK SELECTOR - Task ${task.id} skipped: status is ${task.status}`);
+      return false;
+    }
+    
+    // Check if all dependencies are completed
+    const allDependenciesCompleted = task.dependencies.every(depId => {
+      const isCompleted = taskState.completedTasks.has(depId);
+      console.log(`🎯 TASK SELECTOR - Dependency ${depId} completed: ${isCompleted}`);
+      return isCompleted;
+    });
+    
+    if (!allDependenciesCompleted) {
+      console.log(`🎯 TASK SELECTOR - Task ${task.id} skipped: dependencies not completed`);
+      return false;
+    }
+    
+    console.log(`🎯 TASK SELECTOR - Task ${task.id} is available for execution`);
+    return true;
+  });
+
+  if (!availableTask) {
+    console.log(`🎯 TASK SELECTOR - No available tasks found`);
     return { task: null, updatedState: state };
   }
 
+  console.log(`🎯 TASK SELECTOR - Selected task: ${availableTask.id}`);
+
+  // Update the selected task to 'in_progress'
   const updatedTaskState = {
     ...taskState,
-    currentTaskIndex: taskState.currentTaskIndex + 1,
-    tasks: taskState.tasks.map((task, index) => 
-      index === taskState.currentTaskIndex ? { ...task, status: 'in_progress' } : task
+    tasks: taskState.tasks.map(task => 
+      task.id === availableTask.id ? { ...task, status: 'in_progress' as const } : task
     )
   };
 
   return {
-    task: nextTask,
+    task: availableTask,
     updatedState: {
       ...state,
       memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
@@ -237,12 +410,30 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
   // Only extract tasks if we don't have a task state yet
   const existingTaskState = state.memory?.get('taskState') as TaskState;
   if (!existingTaskState && typeof originalRequest === 'string') {
+    const executionStartTime = Date.now();
     const tasks = await extractTasks(originalRequest);
-    // Initialize task state
-    state = updateMemoryWithTaskState(state, { tasks });
+    // Initialize task state with start time
+    state = updateMemoryWithTaskState(state, { tasks, executionStartTime });
     logEvent('info', AgentType.SUPERVISOR, 'tasks_extracted', { 
       tasks: tasks.map(t => ({ id: t.id, type: t.type, dependencies: t.dependencies }))
     });
+
+    // Generate and return initial plan message
+    const planMessage = generateInitialPlanMessage(originalRequest, tasks);
+    if (planMessage) {
+      return new Command({
+        goto: AgentType.SUPERVISOR, // Continue processing
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: planMessage
+            })
+          ],
+          memory: state.memory
+        }
+      });
+    }
   }
 
   // Get task progress
@@ -265,13 +456,17 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
       failed: progress.failed,
       total: progress.total
     });
+
+    // Generate detailed completion summary
+    const completionMessage = generateCompletionSummary(taskState, progress);
+    
     return new Command({
       goto: END,
       update: { 
         messages: [
           ...state.messages,
           new AIMessage({
-            content: `All tasks completed. Successfully completed: ${progress.completed}, Failed: ${progress.failed}`
+            content: completionMessage
           })
         ]
       }
@@ -310,6 +505,12 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
       }
     });
   }
+
+  console.log(`🎯 SUPERVISOR - Selected task: ${task.id}`);
+  console.log(`🎯 SUPERVISOR - Task type: ${task.type}`);
+  console.log(`🎯 SUPERVISOR - Task description: ${task.description}`);
+  console.log(`🎯 SUPERVISOR - Target agent: ${task.targetAgent}`);
+  console.log(`🎯 SUPERVISOR - Dependencies: ${task.dependencies.join(', ') || 'none'}`);
 
   // Update state with the next task
   state = updatedState;
@@ -382,61 +583,68 @@ const supervisorAgent = async (state: ExtendedState, config: any) => {
         .map(t => t.description)
     });
 
+    // Determine target agent based on tool call
+    let targetAgent: AgentType;
+    if (toolCall.name === 'transfer_to_query_agent') {
+      targetAgent = AgentType.QUERY;
+    } else if (toolCall.name === 'transfer_to_mutation_agent') {
+      targetAgent = AgentType.MUTATION;
+    } else if (toolCall.name === 'transfer_to_type_details_agent') {
+      targetAgent = AgentType.TYPE_DETAILS;
+    } else {
+      targetAgent = AgentType.QUERY; // Default fallback
+    }
+
     logEvent('info', AgentType.SUPERVISOR, 'transfer_initiated', {
-      targetAgent: toolCall.name.replace('transfer_to_', ''),
+      targetAgent,
       reason,
       currentTask: task
     });
 
+    // Direct transfer to avoid tool node recursion
     return new Command({
-      goto: AgentType.TOOL,
+      goto: targetAgent,
       update: {
-        messages: [
-          ...state.messages,
-          lastMessage
-        ],
+        messages: state.messages, // No technical messages
         memory: state.memory
       }
     });
   }
   
-  // If no tool calls were made, force a transfer based on task type
-  const transferTool = task.type === 'query' ? 'transfer_to_query_agent' : 'transfer_to_mutation_agent';
+  // If no tool calls were made, force a direct transfer based on task type
+  let targetAgent: AgentType;
+  if (task.type === 'query') {
+    targetAgent = AgentType.QUERY;
+  } else if (task.type === 'mutation') {
+    targetAgent = AgentType.MUTATION;
+  } else if (task.type === 'type_details') {
+    targetAgent = AgentType.TYPE_DETAILS;
+  } else {
+    targetAgent = AgentType.QUERY; // Default fallback
+  }
   const reason = `Task requires ${task.type} operation`;
-  
-  // Create a new AIMessage with the tool call
-  const forcedTransferMessage = new AIMessage({
-    content: `I'll help you ${task.description}. ${reason}`,
-    tool_calls: [{
-      id: 'forced_transfer',
-      name: transferTool,
-      args: { reason }
-    }]
-  });
   
   // Track the decision
   state = await trackAgentDecision(state, {
     agent: AgentType.SUPERVISOR,
-    action: transferTool,
+    action: `direct_transfer_to_${targetAgent}`,
     reason,
     remainingTasks: taskState.tasks
       .filter(t => t.status === 'pending')
       .map(t => t.description)
   });
 
-  logEvent('info', AgentType.SUPERVISOR, 'transfer_initiated', {
-    targetAgent: transferTool.replace('transfer_to_', ''),
+  logEvent('info', AgentType.SUPERVISOR, 'direct_transfer_initiated', {
+    targetAgent,
     reason,
     currentTask: task
   });
 
+  // Direct transfer without going through tool node to avoid recursion
   return new Command({
-    goto: AgentType.TOOL,
+    goto: targetAgent,
     update: {
-      messages: [
-        ...state.messages,
-        forcedTransferMessage
-      ],
+      messages: state.messages, // No technical messages
       memory: state.memory
     }
   });
@@ -474,7 +682,8 @@ const toolNode = async (
     });
   }
 
-  const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
+  // Find the current task in progress
+  const currentTask = taskState.tasks.find(task => task.status === 'in_progress');
   if (!currentTask) {
     logEvent('info', AgentType.TOOL, 'no_current_task');
     return new Command({
@@ -509,7 +718,16 @@ const toolNode = async (
   const firstToolCall = lastMessage.tool_calls[0];
   
   // Determine next node based on task type
-  const nextNode = currentTask.type === 'query' ? AgentType.QUERY : AgentType.MUTATION;
+  let nextNode;
+  if (currentTask.type === 'query') {
+    nextNode = AgentType.QUERY;
+  } else if (currentTask.type === 'mutation') {
+    nextNode = AgentType.MUTATION;
+  } else if (currentTask.type === 'type_details') {
+    nextNode = AgentType.TYPE_DETAILS;
+  } else {
+    nextNode = AgentType.QUERY; // Default fallback
+  }
   
   logEvent('info', AgentType.TOOL, 'preparing_handoff', { 
     targetAgent: nextNode,
@@ -546,7 +764,7 @@ const create_multi_agent_rita_graph = async () => {
         ends: [AgentType.TOOL, END]
       })
       .addNode(AgentType.TOOL, toolNode, {
-        ends: [AgentType.QUERY, AgentType.MUTATION, END]
+        ends: [AgentType.QUERY, AgentType.MUTATION, AgentType.TYPE_DETAILS, END]
       })
       .addNode(AgentType.QUERY, async (state: ExtendedState, config: any) => {
         const startTime = Date.now();
@@ -562,7 +780,8 @@ const create_multi_agent_rita_graph = async () => {
           });
         }
 
-        const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
+        // Find the current task in progress
+        const currentTask = taskState.tasks.find(task => task.status === 'in_progress');
         
         if (!currentTask) {
           logEvent('info', AgentType.QUERY, 'no_current_task');
@@ -594,8 +813,24 @@ const create_multi_agent_rita_graph = async () => {
         // Execute query task
         const result = await executeQueryTask(currentTask, state, config);
         
+        // Check if the result indicates type details are needed and inject them
+        let workingState = state;
+        if (result && result.requiresTypeDetails) {
+          console.log(`🔍 QUERY NODE - Query task requires type details, injecting type details task`);
+          workingState = injectTypeDetailsTaskIfNeeded(state, currentTask.id, result);
+          
+          // Return to supervisor to handle the new type details task quietly
+          return new Command({
+            goto: AgentType.SUPERVISOR,
+            update: { 
+              messages: state.messages, // Don't add technical messages to user conversation
+              memory: workingState.memory
+            }
+          });
+        }
+        
         // Update task result and get new state
-        const updatedState = updateTaskResultInState(state, currentTask.id, result);
+        const updatedState = updateTaskResultInState(workingState, currentTask.id, result);
         
         logEvent('info', AgentType.QUERY, 'task_completed', {
           taskId: currentTask.id,
@@ -606,34 +841,79 @@ const create_multi_agent_rita_graph = async () => {
           duration: Date.now() - startTime
         });
 
-        // Format user-friendly message from the result
-        let userMessage = `Completed query task: ${currentTask.description}`;
+        // Format clean, user-friendly message from the result
+        let userMessage = '';
         
         if (result.success && result.summary) {
-          userMessage += `\n✅ ${result.summary}`;
+          userMessage = result.summary;
           
-          // If there's employee data, show a preview
-          if (result.data?.employees?.employees && Array.isArray(result.data.employees.employees)) {
-            const employees = result.data.employees.employees;
-            const employeeCount = employees.length;
-            
-            if (employeeCount > 0) {
-              userMessage += `\n\n👥 Found ${employeeCount} employee${employeeCount !== 1 ? 's' : ''}:`;
+          // Handle different types of query results
+          if (result.data) {
+            // Handle "me" query result
+            if (result.data.me) {
+              const userData = result.data.me;
+              userMessage = `👤 User Information:`;
+              if (userData.firstName || userData.lastName) {
+                const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ');
+                userMessage += `\n📝 Name: ${fullName}`;
+              }
+              if (userData.email) {
+                userMessage += `\n📧 Email: ${userData.email}`;
+              }
+              if (userData.id) {
+                userMessage += `\n🆔 ID: ${userData.id}`;
+              }
+            }
+            // Handle employees query result  
+            else if (result.data.employees?.employees && Array.isArray(result.data.employees.employees)) {
+              const employees = result.data.employees.employees;
+              const employeeCount = employees.length;
               
-              // Show first 3 employees as preview
-              const previewEmployees = employees.slice(0, 3);
-              previewEmployees.forEach((emp: any, index: number) => {
-                const name = emp.firstName ? `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}` : emp.email;
-                userMessage += `\n${index + 1}. ${name} (${emp.email})`;
-              });
-              
-              if (employeeCount > 3) {
-                userMessage += `\n... and ${employeeCount - 3} more`;
+              if (employeeCount > 0) {
+                userMessage = `👥 Employee Directory (${employeeCount} ${employeeCount === 1 ? 'employee' : 'employees'}):`;
+                
+                // Show first 5 employees as preview with exact same formatting as user info
+                const previewEmployees = employees.slice(0, 5);
+                previewEmployees.forEach((emp: any) => {
+                  const name = emp.firstName ? `${emp.firstName}${emp.lastName ? ' ' + emp.lastName : ''}` : 'Unknown Name';
+                  const email = emp.email || 'No email';
+                  
+                  // Clean up test emails for better readability
+                  const displayEmail = email.includes('@zfprmusw.mailosaur.net') 
+                    ? email.replace('@zfprmusw.mailosaur.net', '@company.com')
+                    : email;
+                  
+                  userMessage += `\n\n📝 Name: ${name}`;
+                  userMessage += `\n📧 Email: ${displayEmail}`;
+                  if (emp.jobTitle) userMessage += `\n💼 ${emp.jobTitle}`;
+                  if (emp.status) userMessage += `\n📊 Status: ${emp.status}`;
+                  if (emp.id) userMessage += `\n🆔 ID: ${emp.id}`;
+                });
+                
+                if (employeeCount > 5) {
+                  userMessage += `\n\n*... and ${employeeCount - 5} more employees*`;
+                }
+              } else {
+                userMessage = '👥 No employees found';
+              }
+            }
+            // Generic handling for other query types
+            else {
+              const dataKeys = Object.keys(result.data);
+              if (dataKeys.length > 0) {
+                const firstKey = dataKeys[0];
+                const firstValue = result.data[firstKey];
+                
+                if (Array.isArray(firstValue)) {
+                  userMessage = `📊 Retrieved ${firstValue.length} items`;
+                } else if (firstValue && typeof firstValue === 'object') {
+                  userMessage = `📋 Data retrieved successfully`;
+                }
               }
             }
           }
         } else if (!result.success) {
-          userMessage += `\n❌ Error: ${result.error || 'Unknown error occurred'}`;
+          userMessage = `❌ Error: ${(result as any).error || 'Unknown error occurred'}`;
         }
 
         // Return to supervisor for next task
@@ -664,7 +944,8 @@ const create_multi_agent_rita_graph = async () => {
           });
         }
 
-        const currentTask = taskState.tasks[taskState.currentTaskIndex - 1];
+        // Find the current task in progress
+        const currentTask = taskState.tasks.find(task => task.status === 'in_progress');
         
         if (!currentTask) {
           logEvent('info', AgentType.MUTATION, 'no_current_task');
@@ -708,16 +989,16 @@ const create_multi_agent_rita_graph = async () => {
           duration: Date.now() - startTime
         });
 
-        // Format user-friendly message from the result
-        let userMessage = `Completed mutation task: ${currentTask.description}`;
+        // Format clean, user-friendly message from the result  
+        let userMessage = '';
         
         if ((result as any).success) {
-          userMessage += `\n✅ Operation completed successfully`;
+          userMessage = `✅ Operation completed successfully`;
           if ((result as any).data && typeof (result as any).data === 'string') {
-            userMessage += `\n📝 ${(result as any).data}`;
+            userMessage = `✅ ${(result as any).data}`;
           }
         } else {
-          userMessage += `\n❌ Error: ${(result as any).error || 'Unknown error occurred'}`;
+          userMessage = `❌ Error: ${(result as any).error || 'Unknown error occurred'}`;
         }
 
         // Return to supervisor for next task
@@ -734,13 +1015,96 @@ const create_multi_agent_rita_graph = async () => {
           }
         });
       })
-      .addEdge(START, AgentType.SUPERVISOR)
-      .addEdge(AgentType.TOOL, AgentType.QUERY)
-      .addEdge(AgentType.TOOL, AgentType.MUTATION);
+      .addNode(AgentType.TYPE_DETAILS, async (state: ExtendedState, config: any) => {
+        const startTime = Date.now();
+        logEvent('info', AgentType.TYPE_DETAILS, 'flow_start', { startTime });
+
+        // Get the current task from task state
+        const taskState = state.memory?.get('taskState') as TaskState;
+        if (!taskState) {
+          logEvent('info', AgentType.TYPE_DETAILS, 'no_task_state');
+          return new Command({
+            goto: END,
+            update: { messages: state.messages }
+          });
+        }
+
+        // Find the current task in progress
+        const currentTask = taskState.tasks.find(task => task.status === 'in_progress');
+        
+        if (!currentTask) {
+          logEvent('info', AgentType.TYPE_DETAILS, 'no_current_task');
+          return new Command({
+            goto: END,
+            update: { messages: state.messages }
+          });
+        }
+
+        // Skip if this is not a type details task
+        if (currentTask.type !== 'type_details') {
+          logEvent('info', AgentType.TYPE_DETAILS, 'skipping_task', {
+            taskId: currentTask.id,
+            description: currentTask.description,
+            reason: 'Task is not type_details type'
+          });
+          return new Command({
+            goto: AgentType.SUPERVISOR,
+            update: { messages: state.messages }
+          });
+        }
+
+        logEvent('info', AgentType.TYPE_DETAILS, 'executing_task', {
+          taskId: currentTask.id,
+          description: currentTask.description,
+          type: currentTask.type
+        });
+
+        // Execute type details task
+        const result = await executeTypeDetailsTask(currentTask, state, config);
+        
+        // Update task result and get new state
+        const updatedState = updateTaskResultInState(state, currentTask.id, result);
+        
+        logEvent('info', AgentType.TYPE_DETAILS, 'task_completed', {
+          taskId: currentTask.id,
+          result
+        });
+
+        logEvent('info', AgentType.TYPE_DETAILS, 'flow_end', {
+          duration: Date.now() - startTime
+        });
+
+        // Type details tasks are internal - don't show detailed messages to user
+        let userMessage = '';
+        
+        // Only show error messages for type details tasks
+        if (!(result as any).success) {
+          userMessage = `❌ Error analyzing data types: ${(result as any).error || 'Unknown error occurred'}`;
+        }
+        // For successful type details, don't show any message - it's internal
+
+        // Return to supervisor for next task
+        return new Command({
+          goto: AgentType.SUPERVISOR,
+          update: { 
+            messages: userMessage ? [
+              ...state.messages,
+              new AIMessage({
+                content: userMessage
+              })
+            ] : state.messages, // Only add message if there's an error
+            memory: updatedState.memory
+          }
+        });
+      })
+      .addEdge(START, AgentType.SUPERVISOR);
+      // Note: Removed unconditional edges from TOOL node - routing is handled by Command.goto
 
     // Compile the graph
     const memory = new MemorySaver();
-    const graph = workflow.compile({ checkpointer: memory });
+    const graph = workflow.compile({ 
+      checkpointer: memory
+    });
 
     graph.name = "Supervisor Agent";
 

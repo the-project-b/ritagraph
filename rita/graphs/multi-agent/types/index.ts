@@ -80,10 +80,10 @@ export interface Task {
   id: string;
   /** Human-readable description of the task */
   description: string;
-  /** Type of operation: query for data retrieval or mutation for data modification */
-  type: 'query' | 'mutation';
+  /** Type of operation: query for data retrieval, mutation for data modification, or type_details for GraphQL type introspection */
+  type: 'query' | 'mutation' | 'type_details';
   /** Target agent that should handle this task */
-  targetAgent: 'query_agent' | 'mutation_agent';
+  targetAgent: 'query_agent' | 'mutation_agent' | 'type_details_agent';
   /** List of task IDs that must be completed before this task can start */
   dependencies: string[];
   /** Current execution status of the task */
@@ -110,12 +110,12 @@ export interface Task {
 export interface TaskState {
   /** List of all tasks in the workflow */
   tasks: Task[];
-  /** Index of the current task being processed */
-  currentTaskIndex: number;
   /** Set of completed task IDs */
   completedTasks: Set<string>;
   /** Set of failed task IDs */
   failedTasks: Set<string>;
+  /** Timestamp when execution started (for tracking total execution time) */
+  executionStartTime?: number;
 }
 
 /**

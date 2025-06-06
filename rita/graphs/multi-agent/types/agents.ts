@@ -5,6 +5,7 @@ export enum AgentType {
   SUPERVISOR = "supervisor_agent",
   QUERY = "query_agent",
   MUTATION = "mutation_agent",
+  TYPE_DETAILS = "type_details_agent",
   TOOL = "tool_node"
 }
 

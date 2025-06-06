@@ -1,6 +1,9 @@
 import { Task, TaskState, StructuredLog } from '../types';
 import { AgentType, AgentMessage } from '../types/agents';
 
+// Re-export ExecutionStateManager for easy imports
+export { ExecutionStateManager, executionStateManager, type AgentExecutionState } from './execution-state-manager';
+
 /**
  * Creates a structured log entry
  */
@@ -66,10 +69,8 @@ export function validateTaskState(state: TaskState): boolean {
     }
   }
 
-  // Check if current task index is valid
-  if (state.currentTaskIndex < 0 || state.currentTaskIndex >= state.tasks.length) {
-    return false;
-  }
+  // Note: currentTaskIndex was removed in favor of dependency-based task selection
+  // No additional validation needed for task selection since it's handled dynamically
 
   return true;
 }

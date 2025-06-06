@@ -4,6 +4,7 @@ import { Task } from "../types";
 import client from "../../../mcp/client.js";
 import { placeholderManager } from "../../../placeholders/manager";
 import { MergedAnnotation } from "../../../states/states";
+import { executionStateManager } from "../utils/execution-state-manager";
 // Import placeholders to ensure they are registered
 import "../../../placeholders/index.js";
 
@@ -22,7 +23,6 @@ export async function createQueryAgent() {
   const queryTools = mcpTools.filter(tool => 
     tool.name.includes('graphql-list-queries') ||
     tool.name.includes('graphql-get-query-details') ||
-    tool.name.includes('graphql-get-query-type-details') || 
     tool.name.includes('execute-query')
   );
 
@@ -51,7 +51,25 @@ export async function createQueryAgent() {
         console.log("Query Agent - Using accessToken from:", state.accessToken ? "state" : "auth config");
         console.log("Query Agent - Access token available:", !!accessToken);
 
-        // First, get list of available queries
+        // Check if we have saved execution state to resume from
+        const savedExecutionState = executionStateManager.getState(task.id, 'query_agent');
+        if (savedExecutionState) {
+          console.log(`🔍 QUERY AGENT - Resuming execution from saved state`);
+          console.log(`🔍 QUERY AGENT - Saved plan:`, savedExecutionState.plan);
+          console.log(`🔍 QUERY AGENT - Saved results:`, savedExecutionState.results);
+          
+          // Resume execution from where we left off
+          const result = await this.resumeExecution(savedExecutionState, accessToken, task, state, config);
+          
+          // Clear the execution state after successful resumption
+          if (result.success) {
+            executionStateManager.clearState(task.id, 'query_agent');
+          }
+          
+          return result;
+        }
+
+        // First execution - get list of available queries
         const listQueriesTool = queryTools.find(t => t.name === 'graphql-list-queries');
         if (!listQueriesTool) {
           throw new Error('graphql-list-queries tool not found');
@@ -60,6 +78,37 @@ export async function createQueryAgent() {
         const listQueriesArgs = accessToken ? { accessToken } : {};
         const queriesList = await listQueriesTool.invoke(listQueriesArgs);
         console.log('Available queries:', queriesList);
+
+        // Check for existing type details in the state
+        const taskState = state.memory?.get('taskState');
+        let existingTypeDetailsContext = '';
+        if (taskState && taskState.tasks) {
+          const completedTypeDetailsTasks = taskState.tasks.filter((t: any) => 
+            t.type === 'type_details' && 
+            t.status === 'completed' && 
+            t.result && 
+            t.result.success
+          );
+          
+          if (completedTypeDetailsTasks.length > 0) {
+            const typeAnalysis = completedTypeDetailsTasks.map((t: any) => {
+              if (t.result.metadata && t.result.metadata.typesAnalyzed) {
+                return `Types analyzed: ${t.result.metadata.typesAnalyzed.join(', ')}`;
+              }
+              return 'Type details available';
+            }).join('\n');
+            
+            existingTypeDetailsContext = `\n\nIMPORTANT - EXISTING TYPE DETAILS:
+The following type details have already been analyzed in previous tasks:
+${typeAnalysis}
+
+When selecting a query, prefer queries that match these analyzed types:
+- If HR types (like EmployeeAdvancedFilterForHrInput) were analyzed, choose HR-related queries
+- If BPO types were analyzed, choose BPO-related queries
+- If Employee types were analyzed, choose employee-related queries
+- Match the query name to the types that were analyzed`;
+          }
+        }
 
         // Ask LLM to analyze the task and determine the execution plan
         const planningPrompt = `You are a query planning assistant. Your job is to analyze the task and create an execution plan.
@@ -70,12 +119,24 @@ Available queries:
 ${JSON.stringify(queriesList, null, 2)}
 
 Available tools:
-${queryTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}
+${queryTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}${existingTypeDetailsContext}
 
 Please analyze the task and create an execution plan. The plan should:
 1. Select the most appropriate query for the task
 2. Determine which tools to use and in what order
-3. Specify what information we need to gather at each step
+3. Generate a complete GraphQL query directly
+
+QUERY SELECTION PRIORITY:
+1. FIRST: Check if type details exist and match the query to those types
+2. SECOND: Match the query name to the task description
+3. THIRD: Choose the most general/appropriate query for the task
+
+NOTE: Type details are handled by a separate TYPE_DETAILS agent. Focus only on:
+- graphql-list-queries (already done)
+- graphql-get-query-details (to understand query structure)
+- execute-query (to execute the final query)
+
+If type details are needed, return requiresTypeDetails=true to trigger the TYPE_DETAILS agent.
 
 Respond with a JSON object in this format:
 {
@@ -116,10 +177,93 @@ Respond with a JSON object in this format:
           output: any;
         }
         const results: ExecutionResult[] = [];
+        
         for (const step of plan.executionPlan) {
+          console.log(`🔍 QUERY AGENT - Executing step: ${step.tool}`);
+          console.log(`🔍 QUERY AGENT - Step purpose: ${step.purpose}`);
+          
           const tool = queryTools.find(t => t.name === step.tool);
           if (!tool) {
             throw new Error(`Tool ${step.tool} not found`);
+          }
+
+          // Special handling for query details step - check if we need type details
+          if (step.tool === 'graphql-get-query-details') {
+            console.log(`🔍 QUERY AGENT - Processing query details step`);
+            
+            // Execute the query details tool first
+            const listQueriesResult = results.find(r => r.step === 'graphql-list-queries');
+            const selectedQuery = plan.selectedQuery;
+            
+            const toolArgs = { queryNames: selectedQuery };
+            const toolInvokeArgs = accessToken 
+              ? { ...toolArgs, accessToken }
+              : toolArgs;
+            
+            const result = await tool.invoke(toolInvokeArgs);
+            results.push({
+              step: step.tool,
+              input: toolArgs,
+              output: result
+            });
+            
+            console.log(`🔍 QUERY AGENT - Query details completed for: ${selectedQuery}`);
+            console.log(`🔍 QUERY AGENT - Checking if type details are needed...`);
+            
+            // Check if the result contains type names that need details
+            const needsTypeDetails = checkIfTypeDetailsNeeded(result);
+            if (needsTypeDetails.needed) {
+              console.log(`🔍 QUERY AGENT - Type details needed for: ${needsTypeDetails.typeNames.join(', ')}`);
+              
+              // Check if we already have type details from completed tasks in the state
+              const existingTypeDetails = checkForExistingTypeDetails(state, needsTypeDetails.typeNames);
+              if (existingTypeDetails.found) {
+                console.log(`🔍 QUERY AGENT - Found existing type details, proceeding with query generation`);
+                // Store the type details in results for query generation
+                results.push({
+                  step: 'existing-type-details',
+                  input: { typeNames: needsTypeDetails.typeNames.join(',') },
+                  output: existingTypeDetails.data
+                });
+              } else {
+                console.log(`🔍 QUERY AGENT - No existing type details found. Query agent cannot proceed without type details.`);
+                
+                // Save execution state before returning for type details
+                const executionState = {
+                  plan: plan,
+                  results: results,
+                  queriesList: queriesList,
+                  accessToken: accessToken,
+                  currentStep: step,
+                  stepIndex: plan.executionPlan.findIndex(s => s.tool === step.tool),
+                  needsTypeDetails: needsTypeDetails
+                };
+                
+                console.log(`🔍 QUERY AGENT - Saving execution state for resumption after type details`);
+                
+                // Save execution state using the state manager
+                executionStateManager.saveState(task.id, 'query_agent', executionState);
+                
+                // Return early with a message indicating type details are needed
+                return {
+                  success: false,
+                  requiresTypeDetails: true,
+                  typeNames: needsTypeDetails.typeNames,
+                  data: {
+                    summary: `Query requires type details for: ${needsTypeDetails.typeNames.join(', ')}. Please create a type details task first.`,
+                    queryDetails: result,
+                    selectedQuery: selectedQuery
+                  },
+                  metadata: {
+                    taskId: task.id,
+                    type: task.type,
+                    reason: 'Type details required before query execution'
+                  }
+                };
+              }
+            }
+            
+            continue;
           }
 
           // Ask LLM to prepare the input for this step
@@ -148,7 +292,7 @@ provide them as typeNames like this:
 If this is an execute-query step, construct a valid GraphQL query string based on the type details and task description.
 For example, if you see type details showing required fields and available fields, construct a query like this:
 {
-  "query": "query { employees(data: { companyId: \"{{auto_companyid}}\", conditionType: AND, pagination: { limit: 20, page: 1 } }) { data { id name email } total page limit } }"
+  "query": "query { employees(data: { companyId: \"{{auto_companyid}}\", conditionType: AND, pagination: { limit: 20, currentPage: 1 } }) { data { id name email } total page limit } }"
 }
 
 Please provide the input parameters that match the schema exactly.`;
@@ -160,469 +304,189 @@ Please provide the input parameters that match the schema exactly.`;
           let toolArgs;
           if (inputResponse.tool_calls?.length) {
             toolArgs = inputResponse.tool_calls[0].args;
-          } else {
-            // For type details step, try to extract type names from previous result
-            if (step.tool === 'graphql-get-query-type-details' && results.length > 0) {
-              const lastResult = results[results.length - 1].output;
-              const allTypeNames = extractTypeNames(lastResult);
+          } else if (step.tool === 'execute-query' && results.length > 0) {
+              // Ask LLM to construct the query dynamically based on the selected query and available query information
+              const selectedQueryName = plan.selectedQuery;
+              const queryDetailsResult = results.find(r => r.step === 'graphql-get-query-details');
               
-              if (allTypeNames) {
-                toolArgs = { typeNames: allTypeNames };
-                console.log('Requesting type details for:', allTypeNames);
-              } else {
-                throw new Error(`Could not extract type names from previous result: ${JSON.stringify(lastResult)}`);
-              }
-            } else if (step.tool === 'execute-query' && results.length > 0) {
-              // Ask LLM to construct the query
-              const queryPrompt = `Construct a valid GraphQL query based on the following information:
-
-Task Description: ${task.description}
-
-Type Details:
-${JSON.stringify(results[results.length - 1].output, null, 2)}
-
-CRITICAL REQUIREMENTS:
-1. Use the correct query name (employees)
-2. Include ALL required fields marked with '!' in the input:
-   - companyId: String! → Use "{{auto_companyid}}"
-   - conditionType: AdvancedFilterConditionType! → Use AND (without quotes)
-   - pagination: PaginationInputData! → Use { limit: 20, page: 1 }
-3. The return type has nested structure - EmployeeAdvancedFilterForHr contains:
-   - employees: [EmployeeAdvancedFilterForHrEmployees!]! → Request employee fields INSIDE employees { }
-   - pagination: PaginationData! → Request pagination fields at top level
-4. Format the query properly with correct GraphQL syntax
-5. Ensure the query is complete with all opening and closing braces, quotes, and parentheses
-6. IMPORTANT: For enum values (like conditionType), do NOT use quotes. Use: conditionType: AND, not conditionType: "AND"
-
-REQUIRED QUERY STRUCTURE:
-query { 
-  employees(data: { 
-    companyId: "{{auto_companyid}}", 
-    conditionType: AND, 
-    pagination: { limit: 20, page: 1 } 
-  }) { 
-    employees {
-      // Employee fields go here (id, name, email, etc.)
-    }
-    pagination {
-      // Pagination fields go here (page, limit, total, etc.)
-    }
-  } 
-}
-
-CRITICAL: You must return a COMPLETE GraphQL query. Do not truncate or cut off the query.
-IMPORTANT: Respond with ONLY the complete GraphQL query string, no explanations or additional text.
-
-Your complete query:`;
-
-              const queryResponse = await model.invoke([
-                new HumanMessage(queryPrompt)
-              ]);
+              console.log(`Generating query for: ${selectedQueryName}`);
+              
+              // Build context for LLM to generate appropriate query
+              const typeDetailsResult = results.find(r => r.step === 'existing-type-details');
+              
+              const queryContext = {
+                queryName: selectedQueryName,
+                queryDetails: queryDetailsResult?.output || '',
+                typeDetails: typeDetailsResult?.output || 'No type details available',
+                task: task.description
+              };
+              
+                                             // Extract enhanced LLM guidance from MCP tool analysis
+                let structuredPatterns: any = null;
+                let llmGuidance = '';
+                let typeDetailsSummary = 'No type details available';
+                
+                if (typeDetailsResult && typeDetailsResult.output) {
+                  try {
+                    // The enhanced MCP tool returns structured data with LLM guidance
+                    const typeOutput = typeof typeDetailsResult.output === 'string' 
+                      ? typeDetailsResult.output 
+                      : JSON.stringify(typeDetailsResult.output);
+                    
+                    console.log('🔍 QUERY AGENT - Processing enhanced MCP tool response');
+                    
+                    // Extract LLM Guidance section (the comprehensive guidance text)
+                    const llmGuidanceMatch = typeOutput.match(/🤖 \*\*LLM QUERY GENERATION GUIDANCE\*\*([\s\S]*?)(?=================|📊 \*\*Pattern Analysis)/);
+                    if (llmGuidanceMatch) {
+                      llmGuidance = llmGuidanceMatch[1].trim();
+                      console.log('🔍 QUERY AGENT - Extracted LLM guidance:', llmGuidance.substring(0, 200) + '...');
+                    }
+                    
+                    // Extract Pattern Analysis JSON (for backward compatibility and structured data access)
+                    const patternMatch = typeOutput.match(/"Pattern Analysis:"[\s\S]*?(\{[\s\S]*?\})/);
+                    if (patternMatch) {
+                      try {
+                        structuredPatterns = JSON.parse(patternMatch[1]);
+                        console.log('🔍 QUERY AGENT - Extracted structured patterns:', Object.keys(structuredPatterns));
+                        
+                        // Build summary combining LLM guidance and structured patterns
+                        if (llmGuidance) {
+                          typeDetailsSummary = 'Enhanced MCP Analysis with LLM Guidance Available';
+                        } else {
+                          typeDetailsSummary = this.buildStructuredTypeDetailsSummary(structuredPatterns);
+                        }
+                      } catch (parseError) {
+                        console.warn('🔍 QUERY AGENT - Failed to parse pattern analysis:', parseError);
+                        typeDetailsSummary = llmGuidance ? 'LLM guidance available' : 'Type details available but pattern analysis parsing failed';
+                      }
+                    } else {
+                      console.log('🔍 QUERY AGENT - No pattern analysis found');
+                      typeDetailsSummary = llmGuidance ? 'LLM guidance available' : 'Type details available (no pattern analysis found)';
+                    }
+                  } catch (error) {
+                    console.error('🔍 QUERY AGENT - Error processing enhanced type details:', error);
+                    typeDetailsSummary = 'Type details available but processing failed';
+                  }
+                }
+               
+               // Enhanced dynamic query prompt using MCP LLM guidance
+               const dynamicQueryPrompt = this.buildEnhancedQueryPrompt(
+                 selectedQueryName,
+                 queryContext,
+                 typeDetailsSummary,
+                 structuredPatterns,
+                 llmGuidance
+               );
+               
+               // Add timeout protection for LLM call
+               console.log('🔍 QUERY AGENT - Generating query with LLM (with timeout protection)...');
+               const queryResponse = await Promise.race([
+                 model.invoke([new HumanMessage(dynamicQueryPrompt)]),
+                 new Promise((_, reject) => 
+                   setTimeout(() => reject(new Error('Query generation timeout after 15 seconds')), 15000)
+                 )
+               ]) as any;
 
               let query = typeof queryResponse.content === 'string' 
                 ? queryResponse.content.trim()
                 : JSON.stringify(queryResponse.content);
 
-              console.log('Raw LLM response:', query);
+              console.log('Dynamic query generated:', query);
 
-              // Extract the query from the response - look for complete query patterns
-              let extractedQuery = query;
+              // Clean up the query
+              query = query.replace(/```graphql\n?/g, '').replace(/```\n?/g, '').trim();
               
-              // Try different patterns to extract the query - improved patterns for better matching
-              const patterns = [
-                // Most comprehensive pattern - looks for complete nested structure
-                /query\s*\{\s*\w+\([^)]*\)\s*\{[^{}]*\{[^{}]*\}[^{}]*\}\s*\}/g,
-                // Pattern for queries with nested objects but simpler structure
-                /query\s*\{\s*\w+\([^)]*\)\s*\{[^{}]+\}\s*\}/g,
-                // Basic pattern with any content inside braces
-                /query\s*\{[^{}]*\{[^{}]*\}[^{}]*\}/g,
-                // Fallback - just look for query structure
-                /query\s*\{.*?\}\s*\}/gs
-              ];
-              
-              let patternMatched = false;
-              for (const pattern of patterns) {
-                const matches = query.match(pattern);
-                if (matches && matches[0]) {
-                  extractedQuery = matches[0];
-                  console.log(`Extracted query using pattern: ${extractedQuery}`);
-                  patternMatched = true;
-                  break;
-                }
-              }
-              
-              // If no pattern matched, try to find a query that starts properly
-              if (!patternMatched && !extractedQuery.startsWith('query {')) {
-                const queryStart = extractedQuery.indexOf('query {');
-                if (queryStart !== -1) {
-                  extractedQuery = extractedQuery.substring(queryStart);
-                }
-              }
-              
-              // Check if query appears to be truncated and attempt to complete it
-              const isQueryTruncated = (q: string): boolean => {
-                // Check for common truncation patterns
-                return (
-                  !q.trim().endsWith('}') ||
-                  !q.includes('}}') || // Should end with }} for query close
-                  q.includes('companyId: "') && !q.includes('companyId: "', q.indexOf('companyId: "') + 1) && !q.match(/companyId:\s*"[^"]*"/) ||
-                  (q.match(/"/g) || []).length % 2 !== 0 // Odd number of quotes
-                );
-              };
-              
-              // Get the type details from previous results to construct correct query
-              const getCorrectFieldsFromTypeDetails = (): string[] => {
-                console.log('Getting correct fields from type details, analyzing all results...');
-                console.log('Total results available:', results.length);
+              // Filter out complex fields that require subfield selection
+              const filterComplexFields = (queryStr: string): string => {
+                // List of known complex field names that should be removed
+                const complexFields = [
+                  'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
+                  'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
+                  'healthInsurance', 'contractData', 'paymentComponents',
+                  'permissions', 'roles', 'metadata', 'settings', 'preferences',
+                  'contractDataStatuses', 'employeeContractDataStatuses'
+                ];
                 
-                // Look through ALL type details results (including additional ones from nested discovery)
-                let allTypeDetailsText = '';
-                results.forEach((result, index) => {
-                  if (result.step === 'graphql-get-query-type-details') {
-                    console.log(`Processing type details result ${index}:`, typeof result.output);
-                    const text = typeof result.output === 'string' ? result.output : JSON.stringify(result.output);
-                    allTypeDetailsText += '\n' + text;
-                  }
+                let filtered = queryStr;
+                complexFields.forEach(field => {
+                  // Remove the field and any trailing whitespace/newlines/commas
+                  filtered = filtered.replace(new RegExp(`\\s*${field}\\s*,?`, 'g'), ' ');
                 });
                 
-                console.log('Combined type details text length:', allTypeDetailsText.length);
-                console.log('Combined type details preview:', allTypeDetailsText.substring(0, 300) + '...');
+                // Clean up any double spaces, extra whitespace, or trailing commas
+                filtered = filtered.replace(/\s+/g, ' ')
+                  .replace(/\{\s+/g, '{ ')
+                  .replace(/\s+\}/g, ' }')
+                  .replace(/,\s*,/g, ',')
+                  .replace(/,\s*\}/g, ' }')
+                  .replace(/\{\s*,/g, '{ ');
                 
-                // Look for the main return type (EmployeeAdvancedFilterForHr)
-                const mainReturnTypeMatch = allTypeDetailsText.match(/type\s+(EmployeeAdvancedFilterForHr)\s*\{([^}]+)\}/i);
-                if (mainReturnTypeMatch && mainReturnTypeMatch[2]) {
-                  console.log(`Found main return type: ${mainReturnTypeMatch[1]}`);
-                  
-                  // Parse the main return type fields
-                  const mainFields = mainReturnTypeMatch[2]
-                    .split('\n')
-                    .map(line => line.trim())
-                    .filter(line => line && !line.startsWith('//'))
-                    .map(line => {
-                      // Extract field name before the colon
-                      const colonIndex = line.indexOf(':');
-                      return colonIndex > 0 ? line.substring(0, colonIndex).trim() : null;
-                    })
-                    .filter((field): field is string => field !== null && field.length > 0);
-                  
-                  console.log('Main return type fields:', mainFields);
-                  
-                  // Look for the nested employee type definition (EmployeeAdvancedFilterForHrEmployees)
-                  const employeeTypeMatch = allTypeDetailsText.match(/type\s+(EmployeeAdvancedFilterForHrEmployees)\s*\{([^}]+)\}/i);
-                  if (employeeTypeMatch && employeeTypeMatch[2]) {
-                    const employeeTypeName = employeeTypeMatch[1];
-                    console.log(`Found nested employee type definition: ${employeeTypeName}`);
-                    
-                    const employeeFields = employeeTypeMatch[2]
-                      .split('\n')
-                      .map(line => line.trim())
-                      .filter(line => line && !line.startsWith('//'))
-                      .map(line => {
-                        const colonIndex = line.indexOf(':');
-                        if (colonIndex > 0) {
-                          const fieldName = line.substring(0, colonIndex).trim();
-                          const fieldType = line.substring(colonIndex + 1).trim();
-                          return { name: fieldName, type: fieldType };
-                        }
-                        return null;
-                      })
-                      .filter((field): field is { name: string; type: string } => field !== null);
-                    
-                    console.log(`Raw employee fields for ${employeeTypeName}:`, employeeFields);
-                    
-                    // Filter to only scalar/simple fields to avoid complex type issues
-                    const scalarFields = employeeFields.filter(field => {
-                      const type = field.type;
-                      // Check if it's likely a scalar type
-                      const isScalar = (
-                        isGraphQLScalar(type.replace(/[!\[\]]/g, '')) || // Remove ! and [] modifiers
-                        type.includes('String') ||
-                        type.includes('Int') ||
-                        type.includes('Float') ||
-                        type.includes('Boolean') ||
-                        type.includes('Date') ||
-                        type.includes('ID') ||
-                        type.includes('JSON') ||
-                        type.includes('enum') ||
-                        type.toLowerCase().includes('enum')
-                      );
-                      
-                      console.log(`Field ${field.name}: ${type} -> ${isScalar ? 'SCALAR' : 'COMPLEX'}`);
-                      return isScalar;
-                    }).map(field => field.name);
-                    
-                    console.log(`Filtered scalar employee fields for ${employeeTypeName}:`, scalarFields);
-                    
-                    // Ensure we have at least some basic fields
-                    if (scalarFields.length === 0) {
-                      console.log('No scalar fields found, using safe basic fields');
-                      scalarFields.push('id', 'email', 'firstName', 'lastName');
-                    } else if (scalarFields.length < 3) {
-                      console.log('Too few scalar fields, adding basic fields');
-                      const basicFields = ['id', 'email', 'firstName', 'lastName'];
-                      basicFields.forEach(field => {
-                        if (!scalarFields.includes(field)) {
-                          scalarFields.push(field);
-                        }
-                      });
-                    }
-                    
-                    console.log(`Final employee fields to use:`, scalarFields);
-                    
-                    // Look for PaginationData type definition
-                    const paginationTypeMatch = allTypeDetailsText.match(/type\s+(PaginationData)\s*\{([^}]+)\}/i);
-                    let paginationFields = ['limit']; // Even safer default fallback - just 'limit'
-                    
-                    console.log('Looking for PaginationData in combined text...');
-                    console.log('Combined text contains "PaginationData":', allTypeDetailsText.includes('PaginationData'));
-                    console.log('Combined text contains "Pagination":', allTypeDetailsText.includes('Pagination'));
-                    console.log('PaginationData regex match result:', paginationTypeMatch ? 'FOUND' : 'NOT FOUND');
-                    
-                    if (paginationTypeMatch && paginationTypeMatch[2]) {
-                      console.log('Raw pagination type content:', paginationTypeMatch[2]);
-                      paginationFields = paginationTypeMatch[2]
-                        .split('\n')
-                        .map(line => line.trim())
-                        .filter(line => line && !line.startsWith('//'))
-                        .map(line => {
-                          const colonIndex = line.indexOf(':');
-                          return colonIndex > 0 ? line.substring(0, colonIndex).trim() : null;
-                        })
-                        .filter((field): field is string => field !== null && field.length > 0);
-                      
-                      console.log('Extracted pagination fields from type definition:', paginationFields);
-                    } else {
-                      console.log('PaginationData type not found, checking for Pagination class...');
-                      
-                      // Try alternative patterns - maybe it's called just "Pagination" or has different format
-                      const altPaginationPatterns = [
-                        /class\s+(Pagination)\s*\{([^}]+)\}/i,
-                        /type\s+(Pagination)\s*\{([^}]+)\}/i,
-                        /interface\s+(Pagination\w*)\s*\{([^}]+)\}/i,
-                        /export.*class\s+(Pagination\w*)\s*extends.*\{([^}]+)\}/i
-                      ];
-                      
-                      let foundAlternative = false;
-                      for (const pattern of altPaginationPatterns) {
-                        const altMatch = allTypeDetailsText.match(pattern);
-                        if (altMatch && altMatch[2]) {
-                          console.log('Found alternative pagination pattern:', altMatch[1]);
-                          console.log('Alternative pagination content:', altMatch[2]);
-                          paginationFields = altMatch[2]
-                            .split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line && !line.startsWith('//'))
-                            .map(line => {
-                              const colonIndex = line.indexOf(':');
-                              return colonIndex > 0 ? line.substring(0, colonIndex).trim() : null;
-                            })
-                            .filter((field): field is string => field !== null && field.length > 0);
-                          foundAlternative = true;
-                          console.log('Extracted fields from alternative pattern:', paginationFields);
-                          break;
-                        }
-                      }
-                      
-                      if (!foundAlternative) {
-                        console.log('No pagination type definition found, using ultra-safe defaults');
-                        // Use only the most basic field that's likely to exist
-                        paginationFields = ['limit']; // Just limit, avoid 'total', 'page', etc. that might not exist
-                      }
-                      
-                      console.log('Using pagination fields (alternative/default):', paginationFields);
-                    }
-                    
-                    // Ensure we have at least one pagination field
-                    if (paginationFields.length === 0) {
-                      console.log('No pagination fields found, using absolute fallback');
-                      paginationFields = ['limit']; // Ultra-safe: just 'limit'
-                    }
-                    
-                    console.log('Final pagination fields to use:', paginationFields);
-                    
-                    // Construct nested query structure with ACTUAL field names
-                    if (scalarFields.length > 0) {
-                      // Use first 8 employee fields to avoid overly complex queries
-                      const selectedEmployeeFields = scalarFields.slice(0, 8).join(' ');
-                      const selectedPaginationFields = paginationFields.slice(0, 4).join(' ');
-                      
-                      console.log('Selected employee fields:', selectedEmployeeFields);
-                      console.log('Selected pagination fields:', selectedPaginationFields);
-                      
-                      // CRITICAL: Ensure pagination fields are not empty to avoid syntax errors
-                      const finalPaginationFields = selectedPaginationFields.trim() || 'limit total';
-                      
-                      const queryFields = [
-                        `employees { ${selectedEmployeeFields} }`,
-                        `pagination { ${finalPaginationFields} }`
-                      ];
-                      console.log('Final query fields with safety check:', queryFields);
-                      return queryFields;
-                    }
-                  } else {
-                    console.log('Employee type definition not found in additional type details');
-                  }
-                  
-                  // If no nested employee type found, just use the main fields
-                  if (mainFields.length > 0) {
-                    console.log('Using main return type fields as fallback:', mainFields);
-                    return mainFields;
-                  }
-                }
-                
-                // Final fallback: Look for any employee-related type definition
-                const anyEmployeeTypeMatch = allTypeDetailsText.match(/type\s+(\w*Employee\w*)\s*\{([^}]+)\}/i);
-                if (anyEmployeeTypeMatch) {
-                  console.log('Found fallback employee type:', anyEmployeeTypeMatch[1]);
-                  const fields = anyEmployeeTypeMatch[2]
-                    .split('\n')
-                    .map(line => line.trim())
-                    .filter(line => line && !line.startsWith('//'))
-                    .map(line => {
-                      const colonIndex = line.indexOf(':');
-                      return colonIndex > 0 ? line.substring(0, colonIndex).trim() : null;
-                    })
-                    .filter((field): field is string => field !== null && field.length > 0);
-                  
-                  if (fields.length > 0) {
-                    console.log('Using fallback employee type fields:', fields.slice(0, 6));
-                    return [
-                      `employees { ${fields.slice(0, 6).join(' ')} }`,
-                      'pagination { page limit total }'
-                    ];
-                  }
-                }
-                
-                // Ultimate fallback with safe field names
-                console.log('Using ultimate fallback with safe field names');
-                return [
-                  'employees { id firstName lastName email status }', 
-                  'pagination { page limit total }'
-                ];
+                return filtered;
               };
               
-              if (isQueryTruncated(extractedQuery)) {
-                console.warn('Query appears truncated, using complete fallback query with correct fields');
-                const correctFields = getCorrectFieldsFromTypeDetails();
-                extractedQuery = `query { employees(data: { companyId: "{{auto_companyid}}", conditionType: AND, pagination: { limit: 20, page: 1 } }) { ${correctFields.join(' ')} } }`;
-              }
+              query = filterComplexFields(query);
+              console.log('Query after complex field filtering:', query);
               
-              // Final validation - ensure the query has the basic required structure
-              const validateQuery = (q: string): boolean => {
+              // Simple validation - just check for basic GraphQL structure
+              const validateBasicQuery = (q: string): boolean => {
                 try {
-                  // Check for balanced braces
                   const openBraces = (q.match(/\{/g) || []).length;
                   const closeBraces = (q.match(/\}/g) || []).length;
-                  if (openBraces !== closeBraces) return false;
-                  
-                  // Check for balanced quotes
-                  const quotes = (q.match(/"/g) || []).length;
-                  if (quotes % 2 !== 0) return false;
-                  
-                  // Check for required structure
-                  if (!q.includes('query {') || !q.includes('employees') || !q.includes('data:')) return false;
-                  
-                  return true;
-                } catch (error) {
+                  return openBraces === closeBraces && q.includes('query {') && q.includes(selectedQueryName);
+                } catch {
                   return false;
                 }
               };
               
-              if (!validateQuery(extractedQuery)) {
-                console.warn('Query failed validation, using guaranteed valid fallback with correct fields');
-                const correctFields = getCorrectFieldsFromTypeDetails();
-                extractedQuery = `query { employees(data: { companyId: "{{auto_companyid}}", conditionType: AND, pagination: { limit: 20, page: 1 } }) { ${correctFields.join(' ')} } }`;
+              if (!validateBasicQuery(query)) {
+                console.warn(`Generated query failed validation, using simple fallback for ${selectedQueryName}`);
+                // Generate a simple fallback query
+                if (selectedQueryName === 'me') {
+                  query = 'query { me { id email firstName lastName } }';
+                } else {
+                  query = `query { ${selectedQueryName} }`;
+                }
               }
 
-              query = extractedQuery;
-              console.log('Final extracted query:', query);
+              console.log('Final query to execute:', query);
 
-              console.log('Query before placeholder replacement:', query);
-              console.log('Available placeholders:', placeholderManager.getRegisteredPlaceholders());
-
-              // Replace placeholders with actual values
+              // Handle placeholder replacement
               try {
                 const invokeObject = await placeholderManager.buildInvokeObject(query, { state, config });
-                console.log('Invoke object from placeholder manager:', invokeObject);
                 
-                // Find only mustache-style placeholders ({{placeholder}}) to avoid GraphQL syntax confusion
                 const mustachePlaceholders = query.match(/\{\{([^}]+)\}\}/g) || [];
                 const placeholderNames = mustachePlaceholders.map(match => match.slice(2, -2).trim());
-                console.log('Found mustache placeholders in query:', placeholderNames);
                 
                 for (const placeholder of placeholderNames) {
                   if (invokeObject[placeholder]) {
                     const placeholderPattern = new RegExp(`\\{\\{${placeholder}\\}\\}`, 'g');
                     query = query.replace(placeholderPattern, invokeObject[placeholder]);
-                    console.log(`Replaced {{${placeholder}}} with ${invokeObject[placeholder]}`);
-                  } else {
-                    console.warn(`No value found for placeholder: ${placeholder}`);
                   }
                 }
                 
-                console.log('Query after placeholder replacement:', query);
-                
-                // Fix common GraphQL syntax issues
+                // Fix GraphQL syntax
                 const fixGraphQLSyntax = (q: string): string => {
                   let fixed = q;
-                  
-                  // Fix quoted enum values - common enum values that should not be quoted
                   const enumValues = ['AND', 'OR', 'ASC', 'DESC', 'true', 'false', 'null'];
                   enumValues.forEach(enumVal => {
-                    // Replace quoted enum values with unquoted ones
                     const quotedPattern = new RegExp(`"${enumVal}"`, 'g');
                     fixed = fixed.replace(quotedPattern, enumVal);
                   });
-                  
-                  // Specifically fix conditionType enum
-                  fixed = fixed.replace(/conditionType:\s*"(AND|OR)"/g, 'conditionType: $1');
-                  
-                  // Fix boolean and null values
-                  fixed = fixed.replace(/"true"/g, 'true');
-                  fixed = fixed.replace(/"false"/g, 'false');
-                  fixed = fixed.replace(/"null"/g, 'null');
-                  
-                  console.log('Fixed GraphQL syntax issues:', fixed);
                   return fixed;
                 };
                 
                 query = fixGraphQLSyntax(query);
-                
-                // Final validation after placeholder replacement
-                if (!validateQuery(query)) {
-                  console.error('Query is invalid after placeholder replacement, attempting to fix');
-                  // Try to fix common issues
-                  if ((query.match(/"/g) || []).length % 2 !== 0) {
-                    // Fix unbalanced quotes
-                    query = query.replace(/("[^"]*$)/, '$1"');
-                    console.log('Fixed unbalanced quotes:', query);
-                  }
-                  
-                  // If still invalid, use a working template with the actual company ID and correct fields
-                  if (!validateQuery(query)) {
-                    const companyId = invokeObject['auto_companyid'] || 'companyclient1';
-                    const correctFields = getCorrectFieldsFromTypeDetails();
-                    query = `query { employees(data: { companyId: "${companyId}", conditionType: AND, pagination: { limit: 20, page: 1 } }) { ${correctFields.join(' ')} } }`;
-                    console.log('Using fixed template query with correct fields:', query);
-                  }
-                }
-                
               } catch (error) {
                 console.error('Error during placeholder replacement:', error);
-                // If placeholder replacement fails, we still need a valid query
-                // Replace with a default value to prevent syntax errors
-                query = query.replace(/\{\{auto_companyid\}\}/g, '"default-company-id"');
-                console.log('Used fallback replacement for query:', query);
               }
 
               toolArgs = { query };
-            } else {
-              // Fallback to using the expectedInput from the plan
-              try {
-                toolArgs = JSON.parse(step.expectedInput);
-              } catch (error) {
-                throw new Error(`No tool input provided for ${step.tool} and failed to parse expectedInput: ${step.expectedInput}`);
-              }
+          } else {
+            // Fallback to using the expectedInput from the plan
+            try {
+              toolArgs = JSON.parse(step.expectedInput);
+            } catch (error) {
+              throw new Error(`No tool input provided for ${step.tool} and failed to parse expectedInput: ${step.expectedInput}`);
             }
           }
 
@@ -630,7 +494,279 @@ Your complete query:`;
           const toolInvokeArgs = accessToken 
             ? { ...toolArgs, accessToken }
             : toolArgs;
-          const result = await tool.invoke(toolInvokeArgs);
+          
+          let result;
+          try {
+            // Add timeout protection for query execution
+            console.log('🔍 QUERY AGENT - Executing query with timeout protection...');
+            result = await Promise.race([
+              tool.invoke(toolInvokeArgs),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Query execution timeout after 30 seconds')), 30000)
+              )
+            ]);
+          } catch (error: any) {
+            console.log(`🔍 QUERY AGENT - Tool execution error:`, error.message);
+            
+            // Check if this is a field validation error (field doesn't exist on type)
+            if (step.tool === 'execute-query' && 
+                error.message && 
+                (error.message.includes('Cannot query field') || 
+                 error.message.includes('must have a selection of subfields'))) {
+              
+              console.log('🔍 QUERY AGENT - Detected field validation error, attempting auto-correction...');
+              console.log('🔍 QUERY AGENT - Error message:', error.message);
+              
+              const originalQuery = toolInvokeArgs.query || '';
+              let fixedQuery = originalQuery;
+              
+              console.log('🔍 QUERY AGENT - Original query:', originalQuery);
+              
+              // Extract problematic field from error message
+              const fieldMatch = error.message.match(/Field "([^"]+)"/);
+              const problematicField = fieldMatch ? fieldMatch[1] : '';
+              
+              if (problematicField) {
+                console.log('🔍 QUERY AGENT - Problematic field detected:', problematicField);
+                
+                // Apply intelligent field name corrections for common patterns
+                if (problematicField === 'results') {
+                  // Replace 'results' with 'employees' for employee queries
+                  fixedQuery = fixedQuery.replace(/\bresults\b/g, 'employees');
+                  console.log('🔍 QUERY AGENT - Corrected "results" to "employees"');
+                }
+                
+                if (problematicField === 'pageInfo') {
+                  // Replace 'pageInfo' with 'pagination'
+                  fixedQuery = fixedQuery.replace(/\bpageInfo\b/g, 'pagination');
+                  console.log('🔍 QUERY AGENT - Corrected "pageInfo" to "pagination"');
+                }
+                
+                if (problematicField === 'name') {
+                  // Replace 'name' with 'firstName lastName' for employee queries
+                  fixedQuery = fixedQuery.replace(/\bname\b/g, 'firstName lastName');
+                  console.log('🔍 QUERY AGENT - Corrected "name" to "firstName lastName"');
+                }
+                
+                if (problematicField === 'position') {
+                  // Replace 'position' with 'jobTitle' for employee queries
+                  fixedQuery = fixedQuery.replace(/\bposition\b/g, 'jobTitle');
+                  console.log('🔍 QUERY AGENT - Corrected "position" to "jobTitle" (LLM should not generate this)');
+                }
+                
+                if (problematicField === 'department') {
+                  // Remove 'department' field as it doesn't exist in employee types
+                  fixedQuery = fixedQuery.replace(/\bdepartment\b/g, '');
+                  console.log('🔍 QUERY AGENT - Removed non-existent "department" field (LLM should not generate this)');
+                }
+                
+                if (problematicField === 'page') {
+                  // Replace 'page' with 'currentPage' only in return fields, not in input arguments
+                  // Look for 'page' that's not followed by ':' (which would be an input argument)
+                  console.log('🔍 QUERY AGENT - DEBUG: Page field detected (initial), original query:', originalQuery);
+                  fixedQuery = fixedQuery.replace(/\bpage(?!\s*:)/g, 'currentPage');
+                  console.log('🔍 QUERY AGENT - DEBUG: Page field corrected (initial), fixed query:', fixedQuery);
+                  console.log('🔍 QUERY AGENT - Corrected return field "page" to "currentPage"');
+                }
+                
+                if (problematicField === 'data' && plan?.selectedQuery === 'employees') {
+                  // For employees query, 'data' might need to be 'employees'
+                  fixedQuery = fixedQuery.replace(/\bdata\b/g, 'employees');
+                  console.log('🔍 QUERY AGENT - Corrected "data" to "employees" for employees query');
+                }
+                
+                // Remove problematic field patterns if corrections don't work
+                if (fixedQuery === originalQuery) {
+                  const patterns = [
+                    new RegExp(`\\s*${problematicField}\\s*\\{[^}]*\\}`, 'g'),  // field with block
+                    new RegExp(`\\s*${problematicField}\\s*,?`, 'g'),           // field with optional comma
+                    new RegExp(`\\s*,\\s*${problematicField}\\s*`, 'g'),        // comma then field
+                  ];
+                  
+                  patterns.forEach(pattern => {
+                    fixedQuery = fixedQuery.replace(pattern, ' ');
+                  });
+                  console.log(`🔍 QUERY AGENT - Removed problematic field "${problematicField}"`);
+                }
+              }
+              
+              // Apply comprehensive complex field filtering
+              const complexFields = [
+                'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
+                'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
+                'healthInsurance', 'contractData', 'paymentComponents',
+                'permissions', 'roles', 'metadata', 'settings', 'preferences',
+                'contractDataStatuses', 'employeeContractDataStatuses',
+                'currentPage', 'totalPages', 'totalResults' // Add common wrong pagination fields
+              ];
+              
+              complexFields.forEach(field => {
+                const patterns = [
+                  new RegExp(`\\s*${field}\\s*,?`, 'g'),
+                  new RegExp(`\\s*,\\s*${field}\\s*`, 'g'),
+                  new RegExp(`\\s*${field}\\s*`, 'g')
+                ];
+                patterns.forEach(pattern => {
+                  fixedQuery = fixedQuery.replace(pattern, ' ');
+                });
+              });
+              
+              // Clean up the query thoroughly
+              fixedQuery = fixedQuery
+                .replace(/\s+/g, ' ')           // Multiple spaces to single
+                .replace(/\{\s+/g, '{ ')        // Clean opening braces
+                .replace(/\s+\}/g, ' }')        // Clean closing braces
+                .replace(/,\s*,/g, ',')         // Remove double commas
+                .replace(/,\s*\}/g, ' }')       // Remove trailing commas before closing braces
+                .replace(/\{\s*,/g, '{ ')       // Remove leading commas after opening braces
+                .replace(/\s*,\s*/g, ', ')      // Normalize comma spacing
+                .trim();
+              
+              console.log('🔍 QUERY AGENT - Retrying with corrected query:', fixedQuery);
+              
+              // Retry with the corrected query
+              const retryArgs = accessToken 
+                ? { query: fixedQuery, accessToken }
+                : { query: fixedQuery };
+              
+              try {
+                result = await tool.invoke(retryArgs);
+                console.log('🔍 QUERY AGENT - Field validation error correction successful!');
+              } catch (retryError) {
+                console.error('🔍 QUERY AGENT - Field validation error correction failed:', retryError);
+                console.error('🔍 QUERY AGENT - Retry error details:', retryError.message);
+                throw retryError;
+              }
+            }
+            // Check if this is a union type error that needs inline fragments
+            else if (step.tool === 'execute-query' && 
+                error.message && 
+                error.message.includes('Cannot query field') && 
+                error.message.includes('Did you mean to use an inline fragment')) {
+              
+              console.log('Detected union type error, regenerating query with inline fragments...');
+              
+              // Extract union type members from error message
+              const fragmentMatches = error.message.match(/inline fragment on "([^"]+)"/g);
+              const unionMembers = fragmentMatches ? 
+                fragmentMatches.map((match: string) => match.match(/"([^"]+)"/)?.[1]).filter(Boolean) : 
+                ['OnboardingAdmin', 'OnboardingBpo', 'OnboardingEmployee', 'OnboardingHrManager']; // fallback
+              
+              console.log('Detected union members:', unionMembers);
+              
+              // Generate query with inline fragments
+              const selectedQueryName = plan.selectedQuery;
+              const fragments = unionMembers.map(member => 
+                `... on ${member} { id email firstName lastName }`
+              ).join('\n        ');
+              
+              const unionQuery = `query {
+  ${selectedQueryName} {
+    __typename
+    ${fragments}
+  }
+}`;
+              
+              console.log('Retrying with union query:', unionQuery);
+              
+              // Retry with the corrected query
+              const retryArgs = accessToken 
+                ? { query: unionQuery, accessToken }
+                : { query: unionQuery };
+              
+              try {
+                result = await tool.invoke(retryArgs);
+                console.log('Union query retry successful!');
+              } catch (retryError) {
+                console.error('Union query retry failed:', retryError);
+                throw retryError;
+              }
+            }
+            // Check if this is a complex field error that needs field filtering
+            else if (step.tool === 'execute-query' && 
+                     error.message && 
+                     error.message.includes('must have a selection of subfields')) {
+              
+              console.log('Detected complex field error, filtering problematic fields...');
+              console.log('Error message:', error.message);
+              
+              // Extract the problematic field name from error message
+              const fieldMatch = error.message.match(/Field "([^"]+)"/);
+              const problematicField = fieldMatch ? fieldMatch[1] : '';
+              
+              console.log('Problematic field detected:', problematicField);
+              
+              // Get the original query and remove the problematic field
+              const originalQuery = toolArgs.query || '';
+              let fixedQuery = originalQuery;
+              
+              console.log('Original query:', originalQuery);
+              
+              if (problematicField) {
+                // Remove the specific problematic field with better regex patterns
+                const patterns = [
+                  new RegExp(`\\s*${problematicField}\\s*,?`, 'g'),  // field with optional comma
+                  new RegExp(`\\s*,\\s*${problematicField}\\s*`, 'g'), // comma then field
+                  new RegExp(`\\s*${problematicField}\\s*`, 'g')  // just the field
+                ];
+                
+                patterns.forEach(pattern => {
+                  fixedQuery = fixedQuery.replace(pattern, ' ');
+                });
+              }
+              
+              // Apply additional complex field filtering
+              const complexFields = [
+                'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
+                'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
+                'healthInsurance', 'contractData', 'paymentComponents',
+                'permissions', 'roles', 'metadata', 'settings', 'preferences',
+                'contractDataStatuses', 'employeeContractDataStatuses'
+              ];
+              
+              complexFields.forEach(field => {
+                const patterns = [
+                  new RegExp(`\\s*${field}\\s*,?`, 'g'),
+                  new RegExp(`\\s*,\\s*${field}\\s*`, 'g'),
+                  new RegExp(`\\s*${field}\\s*`, 'g')
+                ];
+                patterns.forEach(pattern => {
+                  fixedQuery = fixedQuery.replace(pattern, ' ');
+                });
+              });
+              
+              // Clean up the query thoroughly
+              fixedQuery = fixedQuery
+                .replace(/\s+/g, ' ')           // Multiple spaces to single
+                .replace(/\{\s+/g, '{ ')        // Clean opening braces
+                .replace(/\s+\}/g, ' }')        // Clean closing braces
+                .replace(/,\s*,/g, ',')         // Remove double commas
+                .replace(/,\s*\}/g, ' }')       // Remove trailing commas before closing braces
+                .replace(/\{\s*,/g, '{ ')       // Remove leading commas after opening braces
+                .replace(/\s*,\s*/g, ', ')      // Normalize comma spacing
+                .trim();
+              
+              console.log('Retrying with filtered query:', fixedQuery);
+              
+              // Retry with the filtered query
+              const retryArgs = accessToken 
+                ? { query: fixedQuery, accessToken }
+                : { query: fixedQuery };
+              
+              try {
+                result = await tool.invoke(retryArgs);
+                console.log('Complex field filtering retry successful!');
+              } catch (retryError) {
+                console.error('Complex field filtering retry failed:', retryError);
+                console.error('Retry error details:', retryError.message);
+                throw retryError;
+              }
+            }
+            else {
+              throw error;
+            }
+          }
+          
           results.push({
             step: step.tool,
             input: toolArgs,
@@ -638,92 +774,12 @@ Your complete query:`;
           });
 
           console.log(`Step ${step.tool} completed:`, result);
-          
-          // CRITICAL: Check if we just got type details and need to discover more nested types
-          console.log('DEBUG: Checking if we should discover nested types...');
-          console.log('DEBUG: step.tool =', step.tool);
-          console.log('DEBUG: result =', JSON.stringify(result, null, 2));
-          
-          if (step.tool === 'graphql-get-query-type-details') {
-            console.log('DEBUG: This is a type details step, checking result structure...');
-            
-            // Handle both string results and object results
-            let text = '';
-            if (typeof result === 'string') {
-              text = result;
-              console.log('DEBUG: Result is a string, using directly');
-            } else if (result && typeof result === 'object') {
-              console.log('DEBUG: Result is an object, extracting content...');
-              
-              if (result.content) {
-                const content = Array.isArray(result.content) ? result.content[0]?.text || '' : result.content;
-                text = typeof content === 'string' ? content : JSON.stringify(content);
-                console.log('DEBUG: Found result.content');
-              } else {
-                text = JSON.stringify(result);
-                console.log('DEBUG: Converting result to JSON string');
-              }
-            } else {
-              console.log('DEBUG: Result is not a string or object, skipping');
-              text = '';
-            }
-            
-            if (text) {
-              console.log('DEBUG: Final text to analyze:', text.substring(0, 200) + '...');
-              
-              console.log('Checking for nested types in type details response...');
-              
-              // Look for additional types we haven't requested yet using a specialized function
-              const additionalTypes = extractNestedTypesFromTypeDefinitions(text);
-              if (additionalTypes) {
-                const requestedTypes = new Set();
-                
-                // Collect all types we've already requested
-                results.forEach(r => {
-                  if (r.step === 'graphql-get-query-type-details' && r.input.typeNames) {
-                    r.input.typeNames.split(',').forEach(type => requestedTypes.add(type.trim()));
-                  }
-                });
-                
-                // Filter to only new types we haven't requested
-                const newTypes = additionalTypes.split(',')
-                  .map(type => type.trim())
-                  .filter(type => !requestedTypes.has(type));
-                
-                if (newTypes.length > 0) {
-                  console.log(`Found additional nested types: ${newTypes.join(',')}`);
-                  console.log('Requesting additional type details...');
-                  
-                  // Request details for the new types
-                  const additionalArgs = accessToken
-                    ? { typeNames: newTypes.join(','), accessToken }
-                    : { typeNames: newTypes.join(',') };
-                  const additionalResult = await tool.invoke(additionalArgs);
-                  results.push({
-                    step: 'graphql-get-query-type-details',
-                    input: { typeNames: newTypes.join(',') },
-                    output: additionalResult
-                  });
-                  
-                  console.log('Additional type details completed:', additionalResult);
-                } else {
-                  console.log('No new nested types found to request');
-                }
-              } else {
-                console.log('No nested types extracted from type details response');
-              }
-            } else {
-              console.log('DEBUG: No text to analyze for nested types');
-            }
-          } else {
-            console.log('DEBUG: This is not a type details step, skipping nested type discovery');
-          }
         }
 
         // Extract and format the actual data from the execute-query result
         const executeQueryResult = results.find(r => r.step === 'execute-query');
         let cleanData: any = null;
-        let employeeCount = 0;
+        let resultSummary = 'Query completed successfully.';
         
         if (executeQueryResult && executeQueryResult.output) {
           try {
@@ -734,12 +790,39 @@ Your complete query:`;
             // Extract the actual GraphQL data
             cleanData = queryOutput.data;
             
-            // Count employees if available
-            if (cleanData?.employees?.employees && Array.isArray(cleanData.employees.employees)) {
-              employeeCount = cleanData.employees.employees.length;
+            // Generate dynamic summary based on the data structure and selected query
+            const selectedQueryName = plan.selectedQuery || 'unknown';
+            
+            if (cleanData) {
+              if (selectedQueryName === 'me') {
+                // Handle "me" query - single user object
+                const userData = cleanData[selectedQueryName];
+                if (userData) {
+                  const name = userData.firstName || userData.email || userData.id || 'Unknown';
+                  resultSummary = `Successfully retrieved user data for ${name}.`;
+                } else {
+                  resultSummary = 'Successfully retrieved user data.';
+                }
+              } else if (selectedQueryName === 'employees' && cleanData.employees?.employees) {
+                // Handle employees query - array of employees
+                const employeeCount = cleanData.employees.employees.length;
+                resultSummary = `Successfully retrieved ${employeeCount} employee${employeeCount !== 1 ? 's' : ''}.`;
+              } else {
+                // Generic handling for other queries
+                const queryResult = cleanData[selectedQueryName];
+                if (Array.isArray(queryResult)) {
+                  const count = queryResult.length;
+                  resultSummary = `Successfully retrieved ${count} item${count !== 1 ? 's' : ''} from ${selectedQueryName}.`;
+                } else if (queryResult && typeof queryResult === 'object') {
+                  resultSummary = `Successfully retrieved ${selectedQueryName} data.`;
+                } else {
+                  resultSummary = `Successfully executed ${selectedQueryName} query.`;
+                }
+              }
             }
           } catch (error) {
             console.error('Error parsing execute-query result:', error);
+            resultSummary = 'Query completed but data parsing failed.';
           }
         }
 
@@ -748,9 +831,7 @@ Your complete query:`;
           success: true,
           task: task.description,
           data: cleanData,
-          summary: cleanData ? 
-            `Successfully retrieved ${employeeCount} employee${employeeCount !== 1 ? 's' : ''}.` :
-            'Query completed successfully.',
+          summary: resultSummary,
           executedAt: new Date().toISOString()
         };
 
@@ -783,24 +864,699 @@ Your complete query:`;
           }
         };
       }
+    },
+
+    /**
+     * Resumes execution from a saved state after type details are available
+     */
+    async resumeExecution(savedState: any, accessToken: string, task: Task, state: any, config: any) {
+      console.log(`🔍 QUERY AGENT - Resuming from step: ${savedState.currentStep.tool}`);
+      
+      const { plan, results, queriesList, stepIndex } = savedState;
+      
+      // Check if type details are now available
+      const existingTypeDetails = checkForExistingTypeDetails(state, savedState.needsTypeDetails.typeNames);
+      if (existingTypeDetails.found) {
+        console.log(`🔍 QUERY AGENT - Type details now available, proceeding with query generation`);
+        
+        // Add the type details to results
+        results.push({
+          step: 'existing-type-details',
+          input: { typeNames: savedState.needsTypeDetails.typeNames.join(',') },
+          output: existingTypeDetails.data
+        });
+      } else {
+        console.log(`🔍 QUERY AGENT - Type details still not available`);
+        return {
+          success: false,
+          error: 'Type details are still not available after resumption',
+          metadata: {
+            taskId: task.id,
+            type: task.type,
+            reason: 'Type details missing on resumption'
+          }
+        };
+      }
+
+      // Continue execution from the next step
+      const remainingSteps = plan.executionPlan.slice(stepIndex + 1);
+      
+      for (const step of remainingSteps) {
+        console.log(`🔍 QUERY AGENT - Executing remaining step: ${step.tool}`);
+        
+        const tool = queryTools.find(t => t.name === step.tool);
+        if (!tool) {
+          throw new Error(`Tool ${step.tool} not found`);
+        }
+
+        if (step.tool === 'execute-query') {
+          // Generate query using existing results and type details
+          const selectedQueryName = plan.selectedQuery;
+          const queryDetailsResult = results.find(r => r.step === 'graphql-get-query-details');
+          
+          console.log(`🔍 QUERY AGENT - Generating query for: ${selectedQueryName} (resumed execution)`);
+          
+                     // Use existing query generation logic but with streamlined type details to avoid hanging
+           
+                       // Extract enhanced LLM guidance from MCP tool analysis (resumption)
+            let structuredPatterns: any = null;
+            let llmGuidance = '';
+            let typeDetailsSummary = 'No type details available';
+            
+            if (existingTypeDetails && existingTypeDetails.data) {
+              try {
+                // The enhanced MCP tool returns structured data with LLM guidance
+                const typeText = JSON.stringify(existingTypeDetails.data);
+                
+                console.log('🔍 QUERY AGENT - Processing enhanced MCP tool response (resumed)');
+                
+                // Extract LLM Guidance section (the comprehensive guidance text)
+                const llmGuidanceMatch = typeText.match(/🤖 \*\*LLM QUERY GENERATION GUIDANCE\*\*([\s\S]*?)(?=================|📊 \*\*Pattern Analysis)/);
+                if (llmGuidanceMatch) {
+                  llmGuidance = llmGuidanceMatch[1].trim();
+                  console.log('🔍 QUERY AGENT - Extracted LLM guidance (resumed):', llmGuidance.substring(0, 200) + '...');
+                }
+                
+                // Extract Pattern Analysis JSON (for backward compatibility)
+                const patternMatch = typeText.match(/"Pattern Analysis:"[\s\S]*?(\{[\s\S]*?\})/);
+                if (patternMatch) {
+                  try {
+                    structuredPatterns = JSON.parse(patternMatch[1]);
+                    console.log('🔍 QUERY AGENT - Extracted structured patterns (resumed):', Object.keys(structuredPatterns));
+                    
+                    // Build summary combining LLM guidance and structured patterns
+                    if (llmGuidance) {
+                      typeDetailsSummary = 'Enhanced MCP Analysis with LLM Guidance Available (resumed)';
+                    } else {
+                      typeDetailsSummary = this.buildStructuredTypeDetailsSummary(structuredPatterns);
+                    }
+                  } catch (parseError) {
+                    console.warn('🔍 QUERY AGENT - Failed to parse pattern analysis (resumed):', parseError);
+                    typeDetailsSummary = llmGuidance ? 'LLM guidance available (resumed)' : 'Type details available but pattern analysis parsing failed';
+                  }
+                } else {
+                  console.log('🔍 QUERY AGENT - No pattern analysis found (resumed)');
+                  typeDetailsSummary = llmGuidance ? 'LLM guidance available (resumed)' : 'Type details available (no pattern analysis found)';
+                }
+              } catch (error) {
+                console.error('🔍 QUERY AGENT - Error processing enhanced type details (resumed):', error);
+                typeDetailsSummary = 'Type details available but processing failed';
+              }
+            }
+           
+           // Build query context for enhanced prompt
+           const queryContext = {
+             queryName: selectedQueryName,
+             queryDetails: queryDetailsResult?.output || 'No query details',
+             typeDetails: existingTypeDetails?.data || 'No type details available',
+             task: task.description
+           };
+           
+           // Enhanced dynamic query prompt using MCP LLM guidance (resumption)
+           const dynamicQueryPrompt = this.buildEnhancedQueryPrompt(
+             selectedQueryName,
+             queryContext,
+             typeDetailsSummary,
+             structuredPatterns,
+             llmGuidance
+           );
+
+          const model = new ChatOpenAI({
+            model: "gpt-4",
+            temperature: 0,
+          });
+
+                      // Add timeout protection for LLM call
+            console.log('🔍 QUERY AGENT - Generating query with LLM (resumed execution, with timeout protection)...');
+            const queryResponse = await Promise.race([
+              model.invoke([new HumanMessage(dynamicQueryPrompt)]),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Query generation timeout after 15 seconds')), 15000)
+              )
+            ]) as any;
+
+          let query = typeof queryResponse.content === 'string' 
+            ? queryResponse.content.trim()
+            : JSON.stringify(queryResponse.content);
+
+          query = query.replace(/```graphql\n?/g, '').replace(/```\n?/g, '').trim();
+          
+          console.log('Generated query (resumed execution):', query);
+
+          // Handle placeholder replacement
+          try {
+            const invokeObject = await placeholderManager.buildInvokeObject(query, { state, config });
+            
+            const mustachePlaceholders = query.match(/\{\{([^}]+)\}\}/g) || [];
+            const placeholderNames = mustachePlaceholders.map(match => match.slice(2, -2).trim());
+            
+            for (const placeholder of placeholderNames) {
+              if (invokeObject[placeholder]) {
+                const placeholderPattern = new RegExp(`\\{\\{${placeholder}\\}\\}`, 'g');
+                query = query.replace(placeholderPattern, invokeObject[placeholder]);
+              }
+            }
+            
+            // Fix GraphQL syntax
+            const fixGraphQLSyntax = (q: string): string => {
+              let fixed = q;
+              const enumValues = ['AND', 'OR', 'ASC', 'DESC', 'true', 'false', 'null'];
+              enumValues.forEach(enumVal => {
+                const quotedPattern = new RegExp(`"${enumVal}"`, 'g');
+                fixed = fixed.replace(quotedPattern, enumVal);
+              });
+              return fixed;
+            };
+            
+            query = fixGraphQLSyntax(query);
+          } catch (error) {
+            console.error('Error during placeholder replacement:', error);
+          }
+
+          const toolArgs = { query };
+          const toolInvokeArgs = accessToken 
+            ? { ...toolArgs, accessToken }
+            : toolArgs;
+          
+          let result;
+          try {
+            // Add timeout protection for query execution
+            console.log('🔍 QUERY AGENT - Executing query with timeout protection (resumed)...');
+            result = await Promise.race([
+              tool.invoke(toolInvokeArgs),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Query execution timeout after 30 seconds')), 30000)
+              )
+            ]);
+          } catch (error: any) {
+            console.log(`🔍 QUERY AGENT - Tool execution error (resumed):`, error.message);
+            
+            // Check if this is a field validation error (field doesn't exist on type) - resumed execution
+            if (step.tool === 'execute-query' && 
+                error.message && 
+                (error.message.includes('Cannot query field') || 
+                 error.message.includes('must have a selection of subfields'))) {
+              
+              console.log('🔍 QUERY AGENT - Detected field validation error in resumed execution, attempting auto-correction...');
+              console.log('🔍 QUERY AGENT - Error message:', error.message);
+              console.log('🔍 QUERY AGENT - DEBUG: Field correction logic triggered');
+              
+              const originalQuery = toolInvokeArgs.query || '';
+              let fixedQuery = originalQuery;
+              
+              console.log('🔍 QUERY AGENT - Original query:', originalQuery);
+              
+              // Extract problematic field from error message
+              const fieldMatch = error.message.match(/Field "([^"]+)"/);
+              const problematicField = fieldMatch ? fieldMatch[1] : '';
+              
+              if (problematicField) {
+                console.log('🔍 QUERY AGENT - Problematic field detected:', problematicField);
+                
+                                 // Apply intelligent field name corrections for common patterns
+                 if (problematicField === 'results') {
+                   // Replace 'results' with 'employees' for employee queries
+                   fixedQuery = fixedQuery.replace(/\bresults\b/g, 'employees');
+                   console.log('🔍 QUERY AGENT - Corrected "results" to "employees" (resumed)');
+                 }
+                 
+                 if (problematicField === 'pageInfo') {
+                   // Replace 'pageInfo' with 'pagination'
+                   fixedQuery = fixedQuery.replace(/\bpageInfo\b/g, 'pagination');
+                   console.log('🔍 QUERY AGENT - Corrected "pageInfo" to "pagination" (resumed)');
+                 }
+                 
+                 if (problematicField === 'name') {
+                   // Replace 'name' with 'firstName lastName' for employee queries
+                   fixedQuery = fixedQuery.replace(/\bname\b/g, 'firstName lastName');
+                   console.log('🔍 QUERY AGENT - Corrected "name" to "firstName lastName" (resumed)');
+                 }
+                 
+                 if (problematicField === 'position') {
+                   // Replace 'position' with 'jobTitle' for employee queries
+                   fixedQuery = fixedQuery.replace(/\bposition\b/g, 'jobTitle');
+                   console.log('🔍 QUERY AGENT - Corrected "position" to "jobTitle" (resumed)');
+                 }
+                 
+                 if (problematicField === 'department') {
+                   // Remove 'department' field as it doesn't exist in employee types
+                   fixedQuery = fixedQuery.replace(/\bdepartment\b/g, '');
+                   console.log('🔍 QUERY AGENT - Removed non-existent "department" field (resumed)');
+                 }
+                 
+                                   if (problematicField === 'page') {
+                    // Replace 'page' with 'currentPage' only in return fields, not in input arguments
+                    // Look for 'page' that's not followed by ':' (which would be an input argument)
+                    console.log('🔍 QUERY AGENT - DEBUG: Page field detected, original query:', originalQuery);
+                    fixedQuery = fixedQuery.replace(/\bpage(?!\s*:)/g, 'currentPage');
+                    console.log('🔍 QUERY AGENT - DEBUG: Page field corrected, fixed query:', fixedQuery);
+                    console.log('🔍 QUERY AGENT - Corrected return field "page" to "currentPage" (resumed)');
+                  }
+                 
+                 if (problematicField === 'data' && plan?.selectedQuery === 'employees') {
+                   // For employees query, 'data' might need to be 'employees'
+                   fixedQuery = fixedQuery.replace(/\bdata\b/g, 'employees');
+                   console.log('🔍 QUERY AGENT - Corrected "data" to "employees" for employees query (resumed)');
+                 }
+                
+                // Remove problematic field patterns if corrections don't work
+                if (fixedQuery === originalQuery) {
+                  const patterns = [
+                    new RegExp(`\\s*${problematicField}\\s*\\{[^}]*\\}`, 'g'),  // field with block
+                    new RegExp(`\\s*${problematicField}\\s*,?`, 'g'),           // field with optional comma
+                    new RegExp(`\\s*,\\s*${problematicField}\\s*`, 'g'),        // comma then field
+                  ];
+                  
+                  patterns.forEach(pattern => {
+                    fixedQuery = fixedQuery.replace(pattern, ' ');
+                  });
+                  console.log(`🔍 QUERY AGENT - Removed problematic field "${problematicField}" (resumed)`);
+                }
+              }
+              
+              // Apply comprehensive complex field filtering
+              const complexFields = [
+                'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
+                'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
+                'healthInsurance', 'contractData', 'paymentComponents',
+                'permissions', 'roles', 'metadata', 'settings', 'preferences',
+                'contractDataStatuses', 'employeeContractDataStatuses',
+                'currentPage', 'totalPages', 'totalResults' // Add common wrong pagination fields
+              ];
+              
+              complexFields.forEach(field => {
+                const patterns = [
+                  new RegExp(`\\s*${field}\\s*,?`, 'g'),
+                  new RegExp(`\\s*,\\s*${field}\\s*`, 'g'),
+                  new RegExp(`\\s*${field}\\s*`, 'g')
+                ];
+                patterns.forEach(pattern => {
+                  fixedQuery = fixedQuery.replace(pattern, ' ');
+                });
+              });
+              
+              // Clean up the query thoroughly
+              fixedQuery = fixedQuery
+                .replace(/\s+/g, ' ')
+                .replace(/\{\s+/g, '{ ')
+                .replace(/\s+\}/g, ' }')
+                .replace(/,\s*,/g, ',')
+                .replace(/,\s*\}/g, ' }')
+                .replace(/\{\s*,/g, '{ ')
+                .replace(/\s*,\s*/g, ', ')
+                .trim();
+              
+              console.log('🔍 QUERY AGENT - Retrying with corrected query (resumed):', fixedQuery);
+              
+              // Retry with the corrected query
+              const retryArgs = accessToken 
+                ? { query: fixedQuery, accessToken }
+                : { query: fixedQuery };
+              
+              try {
+                result = await tool.invoke(retryArgs);
+                console.log('🔍 QUERY AGENT - Field validation error correction successful (resumed)!');
+              } catch (retryError) {
+                console.error('🔍 QUERY AGENT - Field validation error correction failed (resumed):', retryError);
+                throw retryError;
+              }
+            } else {
+              throw error;
+            }
+          }
+          
+          results.push({
+            step: step.tool,
+            input: toolArgs,
+            output: result
+          });
+
+          console.log(`🔍 QUERY AGENT - Step ${step.tool} completed (resumed execution):`, result);
+        }
+      }
+
+      // Generate final response
+      const executeQueryResult = results.find(r => r.step === 'execute-query');
+      let cleanData: any = null;
+      let resultSummary = 'Query completed successfully (resumed execution).';
+      
+      if (executeQueryResult && executeQueryResult.output) {
+        try {
+          const queryOutput = typeof executeQueryResult.output === 'string' 
+            ? JSON.parse(executeQueryResult.output) 
+            : executeQueryResult.output;
+          
+          cleanData = queryOutput.data;
+          
+          // Generate dynamic summary
+          const selectedQueryName = plan.selectedQuery || 'unknown';
+          
+          if (cleanData) {
+            if (selectedQueryName === 'me') {
+              const userData = cleanData[selectedQueryName];
+              if (userData) {
+                const name = userData.firstName || userData.email || userData.id || 'Unknown';
+                resultSummary = `Successfully retrieved user data for ${name} (resumed execution).`;
+              }
+            } else if (selectedQueryName.includes('employees') && cleanData.employees?.employees) {
+              const employeeCount = cleanData.employees.employees.length;
+              resultSummary = `Successfully retrieved ${employeeCount} employee${employeeCount !== 1 ? 's' : ''} (resumed execution).`;
+            } else {
+              resultSummary = `Successfully executed ${selectedQueryName} query (resumed execution).`;
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing execute-query result:', error);
+          resultSummary = 'Query completed but data parsing failed (resumed execution).';
+        }
+      }
+
+      return {
+        success: true,
+        task: task.description,
+        data: cleanData,
+        summary: resultSummary,
+        executedAt: new Date().toISOString(),
+        metadata: {
+          resumedExecution: true,
+          originalPlan: plan,
+          typeDetailsUsed: savedState.needsTypeDetails.typeNames
+        }
+      };
+    },
+
+    /**
+     * Builds a comprehensive type details summary from structured MCP pattern analysis
+     */
+    buildStructuredTypeDetailsSummary(patterns: any): string {
+      if (!patterns) return 'No pattern analysis available';
+
+      let summary = 'MCP Structured Pattern Analysis:\n';
+
+      // Input Types Information
+      if (patterns.inputTypes?.length > 0) {
+        summary += `📥 Input Types (${patterns.inputTypes.length}):\n`;
+        patterns.inputTypes.forEach((inputType: any) => {
+          summary += `  • ${inputType.name}`;
+          if (inputType.isFilter) summary += ' (Filter)';
+          if (inputType.isAdvanced) summary += ' (Advanced)';
+          if (inputType.requiredFields?.length > 0) {
+            summary += ` - Required: ${inputType.requiredFields.join(', ')}`;
+          }
+          summary += '\n';
+        });
+      }
+
+      // Common Arguments
+      if (patterns.commonArguments) {
+        const commonArgs = Object.entries(patterns.commonArguments)
+          .filter(([_, value]) => value)
+          .map(([key, _]) => key);
+        if (commonArgs.length > 0) {
+          summary += `🔧 Common Arguments: ${commonArgs.join(', ')}\n`;
+        }
+      }
+
+      // Common Fields
+      if (patterns.commonFields) {
+        const commonFields = Object.entries(patterns.commonFields)
+          .filter(([_, value]) => value)
+          .map(([key, _]) => key);
+        if (commonFields.length > 0) {
+          summary += `🏷️ Common Fields: ${commonFields.join(', ')}\n`;
+        }
+      }
+
+      // Union Types
+      if (patterns.unionTypes?.length > 0) {
+        summary += `🔀 Union Types (${patterns.unionTypes.length}):\n`;
+        patterns.unionTypes.forEach((unionType: any) => {
+          summary += `  • ${unionType.name}: ${unionType.possibleTypes?.join(', ') || 'Unknown members'}\n`;
+        });
+      }
+
+      // Pagination Info
+      if (patterns.pagination?.detected) {
+        summary += `📄 Pagination: Available (${patterns.pagination.fields?.join(', ') || 'standard fields'})\n`;
+      }
+
+      // Query Hints
+      if (patterns.queryHints?.length > 0) {
+        summary += `💡 Query Hints:\n`;
+        patterns.queryHints.forEach((hint: string) => {
+          summary += `  • ${hint}\n`;
+        });
+      }
+
+      return summary;
+    },
+
+    /**
+     * Builds an enhanced query prompt using MCP LLM guidance and structured pattern analysis
+     */
+    buildEnhancedQueryPrompt(
+      selectedQueryName: string,
+      queryContext: any,
+      typeDetailsSummary: string,
+      structuredPatterns: any,
+      llmGuidance?: string
+    ): string {
+      let prompt = `🚨 CRITICAL: Generate a GraphQL query using ONLY the exact field names provided in the schema analysis below.
+
+Query: "${selectedQueryName}"
+Task: ${queryContext.task}
+
+Query Details: ${queryContext.queryDetails?.substring?.(0, 500) || 'No details'}...
+
+⚠️ FIELD USAGE RULES:
+1. Use ONLY the field names explicitly listed in the type definitions below
+2. DO NOT invent or assume field names (like "name", "position", "department")
+3. DO NOT use common field names unless they appear in the schema
+4. If you're unsure about a field name, omit it entirely
+
+🔄 FIELD CONSISTENCY RULES:
+1. Input and output fields must use the same names
+2. If input has pagination: { limit: 20, currentPage: 1 }, output must use: pagination { limit currentPage }
+3. If input has companyId, output may not need companyId (it's a filter, not a return field)
+4. Match field types exactly - don't mix scalar/complex fields
+
+`;
+
+      // Prioritize LLM guidance from MCP tool if available
+      if (llmGuidance && llmGuidance.trim()) {
+        prompt += `ENHANCED MCP GUIDANCE:
+${llmGuidance}
+
+`;
+      } else {
+        // Fallback to basic type analysis
+        prompt += `Type Analysis:
+${typeDetailsSummary}
+
+`;
+
+        // Add specific instructions based on structured patterns
+        if (structuredPatterns) {
+          prompt += `STRUCTURED GUIDANCE (from MCP analysis):
+
+`;
+
+          // Build field consistency mappings
+          const fieldMappings = this.buildFieldConsistencyMappings(structuredPatterns);
+          if (fieldMappings.length > 0) {
+            prompt += `🔄 FIELD CONSISTENCY MAPPINGS:
+${fieldMappings.join('\n')}
+
+`;
+          }
+
+          // Input type guidance
+          if (structuredPatterns.inputTypes?.length > 0) {
+            prompt += `📥 INPUT TYPES DETECTED:\n`;
+            structuredPatterns.inputTypes.forEach((inputType: any) => {
+              prompt += `  • ${inputType.name}`;
+              if (inputType.requiredFields?.length > 0) {
+                prompt += ` requires: ${inputType.requiredFields.join(', ')}`;
+              }
+              prompt += '\n';
+            });
+            prompt += '\n';
+          }
+
+          // Argument structure guidance
+          if (structuredPatterns.commonArguments) {
+            const args: string[] = [];
+            if (structuredPatterns.commonArguments.companyId) {
+              args.push('companyId: "{{auto_companyid}}"');
+            }
+            if (structuredPatterns.commonArguments.conditionType) {
+              args.push('conditionType: AND');
+            }
+            if (structuredPatterns.commonArguments.pagination) {
+              args.push('pagination: { limit: 20, currentPage: 1 }');
+            }
+            
+            if (args.length > 0) {
+              prompt += `🔧 REQUIRED ARGUMENTS:\n  { ${args.join(', ')} }\n\n`;
+            }
+          }
+
+          // Field selection guidance with consistency rules
+          if (structuredPatterns.commonFields) {
+            const fields = Object.entries(structuredPatterns.commonFields)
+              .filter(([_, value]) => value)
+              .map(([key, _]) => key);
+            
+            if (fields.length > 0) {
+              prompt += `🏷️ RECOMMENDED FIELDS (ensure consistency with input args):\n  ${fields.join(', ')}\n\n`;
+            }
+          }
+
+          // Union type guidance
+          if (structuredPatterns.unionTypes?.length > 0) {
+            prompt += `🔀 UNION TYPE HANDLING:\n`;
+            structuredPatterns.unionTypes.forEach((unionType: any) => {
+              prompt += `  • ${unionType.name}: Use inline fragments\n`;
+              if (unionType.possibleTypes?.length > 0) {
+                unionType.possibleTypes.forEach((type: string) => {
+                  prompt += `    ... on ${type} { id email firstName lastName }\n`;
+                });
+              }
+            });
+            prompt += '\n';
+          }
+
+          // Custom query hints
+          if (structuredPatterns.queryHints?.length > 0) {
+            prompt += `💡 SPECIFIC HINTS:\n`;
+            structuredPatterns.queryHints.forEach((hint: string) => {
+              prompt += `  • ${hint}\n`;
+            });
+            prompt += '\n';
+          }
+        }
+      }
+
+      // Add core rules - but make them more concise if we have LLM guidance
+      if (llmGuidance && llmGuidance.trim()) {
+        prompt += `🎯 CRITICAL EXECUTION RULES:
+1. Query name: "${selectedQueryName}"
+2. Follow the MCP guidance above precisely  
+3. Use ONLY field names that appear in the "Safe Scalar Fields" or type definitions above
+4. DO NOT use: "name", "position", "department", "page", or any other fields not explicitly shown
+5. ENSURE input/output field consistency (same field names in both places)
+6. Generate ONLY the GraphQL query (no explanations)
+
+REMINDER: The schema shows exact field names like "firstName", "lastName", "jobTitle" - use these EXACTLY as shown.
+
+Target Query: "${selectedQueryName}"`;
+      } else {
+        prompt += `🎯 CRITICAL EXECUTION RULES:
+1. Query name: "${selectedQueryName}"
+2. Use ONLY field names that appear in the type analysis above
+3. DO NOT invent field names like "name", "position", "department"
+4. Use SCALAR fields only (avoid complex objects without subfield selection)
+5. For nested objects, include proper structure (e.g., employees { employees { fields } pagination { fields } })
+6. ENSURE field consistency: input pagination: { limit } → output pagination { limit }
+7. AVOID these complex fields: dataStatus, events, incomeComponents, contractData, permissions, roles
+8. For errors with "must have a selection of subfields", remove that field entirely
+
+🚨 FIELD NAME RESTRICTIONS:
+- Use "firstName" and "lastName", NOT "name"
+- Use "jobTitle", NOT "position"  
+- Use "email", "id", "status" as shown in schema
+- DO NOT use "department" (it doesn't exist)
+- For pagination: use "limit" and "page" consistently in both input and output
+- DO NOT add "totalItems" to output if not in input
+
+EXAMPLES:`;
+
+        // Add context-aware examples
+        if (selectedQueryName === 'me') {
+          prompt += `
+- me (union): query { me { ... on OnboardingAdmin { id email firstName lastName } ... on OnboardingEmployee { id email firstName lastName } } }`;
+        } else if (selectedQueryName.includes('employee')) {
+          prompt += `
+- employees: query { employees(data: { companyId: "{{auto_companyid}}", conditionType: AND, pagination: { limit: 20 } }) { employees { id firstName lastName email status } pagination { limit } } }`;
+        } else {
+          prompt += `
+- general: query { ${selectedQueryName}(data: { companyId: "{{auto_companyid}}" }) { id } }`;
+        }
+
+        prompt += `
+
+Generate ONLY the GraphQL query (no explanations):`;
+      }
+
+      return prompt;
+    },
+
+    /**
+     * Build field consistency mappings from structured patterns
+     */
+    buildFieldConsistencyMappings(structuredPatterns: any): string[] {
+      const mappings: string[] = [];
+      
+      // Pagination consistency
+      if (structuredPatterns.commonArguments?.pagination && structuredPatterns.pagination?.detected) {
+        const inputFields = ['limit', 'page'];
+        const outputFields = structuredPatterns.pagination.fields || [];
+        
+        // Find matching fields
+        const consistentFields = inputFields.filter(field => 
+          outputFields.includes(field) || outputFields.includes(field.toLowerCase())
+        );
+        
+        if (consistentFields.length > 0) {
+          mappings.push(`  pagination: { ${inputFields.join(', ')} } → pagination { ${consistentFields.join(' ')} }`);
+        }
+      }
+      
+      // Common field mappings
+      const fieldMappings = {
+        'companyId': 'Used in input only (filter), not in output',
+        'conditionType': 'Used in input only (filter), not in output',
+        'id': 'Available in both input (for filtering) and output',
+        'email': 'Available in both input (for filtering) and output',
+        'status': 'Available in both input (for filtering) and output'
+      };
+      
+      Object.entries(fieldMappings).forEach(([field, description]) => {
+        if (structuredPatterns.commonFields?.[field] || structuredPatterns.commonArguments?.[field]) {
+          mappings.push(`  ${field}: ${description}`);
+        }
+      });
+      
+      return mappings;
     }
   };
 }
 
-function extractTypeNames(result: any): string | null {
-  if (!result) return null;
-  
-  // Try to find type names in the result text
-  const text = typeof result === 'string' ? result : JSON.stringify(result);
-  console.log('Extracting type names from query details:', text.substring(0, 500) + '...');
-  
+/**
+ * Checks if a query details result contains type names that need detailed introspection
+ */
+function checkIfTypeDetailsNeeded(result: any): { needed: boolean; typeNames: string[] } {
   const typeNames = new Set<string>();
   
-  // Parse query signatures to extract type names
-  // Look for patterns like "data: TypeName!" or "): ReturnType!"
-  // This handles both argument types and return types from actual query signatures
+  // Handle both string results and object results
+  let text = '';
+  if (typeof result === 'string') {
+    text = result;
+  } else if (result && typeof result === 'object') {
+    if (result.content) {
+      const content = Array.isArray(result.content) ? result.content[0]?.text || '' : result.content;
+      text = typeof content === 'string' ? content : JSON.stringify(content);
+    } else {
+      text = JSON.stringify(result);
+    }
+  }
   
-  // Split by lines to process each query signature
+  if (!text) return { needed: false, typeNames: [] };
+  
+  console.log('🔍 QUERY AGENT - Analyzing text for type names:', text.substring(0, 200) + '...');
+  
+  // Look for type names in the query details
+  // Pattern like "data: EmployeeAdvancedFilterForHrInput!" or "): EmployeeAdvancedFilterForHr!"
   const lines = text.split('\n');
   
   for (const line of lines) {
@@ -814,9 +1570,9 @@ function extractTypeNames(result: any): string | null {
     if (argTypeMatches) {
       argTypeMatches.forEach(match => {
         const typeName = match.replace(/:\s*/, '').replace(/[!\s]/g, '');
-        if (typeName && !isGraphQLScalar(typeName)) {
+        if (typeName && !isGraphQLScalarType(typeName) && isComplexTypeName(typeName)) {
           typeNames.add(typeName);
-          console.log(`Found argument type: ${typeName}`);
+          console.log(`🔍 QUERY AGENT - Found complex argument type: ${typeName}`);
         }
       });
     }
@@ -826,117 +1582,92 @@ function extractTypeNames(result: any): string | null {
     if (returnTypeMatches) {
       returnTypeMatches.forEach(match => {
         const typeName = match.replace(/\):\s*/, '').replace(/[!\s]/g, '');
-        if (typeName && !isGraphQLScalar(typeName)) {
+        if (typeName && !isGraphQLScalarType(typeName) && isComplexTypeName(typeName)) {
           typeNames.add(typeName);
-          console.log(`Found return type: ${typeName}`);
-        }
-      });
-    }
-    
-    // Also look for nested types within square brackets [TypeName]
-    const listTypeMatches = trimmedLine.match(/\[([A-Z]\w+)\]/g);
-    if (listTypeMatches) {
-      listTypeMatches.forEach(match => {
-        const typeName = match.replace(/[\[\]]/g, '');
-        if (typeName && !isGraphQLScalar(typeName)) {
-          typeNames.add(typeName);
-          console.log(`Found list type: ${typeName}`);
-        }
-      });
-    }
-    
-    // ADDITIONAL: Look for nested types in type field definitions
-    // Pattern like "employees: [EmployeeAdvancedFilterForHrEmployees!]!" or "field: SomeType!"
-    const fieldTypeMatches = trimmedLine.match(/\w+:\s*\[?([A-Z]\w+)/g);
-    if (fieldTypeMatches) {
-      fieldTypeMatches.forEach(match => {
-        // Extract just the type name part
-        const typeMatch = match.match(/:\s*\[?([A-Z]\w+)/);
-        if (typeMatch && typeMatch[1]) {
-          const typeName = typeMatch[1];
-          if (typeName && !isGraphQLScalar(typeName) && !typeName.includes('Data')) {
-            typeNames.add(typeName);
-            console.log(`Found field type: ${typeName}`);
-          }
+          console.log(`🔍 QUERY AGENT - Found complex return type: ${typeName}`);
         }
       });
     }
   }
   
-  // Convert Set to Array and filter out any remaining unwanted types
-  const result_types = Array.from(typeNames).filter(type => 
-    type.length > 2 && // Reasonable length
-    type !== type.toLowerCase() && // Should start with uppercase (GraphQL convention)
-    !['Query', 'Mutation', 'Subscription'].includes(type) // Skip root types
-  );
+  const result_types = Array.from(typeNames);
+  console.log(`🔍 QUERY AGENT - Found ${result_types.length} types needing details:`, result_types);
   
-  console.log('Extracted type names from query details:', result_types);
-  
-  return result_types.length > 0 ? result_types.join(',') : null;
+  return {
+    needed: result_types.length > 0,
+    typeNames: result_types
+  };
 }
 
-// Helper function to check if a type is a GraphQL scalar
-function isGraphQLScalar(typeName: string): boolean {
+/**
+ * Checks if a type name is a GraphQL scalar
+ */
+function isGraphQLScalarType(typeName: string): boolean {
   const scalars = ['String', 'Int', 'Float', 'Boolean', 'ID', 'JSON', 'DateTime', 'Date', 'Time'];
   return scalars.includes(typeName);
 }
 
-function extractNestedTypesFromTypeDefinitions(text: string): string | null {
-  console.log('Extracting nested types from type definitions:', text.substring(0, 500) + '...');
+/**
+ * Checks if a type name looks like a complex type that needs details
+ */
+function isComplexTypeName(typeName: string): boolean {
+  // Types ending with Input, Filter, Data, or longer than 10 characters are likely complex
+  return (
+    typeName.endsWith('Input') ||
+    typeName.endsWith('Filter') ||
+    typeName.endsWith('Data') ||
+    typeName.length > 10 ||
+    typeName.includes('Advanced') ||
+    typeName.includes('For')
+  );
+}
+
+/**
+ * Checks if type details already exist in completed tasks
+ */
+function checkForExistingTypeDetails(state: any, typeNames: string[]): { found: boolean; data?: any } {
+  console.log(`🔍 QUERY AGENT - Checking for existing type details for: ${typeNames.join(', ')}`);
   
-  const typeNames = new Set<string>();
+  // Check if state has memory with task state
+  const taskState = state.memory?.get('taskState');
+  if (!taskState || !taskState.tasks) {
+    console.log(`🔍 QUERY AGENT - No task state found`);
+    return { found: false };
+  }
   
-  // Split by lines to process each type definition
-  const lines = text.split('\n');
+  // Look for completed type details tasks
+  const completedTasks = taskState.tasks.filter((task: any) => 
+    task.type === 'type_details' && 
+    task.status === 'completed' && 
+    task.result
+  );
   
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    
-    // Skip empty lines and comments
-    if (!trimmedLine || trimmedLine.startsWith('//')) continue;
-    
-    console.log('DEBUG: Processing line:', trimmedLine);
-    
-    // Look for field type definitions - pattern like "employees: [EmployeeAdvancedFilterForHrEmployees!]!"
-    const fieldTypeMatches = trimmedLine.match(/\w+:\s*\[?([A-Z]\w+)(!|\]|$)/g);
-    if (fieldTypeMatches) {
-      console.log('DEBUG: Found field type matches:', fieldTypeMatches);
-      fieldTypeMatches.forEach(match => {
-        // Extract the type name from patterns like:
-        // "employees: [EmployeeAdvancedFilterForHrEmployees!]!" 
-        // "pagination: PaginationData!"
-        const typeMatch = match.match(/:\s*\[?([A-Z]\w+)/);
-        if (typeMatch && typeMatch[1]) {
-          const typeName = typeMatch[1];
-          console.log('DEBUG: Checking type name:', typeName, 'isScalar:', isGraphQLScalar(typeName));
-          if (typeName && !isGraphQLScalar(typeName)) {
-            typeNames.add(typeName);
-            console.log(`Found nested type in type definition: ${typeName}`);
-          }
-        }
-      });
-    }
-    
-    // Also look for types in enum/union definitions if needed
-    // Pattern like "enum SomeType { VALUE1 VALUE2 }"
-    const enumTypeMatch = trimmedLine.match(/enum\s+([A-Z]\w+)/);
-    if (enumTypeMatch && enumTypeMatch[1]) {
-      const typeName = enumTypeMatch[1];
-      if (!isGraphQLScalar(typeName)) {
-        typeNames.add(typeName);
-        console.log(`Found enum type: ${typeName}`);
+  console.log(`🔍 QUERY AGENT - Found ${completedTasks.length} completed type details tasks`);
+  
+  for (const task of completedTasks) {
+    const result = task.result;
+    if (result && result.data && result.data.typeDetails) {
+      console.log(`🔍 QUERY AGENT - Checking task ${task.id} for type details`);
+      
+      // Check if this task has the type details we need
+      const hasNeededTypes = typeNames.some(typeName => 
+        Object.keys(result.data.typeDetails).some(key => 
+          key.includes(typeName) || result.data.typeDetails[key]
+        )
+      );
+      
+      if (hasNeededTypes) {
+        console.log(`🔍 QUERY AGENT - Found matching type details in task ${task.id}`);
+        return { 
+          found: true, 
+          data: result.data.typeDetails 
+        };
       }
     }
   }
   
-  // Convert Set to Array and filter out any remaining unwanted types
-  const result_types = Array.from(typeNames).filter(type => 
-    type.length > 2 && // Reasonable length
-    type !== type.toLowerCase() && // Should start with uppercase (GraphQL convention)
-    !['Query', 'Mutation', 'Subscription'].includes(type) // Skip root types
-  );
-  
-  console.log('Extracted nested types from type definitions:', result_types);
-  
-  return result_types.length > 0 ? result_types.join(',') : null;
+  console.log(`🔍 QUERY AGENT - No matching type details found`);
+  return { found: false };
 }
+
+

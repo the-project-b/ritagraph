@@ -4,6 +4,8 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage } from '@langchain/core/messages';
 import { ExtendedState } from '../../../states/states';
 import { createQueryAgent } from '../agents/query-agent';
+import { createTypeDetailsAgent } from '../agents/type-details-agent';
+import { executionStateManager } from '../utils/execution-state-manager';
 
 /**
  * Creates a new data requirement
@@ -103,10 +105,28 @@ export function updateTaskResult(
   taskId: string,
   result: any
 ): TaskState {
-  return updateTaskState(state, taskId, {
+  // First update the task status and result
+  const updatedState = updateTaskState(state, taskId, {
     status: 'completed',
     result
   });
+  
+  // Then update the completedTasks Set to track dependencies properly
+  const updatedCompletedTasks = new Set(state.completedTasks);
+  updatedCompletedTasks.add(taskId);
+  
+  // Remove from failedTasks if it was there
+  const updatedFailedTasks = new Set(state.failedTasks);
+  updatedFailedTasks.delete(taskId);
+  
+  // Clean up any execution states for this completed task
+  executionStateManager.clearTaskStates(taskId);
+  
+  return {
+    ...updatedState,
+    completedTasks: updatedCompletedTasks,
+    failedTasks: updatedFailedTasks
+  };
 }
 
 /**
@@ -170,6 +190,12 @@ Task Types and Keywords:
   * Examples: "update user email", "create new order", "delete old records"
   * Purpose: Modifying, creating, or deleting data
 
+- Type Details tasks (type_details_agent):
+  * Keywords: analyze types, get type details, understand schema, introspect types
+  * Examples: "analyze GraphQL types for employee query", "get type details for input types"
+  * Purpose: GraphQL schema introspection and type analysis
+  * Note: These are often automatically created as dependencies for complex queries
+
 Dependency Rules:
 1. Tasks that need data from other tasks should depend on those tasks
 2. Use task IDs (task_0, task_1, etc.) to reference dependencies
@@ -181,11 +207,15 @@ Your response must be a JSON array in this exact format:
 [
   {
     "description": "clear and actionable task description",
-    "type": "query" or "mutation",
-    "targetAgent": "query_agent" or "mutation_agent",
+    "type": "query" or "mutation" or "type_details",
+    "targetAgent": "query_agent" or "mutation_agent" or "type_details_agent",
     "dependencies": ["task_id of dependency"]
   }
 ]
+
+IMPORTANT: For complex data retrieval that likely involves GraphQL types with "Input", "Filter", "Advanced", or other complex naming patterns, automatically create a type_details task as a dependency. For example:
+- "get employees with advanced filtering" should create both a type_details task and a query task
+- "retrieve user data with complex criteria" should include type analysis
 
 Examples:
 
@@ -279,12 +309,12 @@ Remember:
       }
 
       // Validate task type
-      if (!['query', 'mutation'].includes(task.type)) {
+      if (!['query', 'mutation', 'type_details'].includes(task.type)) {
         throw new Error(`Task ${index} has invalid type: ${task.type}`);
       }
 
       // Validate target agent
-      if (!['query_agent', 'mutation_agent'].includes(task.targetAgent)) {
+      if (!['query_agent', 'mutation_agent', 'type_details_agent'].includes(task.targetAgent)) {
         throw new Error(`Task ${index} has invalid target agent: ${task.targetAgent}`);
       }
 
@@ -435,14 +465,14 @@ export function needsVerification(task: Task): boolean {
 /**
  * Updates the memory with a new task state
  */
-export function updateMemoryWithTaskState(state: ExtendedState, { tasks }: { tasks: Task[] }): ExtendedState {
+export function updateMemoryWithTaskState(state: ExtendedState, { tasks, executionStartTime }: { tasks: Task[]; executionStartTime?: number }): ExtendedState {
   return {
     ...state,
     memory: new Map(state.memory || new Map()).set("taskState", {
       tasks,
-      currentTaskIndex: 0,
       completedTasks: new Set<string>(),
-      failedTasks: new Set<string>()
+      failedTasks: new Set<string>(),
+      executionStartTime
     })
   };
 }
@@ -457,18 +487,28 @@ export function updateTaskProgress(
   const taskState = state.memory?.get('taskState') as TaskState;
   if (!taskState) return state;
 
-  const updatedTasks = taskState.tasks.map(task =>
-    task.id === taskId
-      ? { ...task, status: error ? "failed" : "completed", result, error }
-      : task
-  );
-
-  const updatedTaskState = {
-    ...taskState,
-    tasks: updatedTasks,
-    completedTasks: error ? taskState.completedTasks : new Set([...taskState.completedTasks, taskId]),
-    failedTasks: error ? new Set([...taskState.failedTasks, taskId]) : taskState.failedTasks
-  };
+  // Use the proper updateTaskResult function that handles Sets correctly
+  const updatedTaskState = error 
+    ? updateTaskState(taskState, taskId, { status: 'failed', error })
+    : updateTaskResult(taskState, taskId, result);
+  
+  // Handle failed tasks Set for error case
+  if (error) {
+    const updatedFailedTasks = new Set(updatedTaskState.failedTasks);
+    updatedFailedTasks.add(taskId);
+    
+    const updatedCompletedTasks = new Set(updatedTaskState.completedTasks);
+    updatedCompletedTasks.delete(taskId);
+    
+    return {
+      ...state,
+      memory: new Map(state.memory || new Map()).set("taskState", {
+        ...updatedTaskState,
+        completedTasks: updatedCompletedTasks,
+        failedTasks: updatedFailedTasks
+      })
+    };
+  }
 
   return {
     ...state,
@@ -479,18 +519,11 @@ export function updateTaskProgress(
 /**
  * Updates the current task index in the state
  */
-export function updateCurrentTask(state: ExtendedState, { taskIndex }: { taskIndex: number }): ExtendedState {
-  const taskState = state.memory?.get('taskState') as TaskState;
-  if (!taskState) return state;
-
-  return {
-    ...state,
-    memory: new Map(state.memory || new Map()).set("taskState", {
-      ...taskState,
-      currentTaskIndex: taskIndex
-    })
-  };
-}
+// Note: updateCurrentTask is no longer needed with dependency-based task selection
+// export function updateCurrentTask(state: ExtendedState, { taskIndex }: { taskIndex: number }): ExtendedState {
+//   // This function is deprecated - we now use dependency-based task selection
+//   return state;
+// }
 
 /**
  * Updates a task's result in the ExtendedState
@@ -565,4 +598,123 @@ export async function executeMutationTask(task: Task) {
       executionDate: now.toLocaleDateString()
     }
   };
+}
+
+/**
+ * Executes a type details task
+ */
+export async function executeTypeDetailsTask(task: Task, state: any, config: any) {
+  try {
+    // Create type details agent
+    const typeDetailsAgent = await createTypeDetailsAgent();
+    
+    // Execute the task using the type details agent
+    const result = await typeDetailsAgent.executeTask(task, state, config);
+    
+    // Add timestamp and format the response
+    const now = new Date();
+    return {
+      ...result,
+      timestamp: now.toISOString(),
+      metadata: {
+        ...result.metadata,
+        executionTime: now.toLocaleTimeString(),
+        executionDate: now.toLocaleDateString()
+      }
+    };
+  } catch (error) {
+    console.error('Error in executeTypeDetailsTask:', error);
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        taskId: task.id,
+        type: task.type,
+        error: error.stack
+      }
+    };
+  }
+}
+
+/**
+ * Creates a type details task for the given type names
+ */
+export function createTypeDetailsTask(typeNames: string[], dependentTaskId: string): Task {
+  const typeDetailsTaskId = `${dependentTaskId}_type_details`;
+  
+  return {
+    id: typeDetailsTaskId,
+    description: `Analyze GraphQL types: ${typeNames.join(', ')}`,
+    type: 'type_details',
+    targetAgent: 'type_details_agent',
+    dependencies: [],
+    status: 'pending',
+    sources: [],
+    citations: [],
+    confidence: 0.8,
+    verificationStatus: 'unverified',
+    context: {
+      dataRequirements: [],
+      phase: 'initialization',
+      context: {
+        typeNames: typeNames,
+        requestedFor: dependentTaskId
+      }
+    }
+  };
+}
+
+/**
+ * Injects type details tasks when a query indicates it needs them
+ */
+export function injectTypeDetailsTaskIfNeeded(
+  state: ExtendedState,
+  taskId: string,
+  result: any
+): ExtendedState {
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState) return state;
+
+  // Check if the result indicates type details are needed
+  if (result && result.requiresTypeDetails && result.typeNames) {
+    console.log(`🔍 TASK HANDLER - Creating type details task for: ${result.typeNames.join(', ')}`);
+    
+    // Create a new type details task
+    const typeDetailsTask = createTypeDetailsTask(result.typeNames, taskId);
+    
+    // Find the current task that needs type details
+    const currentTaskIndex = taskState.tasks.findIndex(t => t.id === taskId);
+    if (currentTaskIndex === -1) return state;
+    
+    // Update the current task to depend on the type details task
+    const updatedTasks = [...taskState.tasks];
+    updatedTasks[currentTaskIndex] = {
+      ...updatedTasks[currentTaskIndex],
+      dependencies: [...updatedTasks[currentTaskIndex].dependencies, typeDetailsTask.id],
+      status: 'pending' // Reset to pending since it now has new dependencies
+    };
+    
+    // Insert the type details task before the current task
+    updatedTasks.splice(currentTaskIndex, 0, typeDetailsTask);
+    
+    // Update the task state - remove currentTaskIndex since we now use dependency-based selection
+    const updatedTaskState = {
+      ...taskState,
+      tasks: updatedTasks,
+      // Remove the completed/failed status for the current task since it now has new dependencies
+      completedTasks: new Set(Array.from(taskState.completedTasks).filter(id => id !== taskId)),
+      failedTasks: new Set(Array.from(taskState.failedTasks).filter(id => id !== taskId))
+    };
+    
+    console.log(`🔍 TASK HANDLER - Injected type details task: ${typeDetailsTask.id}`);
+    console.log(`🔍 TASK HANDLER - Updated task ${taskId} dependencies:`, updatedTasks[currentTaskIndex + 1].dependencies);
+    
+    return {
+      ...state,
+      memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+    };
+  }
+  
+  return state;
 } 
