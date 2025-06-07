@@ -6,6 +6,10 @@ import { ExtendedState } from '../../../states/states';
 import { createQueryAgent } from '../agents/query-agent';
 import { createTypeDetailsAgent } from '../agents/type-details-agent';
 import { executionStateManager } from '../utils/execution-state-manager';
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+import { logEvent } from "../agents/supervisor-agent";
+import { AgentType } from "../types/agents";
 
 /**
  * Creates a new data requirement
@@ -84,17 +88,117 @@ export function updateTaskState(
 }
 
 /**
- * Gets the next available task
+ * Gets the next available task that can be executed.
+ * A task is available if:
+ * 1. It has 'pending' status
+ * 2. All its dependencies are completed
+ * 
+ * This function includes comprehensive logging and automatically updates
+ * the selected task's status to 'in_progress'.
  */
-export function getNextTask(state: TaskState): Task | null {
-  const availableTasks = state.tasks?.filter(task => {
-    if (task.status !== 'pending') return false;
-    return task.dependencies.every(depId => 
-      state.completedTasks.has(depId)
-    );
+export function getNextTask(state: ExtendedState): { task: Task | null; updatedState: ExtendedState } {
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState || !taskState.tasks?.length) {
+    return { task: null, updatedState: state };
+  }
+
+  console.log(`🎯 TASK SELECTOR - Looking for next task among ${taskState.tasks.length} tasks`);
+  console.log(`🎯 TASK SELECTOR - Completed tasks:`, Array.from(taskState.completedTasks));
+  console.log(`🎯 TASK SELECTOR - Failed tasks:`, Array.from(taskState.failedTasks));
+
+  // Find the next available task that:
+  // 1. Is pending
+  // 2. Has all dependencies completed
+  const availableTask = taskState.tasks.find(task => {
+    console.log(`🎯 TASK SELECTOR - Checking task ${task.id}: status=${task.status}, dependencies=[${task.dependencies.join(', ')}]`);
+    
+    if (task.status !== 'pending') {
+      console.log(`🎯 TASK SELECTOR - Task ${task.id} skipped: status is ${task.status}`);
+      return false;
+    }
+    
+    // Check if all dependencies are completed
+    const allDependenciesCompleted = task.dependencies.every(depId => {
+      const isCompleted = taskState.completedTasks.has(depId);
+      console.log(`🎯 TASK SELECTOR - Dependency ${depId} completed: ${isCompleted}`);
+      return isCompleted;
+    });
+    
+    if (!allDependenciesCompleted) {
+      console.log(`🎯 TASK SELECTOR - Task ${task.id} skipped: dependencies not completed`);
+      return false;
+    }
+    
+    console.log(`🎯 TASK SELECTOR - Task ${task.id} is available for execution`);
+    return true;
   });
 
-  return availableTasks?.[0] || null;
+  if (!availableTask) {
+    console.log(`🎯 TASK SELECTOR - No available tasks found`);
+    return { task: null, updatedState: state };
+  }
+
+  console.log(`🎯 TASK SELECTOR - Selected task: ${availableTask.id}`);
+
+  // Update the selected task to 'in_progress'
+  const updatedTaskState = {
+    ...taskState,
+    tasks: taskState.tasks.map(task => 
+      task.id === availableTask.id ? { ...task, status: 'in_progress' as const } : task
+    )
+  };
+
+  return {
+    task: availableTask,
+    updatedState: {
+      ...state,
+      memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+    }
+  };
+}
+
+/**
+ * Get current task from state
+ */
+export function getCurrentTask(state: ExtendedState): Task | null {
+  const taskState = state.memory?.get("taskState") as TaskState | undefined;
+  return taskState?.tasks?.find(task => task.status === "in_progress") || null;
+}
+
+/**
+ * Check if there are any pending tasks
+ */
+export function hasPendingTasks(state: ExtendedState): boolean {
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState || !taskState.tasks?.length) {
+    return false;
+  }
+  
+  return taskState.tasks.some(task => task.status === 'pending');
+}
+
+/**
+ * Get task summary for logging and debugging
+ */
+export function getTaskSummary(state: ExtendedState): {
+  total: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  failed: number;
+} {
+  const taskState = state.memory?.get('taskState') as TaskState;
+  if (!taskState || !taskState.tasks?.length) {
+    return { total: 0, pending: 0, inProgress: 0, completed: 0, failed: 0 };
+  }
+
+  const total = taskState.tasks.length;
+  const pending = taskState.tasks.filter(t => t.status === 'pending').length;
+  const inProgress = taskState.tasks.filter(t => t.status === 'in_progress').length;
+  const completed = taskState.completedTasks.size;
+  const failed = taskState.failedTasks.size;
+
+  return { total, pending, inProgress, completed, failed };
 }
 
 /**
@@ -717,4 +821,23 @@ export function injectTypeDetailsTaskIfNeeded(
   }
   
   return state;
+}
+
+/**
+ * Create dynamic task management tool
+ */
+export function createGetNextTaskTool() {
+  return tool(
+    async ({ action }: { action: string }) => {
+      logEvent('info', AgentType.TOOL, 'get_next_task_called', { action });
+      return `Task selection action: ${action}`;
+    },
+    {
+      name: "get_next_task",
+      description: "Get the next available task to execute based on dependencies and status",
+      schema: z.object({
+        action: z.string().describe("Action to perform: 'select_next' to get the next available task"),
+      }),
+    }
+  );
 } 

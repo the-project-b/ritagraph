@@ -3,12 +3,9 @@ import { AgentType, AgentState, AgentMessage } from '../types/agents';
 import { v4 as uuidv4 } from 'uuid';
 import {
   updateTaskState,
-  getNextTask,
   updateTaskResult,
-  getTaskProgress,
-  addSourceToTask,
   updateTaskRequirements,
-  createDataRequirement
+  createDataRequirement,
 } from '../tasks/tasks-handling';
 
 /**

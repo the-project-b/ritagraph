@@ -5,6 +5,8 @@ import client from "../../../mcp/client.js";
 import { placeholderManager } from "../../../placeholders/manager";
 import { MergedAnnotation } from "../../../states/states";
 import { executionStateManager } from "../utils/execution-state-manager";
+import { QueryPlanner } from "./query-agent/query-planner";
+import { QueryValidator } from "./query-agent/query-validator";
 // Import placeholders to ensure they are registered
 import "../../../placeholders/index.js";
 
@@ -31,6 +33,10 @@ export async function createQueryAgent() {
     model: "gpt-4",
     temperature: 0,
   }).bindTools(queryTools);
+
+  // Initialize helper modules
+  const queryPlanner = new QueryPlanner();
+  const queryValidator = new QueryValidator();
 
   return {
     /**
@@ -79,96 +85,14 @@ export async function createQueryAgent() {
         const queriesList = await listQueriesTool.invoke(listQueriesArgs);
         console.log('Available queries:', queriesList);
 
-        // Check for existing type details in the state
-        const taskState = state.memory?.get('taskState');
-        let existingTypeDetailsContext = '';
-        if (taskState && taskState.tasks) {
-          const completedTypeDetailsTasks = taskState.tasks.filter((t: any) => 
-            t.type === 'type_details' && 
-            t.status === 'completed' && 
-            t.result && 
-            t.result.success
-          );
-          
-          if (completedTypeDetailsTasks.length > 0) {
-            const typeAnalysis = completedTypeDetailsTasks.map((t: any) => {
-              if (t.result.metadata && t.result.metadata.typesAnalyzed) {
-                return `Types analyzed: ${t.result.metadata.typesAnalyzed.join(', ')}`;
-              }
-              return 'Type details available';
-            }).join('\n');
-            
-            existingTypeDetailsContext = `\n\nIMPORTANT - EXISTING TYPE DETAILS:
-The following type details have already been analyzed in previous tasks:
-${typeAnalysis}
-
-When selecting a query, prefer queries that match these analyzed types:
-- If HR types (like EmployeeAdvancedFilterForHrInput) were analyzed, choose HR-related queries
-- If BPO types were analyzed, choose BPO-related queries
-- If Employee types were analyzed, choose employee-related queries
-- Match the query name to the types that were analyzed`;
-          }
-        }
-
-        // Ask LLM to analyze the task and determine the execution plan
-        const planningPrompt = `You are a query planning assistant. Your job is to analyze the task and create an execution plan.
-
-Task: ${task.description}
-
-Available queries:
-${JSON.stringify(queriesList, null, 2)}
-
-Available tools:
-${queryTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}${existingTypeDetailsContext}
-
-Please analyze the task and create an execution plan. The plan should:
-1. Select the most appropriate query for the task
-2. Determine which tools to use and in what order
-3. Generate a complete GraphQL query directly
-
-QUERY SELECTION PRIORITY:
-1. FIRST: Check if type details exist and match the query to those types
-2. SECOND: Match the query name to the task description
-3. THIRD: Choose the most general/appropriate query for the task
-
-NOTE: Type details are handled by a separate TYPE_DETAILS agent. Focus only on:
-- graphql-list-queries (already done)
-- graphql-get-query-details (to understand query structure)
-- execute-query (to execute the final query)
-
-If type details are needed, return requiresTypeDetails=true to trigger the TYPE_DETAILS agent.
-
-Respond with a JSON object in this format:
-{
-  "selectedQuery": "name of the most appropriate query",
-  "reasoning": "explanation of why this query was selected",
-  "executionPlan": [
-    {
-      "tool": "tool name",
-      "purpose": "what this tool will be used for",
-      "expectedInput": "what input this tool needs",
-      "expectedOutput": "what output we expect"
-    }
-  ]
-}`;
-
-        const planningResponse = await model.invoke([
-          new HumanMessage(planningPrompt)
-        ]);
-
-        // Extract the execution plan
-        let plan;
-        try {
-          const content = typeof planningResponse.content === 'string' 
-            ? planningResponse.content 
-            : JSON.stringify(planningResponse.content);
-          plan = JSON.parse(content);
-        } catch (error) {
-          console.error('Failed to parse planning response:', error);
-          throw new Error('Failed to create execution plan');
-        }
-
-        console.log('Execution plan:', plan);
+        // Create execution plan using QueryPlanner
+        const existingTypeDetailsContext = queryPlanner.buildExistingTypeDetailsContext(state);
+        const plan = await queryPlanner.createExecutionPlan(
+          task, 
+          queriesList, 
+          queryTools, 
+          existingTypeDetailsContext
+        );
 
         // Execute the plan step by step
         interface ExecutionResult {
@@ -396,49 +320,13 @@ Please provide the input parameters that match the schema exactly.`;
               // Clean up the query
               query = query.replace(/```graphql\n?/g, '').replace(/```\n?/g, '').trim();
               
-              // Filter out complex fields that require subfield selection
-              const filterComplexFields = (queryStr: string): string => {
-                // List of known complex field names that should be removed
-                const complexFields = [
-                  'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
-                  'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
-                  'healthInsurance', 'contractData', 'paymentComponents',
-                  'permissions', 'roles', 'metadata', 'settings', 'preferences',
-                  'contractDataStatuses', 'employeeContractDataStatuses'
-                ];
-                
-                let filtered = queryStr;
-                complexFields.forEach(field => {
-                  // Remove the field and any trailing whitespace/newlines/commas
-                  filtered = filtered.replace(new RegExp(`\\s*${field}\\s*,?`, 'g'), ' ');
-                });
-                
-                // Clean up any double spaces, extra whitespace, or trailing commas
-                filtered = filtered.replace(/\s+/g, ' ')
-                  .replace(/\{\s+/g, '{ ')
-                  .replace(/\s+\}/g, ' }')
-                  .replace(/,\s*,/g, ',')
-                  .replace(/,\s*\}/g, ' }')
-                  .replace(/\{\s*,/g, '{ ');
-                
-                return filtered;
-              };
-              
-              query = filterComplexFields(query);
+              // Filter out complex fields using QueryValidator
+              query = queryValidator.filterComplexFields(query);
               console.log('Query after complex field filtering:', query);
               
-              // Simple validation - just check for basic GraphQL structure
-              const validateBasicQuery = (q: string): boolean => {
-                try {
-                  const openBraces = (q.match(/\{/g) || []).length;
-                  const closeBraces = (q.match(/\}/g) || []).length;
-                  return openBraces === closeBraces && q.includes('query {') && q.includes(selectedQueryName);
-                } catch {
-                  return false;
-                }
-              };
-              
-              if (!validateBasicQuery(query)) {
+              // Validate and fix the query using QueryValidator
+              const validation = queryValidator.validateAndFix(query, selectedQueryName);
+              if (!validation.isValid) {
                 console.warn(`Generated query failed validation, using simple fallback for ${selectedQueryName}`);
                 // Generate a simple fallback query
                 if (selectedQueryName === 'me') {
@@ -508,135 +396,23 @@ Please provide the input parameters that match the schema exactly.`;
           } catch (error: any) {
             console.log(`🔍 QUERY AGENT - Tool execution error:`, error.message);
             
-            // Check if this is a field validation error (field doesn't exist on type)
+            // Use QueryValidator to handle errors with automatic retry
             if (step.tool === 'execute-query' && 
                 error.message && 
                 (error.message.includes('Cannot query field') || 
                  error.message.includes('must have a selection of subfields'))) {
               
-              console.log('🔍 QUERY AGENT - Detected field validation error, attempting auto-correction...');
-              console.log('🔍 QUERY AGENT - Error message:', error.message);
-              
               const originalQuery = toolInvokeArgs.query || '';
-              let fixedQuery = originalQuery;
-              
-              console.log('🔍 QUERY AGENT - Original query:', originalQuery);
-              
-              // Extract problematic field from error message
-              const fieldMatch = error.message.match(/Field "([^"]+)"/);
-              const problematicField = fieldMatch ? fieldMatch[1] : '';
-              
-              if (problematicField) {
-                console.log('🔍 QUERY AGENT - Problematic field detected:', problematicField);
-                
-                // Apply intelligent field name corrections for common patterns
-                if (problematicField === 'results') {
-                  // Replace 'results' with 'employees' for employee queries
-                  fixedQuery = fixedQuery.replace(/\bresults\b/g, 'employees');
-                  console.log('🔍 QUERY AGENT - Corrected "results" to "employees"');
+              result = await queryValidator.handleQueryError(
+                originalQuery,
+                error,
+                async (fixedQuery: string) => {
+                  const retryArgs = accessToken 
+                    ? { query: fixedQuery, accessToken }
+                    : { query: fixedQuery };
+                  return await tool.invoke(retryArgs);
                 }
-                
-                if (problematicField === 'pageInfo') {
-                  // Replace 'pageInfo' with 'pagination'
-                  fixedQuery = fixedQuery.replace(/\bpageInfo\b/g, 'pagination');
-                  console.log('🔍 QUERY AGENT - Corrected "pageInfo" to "pagination"');
-                }
-                
-                if (problematicField === 'name') {
-                  // Replace 'name' with 'firstName lastName' for employee queries
-                  fixedQuery = fixedQuery.replace(/\bname\b/g, 'firstName lastName');
-                  console.log('🔍 QUERY AGENT - Corrected "name" to "firstName lastName"');
-                }
-                
-                if (problematicField === 'position') {
-                  // Replace 'position' with 'jobTitle' for employee queries
-                  fixedQuery = fixedQuery.replace(/\bposition\b/g, 'jobTitle');
-                  console.log('🔍 QUERY AGENT - Corrected "position" to "jobTitle" (LLM should not generate this)');
-                }
-                
-                if (problematicField === 'department') {
-                  // Remove 'department' field as it doesn't exist in employee types
-                  fixedQuery = fixedQuery.replace(/\bdepartment\b/g, '');
-                  console.log('🔍 QUERY AGENT - Removed non-existent "department" field (LLM should not generate this)');
-                }
-                
-                if (problematicField === 'page') {
-                  // Replace 'page' with 'currentPage' only in return fields, not in input arguments
-                  // Look for 'page' that's not followed by ':' (which would be an input argument)
-                  console.log('🔍 QUERY AGENT - DEBUG: Page field detected (initial), original query:', originalQuery);
-                  fixedQuery = fixedQuery.replace(/\bpage(?!\s*:)/g, 'currentPage');
-                  console.log('🔍 QUERY AGENT - DEBUG: Page field corrected (initial), fixed query:', fixedQuery);
-                  console.log('🔍 QUERY AGENT - Corrected return field "page" to "currentPage"');
-                }
-                
-                if (problematicField === 'data' && plan?.selectedQuery === 'employees') {
-                  // For employees query, 'data' might need to be 'employees'
-                  fixedQuery = fixedQuery.replace(/\bdata\b/g, 'employees');
-                  console.log('🔍 QUERY AGENT - Corrected "data" to "employees" for employees query');
-                }
-                
-                // Remove problematic field patterns if corrections don't work
-                if (fixedQuery === originalQuery) {
-                  const patterns = [
-                    new RegExp(`\\s*${problematicField}\\s*\\{[^}]*\\}`, 'g'),  // field with block
-                    new RegExp(`\\s*${problematicField}\\s*,?`, 'g'),           // field with optional comma
-                    new RegExp(`\\s*,\\s*${problematicField}\\s*`, 'g'),        // comma then field
-                  ];
-                  
-                  patterns.forEach(pattern => {
-                    fixedQuery = fixedQuery.replace(pattern, ' ');
-                  });
-                  console.log(`🔍 QUERY AGENT - Removed problematic field "${problematicField}"`);
-                }
-              }
-              
-              // Apply comprehensive complex field filtering
-              const complexFields = [
-                'dataStatus', 'events', 'incomeComponents', 'lastInviteLink',
-                'missingFieldsBPO', 'missingFieldsEmployee', 'missingFieldsHR',
-                'healthInsurance', 'contractData', 'paymentComponents',
-                'permissions', 'roles', 'metadata', 'settings', 'preferences',
-                'contractDataStatuses', 'employeeContractDataStatuses',
-                'currentPage', 'totalPages', 'totalResults' // Add common wrong pagination fields
-              ];
-              
-              complexFields.forEach(field => {
-                const patterns = [
-                  new RegExp(`\\s*${field}\\s*,?`, 'g'),
-                  new RegExp(`\\s*,\\s*${field}\\s*`, 'g'),
-                  new RegExp(`\\s*${field}\\s*`, 'g')
-                ];
-                patterns.forEach(pattern => {
-                  fixedQuery = fixedQuery.replace(pattern, ' ');
-                });
-              });
-              
-              // Clean up the query thoroughly
-              fixedQuery = fixedQuery
-                .replace(/\s+/g, ' ')           // Multiple spaces to single
-                .replace(/\{\s+/g, '{ ')        // Clean opening braces
-                .replace(/\s+\}/g, ' }')        // Clean closing braces
-                .replace(/,\s*,/g, ',')         // Remove double commas
-                .replace(/,\s*\}/g, ' }')       // Remove trailing commas before closing braces
-                .replace(/\{\s*,/g, '{ ')       // Remove leading commas after opening braces
-                .replace(/\s*,\s*/g, ', ')      // Normalize comma spacing
-                .trim();
-              
-              console.log('🔍 QUERY AGENT - Retrying with corrected query:', fixedQuery);
-              
-              // Retry with the corrected query
-              const retryArgs = accessToken 
-                ? { query: fixedQuery, accessToken }
-                : { query: fixedQuery };
-              
-              try {
-                result = await tool.invoke(retryArgs);
-                console.log('🔍 QUERY AGENT - Field validation error correction successful!');
-              } catch (retryError) {
-                console.error('🔍 QUERY AGENT - Field validation error correction failed:', retryError);
-                console.error('🔍 QUERY AGENT - Retry error details:', retryError.message);
-                throw retryError;
-              }
+              );
             }
             // Check if this is a union type error that needs inline fragments
             else if (step.tool === 'execute-query' && 
