@@ -4,7 +4,9 @@
   "dependencies": ["."],
   "graphs": {
     "rita-v2": "./graphs/rita-v2.ts:create_rita_v2_graph",
-    "dynamic": "./graphs/dynamic.ts:create_dynamic_graph"
+    "dynamic": "./graphs/dynamic.ts:create_dynamic_graph",
+    "dynamic-multi-agent": "./graphs/dynamic-multi-agent.ts:create_dynamic_multi_agent_graph",
+    "dynamic-multi-agent-supervisor-only": "./graphs/dynamic-multi-agent-supervisor-only.ts:createSupervisorOnlyMultiAgentGraph"
   },
   "auth": {
     "path": "security/auth.ts:auth"

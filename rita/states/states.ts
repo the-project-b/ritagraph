@@ -1,8 +1,12 @@
 import { BaseMessage, SystemMessage } from '@langchain/core/messages';
 import { Annotation, MessagesAnnotation } from '@langchain/langgraph';
 
-const StateAnnotation = Annotation.Root({
+const BaseStateAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
+});
+
+const StateAnnotation = Annotation.Root({
+  ...BaseStateAnnotation.spec,
   accessToken: Annotation<string | undefined>,
   systemMessages: Annotation<SystemMessage[]>,
 });
@@ -17,4 +21,4 @@ const MergedAnnotation = Annotation.Root({
   // ...HumanResponseStateAnnotation.spec, ->> Keeping this commented out for now for future reference
 });
 
-export { MergedAnnotation };
+export { BaseStateAnnotation, MergedAnnotation };
