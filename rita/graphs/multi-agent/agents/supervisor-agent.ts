@@ -230,7 +230,39 @@ CRITICAL INSTRUCTIONS:
   });
 };
 
+// const supervisorTools = createSupervisorTools();
+  
+// // Load the supervisor prompt using the new dynamic prompt system
+// let prompt: any = ``;
+// try {
+//   const promptConfig: BasePromptConfig = {
+//     promptId: "sup_main",
+//     model: model,
+//     extractSystemPrompts: false
+//   };
+  
+//   const promptResult = await loadSupervisorPrompt({
+//     state,
+//     config: {
+//       ...config,
+//       configurable: promptConfig
+//     }
+//   });
+  
+//   prompt = promptResult.populatedPrompt;
+//   console.log("🔧 SUPERVISOR - Successfully loaded dynamic prompt");
+// } catch (error) {
+//   console.warn("Failed to load sup_main prompt from LangSmith:", error);
+//   // Fallback to default prompt
+//   prompt = ``;
+// }
 
+// return createReactAgent({
+//   llm: model,
+//   tools: supervisorTools,
+//   prompt: prompt,
+//   name: "supervisor_agent"
+// });
 
 /**
  * Main supervisor agent function that handles routing and task execution.
