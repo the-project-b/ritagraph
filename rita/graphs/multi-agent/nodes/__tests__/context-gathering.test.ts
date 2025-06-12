@@ -1175,4 +1175,4 @@ export const IntegrationTestScenarios = {
   }
 };
 
-export default IntegrationTestScenarios; 
+export default IntegrationTestScenarios;

@@ -329,4 +329,4 @@ export function getFallbackQuery(userRequest: string, queries: string): IntentMa
     arguments: {},
     reason: 'Fallback: using first available query',
   };
-} 
+}

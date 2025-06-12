@@ -71,4 +71,4 @@ export interface MutationExecutionResult {
     executionTime: string;
     variables?: Record<string, any>;
   };
-} 
+}

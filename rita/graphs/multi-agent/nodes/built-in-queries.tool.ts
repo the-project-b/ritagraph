@@ -443,4 +443,4 @@ export class BuiltInQueryManager {
 }
 
 // Create singleton instance
-export const builtInQueryManager = new BuiltInQueryManager(); 
+export const builtInQueryManager = new BuiltInQueryManager();

@@ -366,4 +366,4 @@ describe('BuiltInQueryManager', () => {
       expect(result?.goto).toEqual(['RESULT_FORMATTING']);
     });
   });
-}); 
+});

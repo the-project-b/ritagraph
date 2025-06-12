@@ -89,4 +89,4 @@ me
     expect(resultWithoutEmployeesByCompany.name).toBe('employees');
     expect(resultWithoutEmployeesByCompany.reason).toContain('employees as employeesByCompany not available');
   });
-}); 
+});
