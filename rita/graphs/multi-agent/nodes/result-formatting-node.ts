@@ -8,6 +8,7 @@ import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
 import { updateTaskStateWithSets, getCompletedTasksContext } from "../tasks/tasks-handling";
 import { GatheredContext } from "./context-gathering-node";
+import { loadGenericPrompt } from "../prompts/prompt-factory";
 
 // All template-based formatting removed - using LLM generation instead
 
@@ -256,22 +257,69 @@ async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIn
 async function generateMessageWithLLM(messageData: any): Promise<string> {
   const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0.3 });
 
-  const prompt = `Generate a natural task completion message.
+  // Prepare data for the prompt
+  const taskStatus = messageData.currentTask.error ? 'FAILED' : 'COMPLETED';
+  const resultData = messageData.currentTask.result?.data ? JSON.stringify(messageData.currentTask.result.data, null, 2) : 'No result';
+  const errorInfo = messageData.currentTask.error ? `ERROR: ${messageData.currentTask.error}` : '';
+  const allTasksInfo = messageData.allTasks ? 
+    messageData.allTasks.map(task => `- ${task.description} (${task.status})`).join('\n') : '';
+  const contextInfo = messageData.currentTask.context?.gatheredContext ? 
+    formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None';
+  const executionTimeInfo = messageData.executionTime ? `${messageData.executionTime}s` : '';
+
+  // Load the result formatting prompt dynamically
+  let prompt = '';
+  try {
+    const { loadResultFormattingPrompt } = await import('../prompts/prompt-factory');
+    const promptResult = await loadResultFormattingPrompt({
+      state: { 
+        messages: [],
+        memory: new Map([
+          ['taskState', {
+            tasks: [messageData.currentTask],
+            completedTasks: new Set(),
+            failedTasks: new Set(),
+            executionStartTime: Date.now()
+          }],
+          ['gatheredContext', messageData.context?.gatheredContext]
+        ])
+      } as any,
+      config: {
+        configurable: {
+          promptId: "sup_formatting_result",
+          model: model,
+          extractSystemPrompts: false
+        }
+      }
+    });
+    
+    prompt = promptResult.populatedPrompt.value;
+    console.log("🔧 RESULT FORMATTING - Successfully loaded dynamic prompt");
+  } catch (error) {
+    console.warn("Failed to load sup_formatting_result prompt from LangSmith:", error);
+    // Fallback to default prompt
+    prompt = `Generate a natural task completion message.
 
 SCENARIO: ${messageData.scenario}
-TASK: ${messageData.currentTask.description} (${messageData.currentTask.error ? 'FAILED' : 'COMPLETED'})
+TASK: ${messageData.currentTask.description} (${taskStatus})
 PROGRESS: ${messageData.taskState.currentTaskNumber}/${messageData.taskState.totalTasks}
 
-RESULT: ${messageData.currentTask.result?.data ? JSON.stringify(messageData.currentTask.result.data, null, 2) : 'No result'}
-${messageData.currentTask.error ? `ERROR: ${messageData.currentTask.error}` : ''}
+RESULT: ${resultData}
+${errorInfo}
 
-${messageData.allTasks ? `ALL TASKS:\n${messageData.allTasks.map(task => `- ${task.description} (${task.status})`).join('\n')}` : ''}
+${allTasksInfo ? `ALL TASKS:\n${allTasksInfo}` : ''}
 
-CONTEXT: ${messageData.currentTask.context?.gatheredContext ? formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None'}
+CONTEXT: ${contextInfo}
+EXECUTION TIME: ${executionTimeInfo}
 
-${messageData.executionTime ? `EXECUTION TIME: ${messageData.executionTime}s` : ''}
+Generate a user-friendly completion message that:
+1. Acknowledges the task completion
+2. Summarizes the key results
+3. Provides context about progress if multiple tasks
+4. Uses a conversational, helpful tone
 
-Generate a friendly, clear completion message with emojis. For SINGLE_TASK show result + context. For INDIVIDUAL_COMPLETION show progress. For FINAL_SUMMARY show comprehensive overview.`;
+Keep the message concise but informative.`;
+  }
 
   try {
     const response = await model.invoke([new HumanMessage(prompt)]);

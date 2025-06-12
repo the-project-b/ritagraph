@@ -15,21 +15,28 @@
 // Generated Query: payments(data: {companyId: "{{companyId}}", contractIds: ["id1", "id2"]})
 // 
 // User Request: "show active payments"
-// Generated Query: payments(data: {companyId: "{{companyId}}", contractIds: {{contractIds}}, status: ACTIVE})
+// Generated Query: payments(data: {companyId: "{{companyId}}", contractIds: <contractIds>, status: ACTIVE})
 // 
 // User Request: "get payments for company acme"
-// Generated Query: payments(data: {companyId: "acme", contractIds: {{contractIds}}})
+// Generated Query: payments(data: {companyId: "acme", contractIds: <contractIds>})
+//
+// PLACEHOLDER SYNTAX (GRAPHQL-SAFE):
+// - {{variable}} - Mustache style (from LangSmith prompts and LLM generation)
+// - <variable> - Angle bracket style (from context gathering fallbacks)
+//
+// CRITICAL: Single bracket {variable} syntax is AVOIDED to prevent conflicts
+// with GraphQL object syntax like {field1, field2} and {variable: value}
 //
 import { Command } from "@langchain/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { placeholderManager } from "../../../placeholders/manager";
 import { Task } from "../types";
 import { GatheredContext, ContextUtils } from "./context-gathering-node";
+import { loadGenericPrompt } from "../prompts/prompt-factory";
 
 /**
  * Generate parameter resolution strategies description for the LLM prompt
@@ -126,88 +133,62 @@ export const queryGenerationNode = async (state: ExtendedState, config: any) => 
     const model = new ChatOpenAI({ model: "gpt-4.1", temperature: 0 });
     // const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20240620", temperature: 0 });
     
-    const prompt = `You are a GraphQL query construction professional. CRITICAL: Return ONLY the raw query string, nothing else. Analyze the following type information and construct a query:
+    // Load the query generation prompt dynamically
+    let prompt = '';
+    try {
+      const { loadQueryGenerationPrompt } = await import('../prompts/prompt-factory');
+      const promptResult = await loadQueryGenerationPrompt({
+        state: { 
+          messages: [],
+          memory: new Map([
+            ['userRequest', userRequest],
+            ['selectedQueryName', selectedQuery.selectedQueryName],
+            ['rawQueryDetails', selectedQuery.rawQueryDetails],
+            ['rawTypeDetails', selectedQuery?.rawTypeDetails],
+            ['originalInputType', selectedQuery.originalInputType],
+            ['signatureInputType', selectedQuery.signature?.input?.type],
+            ['originalOutputType', selectedQuery.originalOutputType],
+            ['signatureOutputType', selectedQuery.signature?.output?.type],
+            ['parameterStrategies', parameterStrategies],
+            ['gatheredContext', gatheredContext]
+          ])
+        } as any,
+        config: {
+          configurable: {
+            promptId: "sup_query_generation",
+            model: model,
+            extractSystemPrompts: false
+          }
+        }
+      });
+      
+      prompt = promptResult.populatedPrompt.value;
+      console.log("🔧 QUERY GENERATION - Successfully loaded dynamic prompt");
+    } catch (error) {
+      console.warn("Failed to load sup_query_generation prompt from LangSmith:", error);
+      // Fallback to default prompt
+      prompt = `Generate a GraphQL query based on the following information:
 
-User Request: "${userRequest}"
-Selected Query: ${selectedQuery.selectedQueryName}
+USER REQUEST: ${userRequest}
+SELECTED QUERY: ${selectedQuery.selectedQueryName}
+QUERY DETAILS: ${selectedQuery.rawQueryDetails}
+TYPE DETAILS: ${selectedQuery?.rawTypeDetails || 'Not available'}
 
-Query Signature:
-${selectedQuery.rawQueryDetails}
+INPUT TYPE: ${selectedQuery.originalInputType}
+OUTPUT TYPE: ${selectedQuery.originalOutputType}
 
-Type Information:
-${selectedQuery?.rawTypeDetails}
-
-Original Type Signatures:
-- Input Type: ${selectedQuery.originalInputType || selectedQuery.signature?.input?.type}
-- Output Type: ${selectedQuery.originalOutputType || selectedQuery.signature?.output?.type}
-
-PARAMETER RESOLUTION CONTEXT:
+PARAMETER STRATEGIES:
 ${parameterStrategies}
 
-SPECIAL OUTPUT TYPE HANDLING:
-${selectedQuery.originalOutputType === 'EmployeeBasicData' ? `
-🔍 DETECTED EmployeeBasicData OUTPUT TYPE:
-- This type includes optional employeeContract fields with rich contract information
-- ALWAYS include employeeContract subfields to provide comprehensive employee data
-- Include key contract fields: id, personalNumber, personalNumberPayroll
-- Example: employeeContract { id personalNumber personalNumberPayroll }
-` : ''}
+Generate a complete GraphQL query that:
+1. Uses the correct query name and structure
+2. Includes all required parameters
+3. Uses mustache placeholders ({{variable}}) for dynamic values
+4. Follows proper GraphQL syntax
+5. Includes appropriate fields in the selection set
 
-PARAMETER RESOLUTION STRATEGIES:
-1. For required parameters, try to resolve in this order:
-   a) Static values from user request or context
-   b) User context (user ID, company ID, etc.)
-   c) Dynamic data from previous query results
-   d) Use placeholder syntax {{parameter_name}} for missing required values
-   e) Use reasonable defaults for optional parameters
-
-2. Common parameter patterns:
-   - companyId: Use from user context or static context
-   - contractIds: Use from dynamic context or placeholder {{contractIds}}
-   - userId: Use from user context
-   - status filters: Extract from user request (e.g., "active", "pending")
-   - date ranges: Extract from user request or use reasonable defaults
-
-3. For array parameters like contractIds:
-   - If specific IDs mentioned in request, use them: ["id1", "id2"]  
-   - If "all" or no specific IDs, use placeholder: {{contractIds}}
-   - If user context has contracts, reference them dynamically
-
-4. Placeholder syntax examples:
-   - {{contractIds}} - will be resolved dynamically
-   - {{companyId}} - will be resolved from user context
-   - {{userId}} - will be resolved from user context
-
-FIELD SELECTION RULES:
-1. Follow the EXACT query signature for argument names (e.g., if signature shows 'data:', use 'data:', not 'input:')
-2. Extract the union type information and available fields
-3. Use the common fields provided in the type information
-4. Include __typename in the query for union types
-5. Follow the query hints provided
-6. Ensure all required fields are included
-7. Handle array types (marked with []) and non-nullable types (marked with !) appropriately
-8. For EmployeeBasicData output type: ALWAYS include employeeContract { id personalNumber personalNumberPayroll }
-9. For input arguments:
-   - Use proper GraphQL argument syntax (not JSON)
-   - For enum values, use them directly without quotes
-   - For arrays, use square brackets without quotes around enum values
-   - For strings, use double quotes
-   - For missing required parameters, use placeholder syntax {{parameter_name}}
-
-Example of correct argument syntax:
-- For arrays of enums: [ACTIVE, PENDING]
-- For string values: "some string"
-- For missing required arrays: {{contractIds}}
-- For missing required strings: {{companyId}}
-
-CRITICAL: Return ONLY the raw GraphQL query string. Do not include:
-- Any explanations
-- Any markdown formatting
-- Any code blocks
-- Any additional text
-- Any notes or comments
-
-CRITICAL: Return ONLY the raw query string, nothing else.`;
+Return only the GraphQL query without any additional text or formatting.`;
+    }
 
     const response = await model.invoke([new HumanMessage(prompt)]);
     let query = typeof response.content === 'string' ? response.content.trim() : '';
@@ -279,18 +260,26 @@ CRITICAL: Return ONLY the raw query string, nothing else.`;
         console.log('🔍 Query Generation: Using companyId from gathered context:', gatheredContext.userContext.companyId);
       }
       
-      // Handle mustache placeholders
+      // Handle mustache placeholders ({{variable}}) and angle bracket placeholders (<variable>)
       const mustachePlaceholders = query.match(/\{\{([^}]+)\}\}/g) || [];
+      const angleBracketPlaceholders = query.match(/\<([^>]+)\>/g) || [];
+      const allPlaceholders = [...mustachePlaceholders, ...angleBracketPlaceholders];
       
-      for (const placeholder of mustachePlaceholders) {
-        const placeholderName = placeholder.slice(2, -2).trim();
+      for (const placeholder of allPlaceholders) {
+        const isMustache = placeholder.startsWith('{{');
+        const isAngleBracket = placeholder.startsWith('<');
+        const placeholderName = isMustache ? 
+          placeholder.slice(2, -2).trim() : 
+          isAngleBracket ? placeholder.slice(1, -1).trim() : 
+          placeholder.slice(1, -1).trim();
         
         console.log('🔍 Processing placeholder:', placeholderName, 'Raw value:', invokeObject[placeholderName]);
         
         if (invokeObject[placeholderName]) {
           // Check if placeholder is already quoted in the query
-          const quotedPlaceholderRegex = new RegExp(`"\\{\\{${placeholderName}\\}\\}"`, 'g');
-          const isAlreadyQuoted = quotedPlaceholderRegex.test(query);
+          const quotedMustacheRegex = new RegExp(`"\\{\\{${placeholderName}\\}\\}"`, 'g');
+          const quotedAngleBracketRegex = new RegExp(`"\\<${placeholderName}\\>"`, 'g');
+          const isAlreadyQuoted = quotedMustacheRegex.test(query) || quotedAngleBracketRegex.test(query);
           
           // Format the value properly for GraphQL
           let value = invokeObject[placeholderName];
@@ -311,15 +300,23 @@ CRITICAL: Return ONLY the raw query string, nothing else.`;
             }
           }
           
-          console.log('🔍 Formatted value for', placeholderName, ':', value, 'isAlreadyQuoted:', isAlreadyQuoted);
+          console.log('🔍 Formatted value for', placeholderName, ':', value, 'isAlreadyQuoted:', isAlreadyQuoted, 'isMustache:', isMustache, 'isAngleBracket:', isAngleBracket);
           
           // Replace placeholder with formatted value
           if (isAlreadyQuoted) {
-            // Replace "{{placeholder}}" with "value"
-            query = query.replace(quotedPlaceholderRegex, `"${value}"`);
+            // Replace quoted placeholders with quoted value
+            if (isMustache) {
+              query = query.replace(quotedMustacheRegex, `"${value}"`);
+            } else if (isAngleBracket) {
+              query = query.replace(quotedAngleBracketRegex, `"${value}"`);
+            }
           } else {
-            // Replace {{placeholder}} with formatted value
-            query = query.replace(new RegExp(`\\{\\{${placeholderName}\\}\\}`, 'g'), value);
+            // Replace unquoted placeholders with formatted value
+            if (isMustache) {
+              query = query.replace(new RegExp(`\\{\\{${placeholderName}\\}\\}`, 'g'), value);
+            } else if (isAngleBracket) {
+              query = query.replace(new RegExp(`\\<${placeholderName}\\>`, 'g'), value);
+            }
           }
         } else {
           logEvent('info', AgentType.TOOL, 'unresolved_placeholder', {
@@ -343,7 +340,7 @@ CRITICAL: Return ONLY the raw query string, nothing else.`;
     logEvent('info', AgentType.TOOL, 'query_generation_completed', {
       queryName: selectedQuery.selectedQueryName,
       duration: Date.now() - startTime,
-      hasUnresolvedPlaceholders: query.includes('{{'),
+      hasUnresolvedPlaceholders: query.includes('{{') || query.includes('<'),
       contextUsed: {
         static: Object.keys(gatheredContext.staticContext).length,
         dynamic: Object.keys(gatheredContext.dynamicContext).length,

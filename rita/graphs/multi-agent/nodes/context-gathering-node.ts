@@ -36,6 +36,13 @@
 // - Consistent with placeholder usage in intent-matching-node.ts special cases
 // - Falls back to direct userService calls only if placeholder system fails
 //
+// PLACEHOLDER SYNTAX (GRAPHQL-SAFE):
+// - {{variable}} - Mustache style (from LangSmith prompts and LLM generation)
+// - <variable> - Angle bracket style (context gathering fallbacks only)
+//
+// CRITICAL: Single bracket {variable} syntax is AVOIDED to prevent conflicts
+// with GraphQL object syntax like {field1, field2} and {variable: value}
+//
 // BENEFITS:
 // - ✅ Task Auditability: Each task preserves its context snapshot
 // - ✅ Cross-task Context: Tasks can use context from previous tasks
@@ -44,6 +51,7 @@
 // - ✅ Debugging Support: Full context traceability
 // - ✅ Conversation Analytics: Context evolution tracking
 // - ✅ Efficient User Context: Leverages cached placeholder data
+// - ✅ GraphQL Safe: No conflicts with GraphQL syntax
 //
 // This node consolidates context from multiple sources:
 // 1. Static extraction from user requests (now type-aware)
@@ -912,7 +920,7 @@ function generateResolutionStrategies(
       parameter,
       sources,
       confidence,
-      fallback: isRequired && sources.length === 0 ? `{{${parameter}}}` : undefined,
+      fallback: isRequired && sources.length === 0 ? `<${parameter}>` : undefined,
       required: isRequired,
       type: paramType
     });

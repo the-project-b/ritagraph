@@ -190,17 +190,15 @@ const createSupervisorAgentCore = async (model: ChatOpenAI, state: ExtendedState
   // Load the supervisor prompt using the new dynamic prompt system
   let prompt: any = ``;
   try {
-    const promptConfig: BasePromptConfig = {
-      promptId: "sup_main",
-      model: model,
-      extractSystemPrompts: false
-    };
-    
     const promptResult = await loadSupervisorPrompt({
       state,
       config: {
         ...config,
-        configurable: promptConfig
+        configurable: {
+          promptId: "sup_main",
+          model: model,
+          extractSystemPrompts: false
+        }
       }
     });
     
@@ -350,7 +348,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     });
 
     const executionStartTime = Date.now();
-    const tasks = await extractTasks(newUserMessage);
+    const tasks = await extractTasks(newUserMessage, state, config);
     
     // Extend existing task state instead of overwriting it
     // This preserves completed tasks for context while adding new ones

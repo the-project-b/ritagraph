@@ -300,8 +300,8 @@ describe('Context Gathering Node', () => {
   describe('Error Scenarios', () => {
     test('should handle missing required parameters', async () => {
       const task = createMockTask('task_0', {
-        selectedQueryName: 'strictQuery',
-        rawTypeDetails: 'requiredParam: String!, anotherRequired: Int!'
+        selectedQueryName: 'employeeWithContracts',
+        rawTypeDetails: 'employeeId: String!, companyId: String!'
       });
       const state = createMockState('basic request', [task]); // No specific parameters in request
       
@@ -312,7 +312,7 @@ describe('Context Gathering Node', () => {
       );
       
       expect(unresolved.length).toBeGreaterThan(0);
-      expect(unresolved.some(s => s.fallback?.includes('{{'))).toBe(true);
+      expect(unresolved.some(s => s.fallback?.includes('<'))).toBe(true);
     });
   });
 
@@ -411,7 +411,7 @@ describe('Context Gathering Node', () => {
       expect(employeeIdStrategy?.sources).toEqual([]); // No sources available
       expect(employeeIdStrategy?.confidence).toBe(0);
       expect(employeeIdStrategy?.required).toBe(true);
-      expect(employeeIdStrategy?.fallback).toBe('{{employeeId}}'); // Should use fallback
+      expect(employeeIdStrategy?.fallback).toBe('<employeeId>'); // Should use fallback
       
       // Verify context analysis identifies the problem and suggests solution
       expect(gatheredContext.contextAnalysis.hasAllRequiredParams).toBe(false);

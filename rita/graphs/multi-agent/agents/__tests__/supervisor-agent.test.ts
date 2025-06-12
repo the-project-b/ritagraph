@@ -156,7 +156,7 @@ describe('SupervisorAgent', () => {
 
       const result1 = await supervisorAgent(firstState, mockConfig);
       
-      expect(mockExtractTasks).toHaveBeenCalledWith('who am I');
+      expect(mockExtractTasks).toHaveBeenCalledWith('who am I', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
 
       // SCENARIO 2: Second "who am I" request (same message, but fresh conversation)
@@ -389,7 +389,7 @@ describe('SupervisorAgent', () => {
       
       // CRITICAL: Should create tasks for same message when all tasks are completed
       // This allows users to re-ask questions in a fresh conversation context
-      expect(mockExtractTasks).toHaveBeenCalledWith('who am I');
+      expect(mockExtractTasks).toHaveBeenCalledWith('who am I', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
 
@@ -545,7 +545,7 @@ describe('SupervisorAgent', () => {
       const result = await supervisorAgent(stateWithCompletedTasksAndRecursion, mockConfig);
       
       // Should create tasks for different message even with recursionCount > 0
-      expect(mockExtractTasks).toHaveBeenCalledWith('list of employees');
+      expect(mockExtractTasks).toHaveBeenCalledWith('list of employees', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
 
@@ -612,7 +612,7 @@ describe('SupervisorAgent', () => {
       const result = await supervisorAgent(stateWithCompletedTasks, mockConfig);
       
       // Should create tasks for different message
-      expect(mockExtractTasks).toHaveBeenCalledWith('what is my role');
+      expect(mockExtractTasks).toHaveBeenCalledWith('what is my role', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
 
@@ -784,7 +784,7 @@ describe('SupervisorAgent', () => {
       const result = await supervisorAgent(stateWithCompletedTasks, mockConfig);
 
       // ASSERTIONS: Verify task creation and numbering
-      expect(mockExtractTasks).toHaveBeenCalledWith('list employees and generate report');
+      expect(mockExtractTasks).toHaveBeenCalledWith('list employees and generate report', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({
@@ -884,7 +884,7 @@ describe('SupervisorAgent', () => {
       const result = await supervisorAgent(stateWithGappedTasks, mockConfig);
 
       // Should create tasks continuing from the highest existing ID (task_3 → task_4)
-      expect(mockExtractTasks).toHaveBeenCalledWith('new request after gaps');
+      expect(mockExtractTasks).toHaveBeenCalledWith('new request after gaps', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
 
@@ -944,7 +944,7 @@ describe('SupervisorAgent', () => {
       const result = await supervisorAgent(stateWithTaskReferencesInMemory, mockConfig);
 
       // Should detect task references in memory and continue numbering appropriately
-      expect(mockExtractTasks).toHaveBeenCalledWith('fresh start but with context');
+      expect(mockExtractTasks).toHaveBeenCalledWith('fresh start but with context', expect.any(Object), expect.any(Object));
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
   });

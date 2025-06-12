@@ -10,6 +10,7 @@ import { logEvent } from "../agents/supervisor-agent";
 import client from "../../../mcp/client.js";
 import { builtInQueryManager } from "./built-in-queries.tool";
 import { TaskState } from "../types";
+import { loadGenericPrompt } from "../prompts/prompt-factory";
 
 interface SkipSettings {
   skipDiscovery?: boolean;
@@ -185,52 +186,49 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
 async function matchQueryToIntent(userRequest: string, queries: string): Promise<IntentMatch> {
   const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0 });
 
-  const prompt = `Given the user's request: "${userRequest}"
+  // Load the intent matching prompt dynamically
+  let prompt = '';
+  try {
+    const { loadIntentMatchingPrompt } = await import('../prompts/prompt-factory');
+    const promptResult = await loadIntentMatchingPrompt({
+      state: { 
+        messages: [],
+        memory: new Map([
+          ['userRequest', userRequest], 
+          ['queries', queries],
+          ['discoveredQueries', queries]
+        ]) 
+      } as any,
+      config: {
+        configurable: {
+          promptId: "sup_intent_matching",
+          model: model,
+          extractSystemPrompts: false
+        }
+      }
+    });
+    
+    prompt = promptResult.populatedPrompt.value;
+    console.log("🔧 INTENT MATCHING - Successfully loaded dynamic prompt");
+  } catch (error) {
+    console.warn("Failed to load sup_intent_matching prompt from LangSmith:", error);
+    // Fallback to default prompt
+    prompt = `Given the user's request: "${userRequest}"
 And the following available GraphQL queries:
 
 ${queries}
 
-Your task is to select ONE most appropriate query that matches the user's intent. The queries are listed one per line, with some being simple names and others having more detailed signatures.
+Your task is to select ONE most appropriate query that matches the user's intent. The queries are provided in GraphQL schema format.
 
-RESPOND WITH A SINGLE JSON OBJECT:
+Respond with a JSON object containing:
 {
-  "name": "exact_query_name",
+  "name": "selected_query_name",
   "arguments": {},
-  "reason": "why this query was chosen"
+  "reason": "explanation for why this query was selected"
 }
 
-INTENT MATCHING RULES:
-1. Select ONLY ONE query that best matches the user's intent
-2. If the request contains multiple parts, choose the most important or first part
-3. For user identity/profile requests, prefer queries like 'me' etc. We are not using 'authUser' currently.
-4. For data about multiple items, look for plural forms (e.g., 'employees' for multiple employees)
-5. For company-related requests, consider 'company', 'companies', etc.
-6. If multiple queries match, choose the most specific one
-7. If no exact match, choose the most semantically relevant query
-
-EMPLOYEE QUERY PREFERENCES:
-8. "employeesByCompany" returns data with contract information and we can use it to support other tasks where its needed
-9. Only use "employee" (singular) when the request specifically mentions an employee ID and if we have contractId of this user
-10. For any other request about "employees", "all employees", "show employees", etc. -> use "employees"
-
-AVAILABLE EMPLOYEE SEARCH CAPABILITIES:
-- "employees" query: searches by firstName, lastName, personalNumberPayroll, income components (use only for advanced filtering)
-- "employee" query: requires specific employeeId (not for searching)
-- "employeesByCompany" query: gets employees by company with contract data (PREFERRED for cases where we have companyId)
-- "employeeSpaceEmployees" query: searches by employeeId, firstName, lastName (NOT email)
-
-Example matches:
-- "Who am I?" -> "me"
-- "Show me all employees" -> "employees"
-- "What's my company info?" -> "company"
-- "Get my profile" -> "me"
-
-IMPORTANT: 
-- Only select a query that exists in the provided list
-- Return exactly ONE JSON object, not multiple objects
-- Do not include any additional text before or after the JSON object
-- If the request has multiple parts, focus on the most important one
-- Do not try to handle multiple queries in one response`;
+Select the query that best matches the user's intent.`;
+  }
 
   const response = await model.invoke([new HumanMessage(prompt)]);
   

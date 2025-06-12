@@ -6,14 +6,28 @@ export {
   type DynamicPromptContext
 } from './base-prompt-loader';
 
-// Supervisor-specific prompt loader
-export { SupervisorPromptLoader } from './supervisor-prompt-loader';
+// Generic prompt loader and configuration
+export {
+  GenericPromptLoader,
+  type PromptLoaderConfig
+} from './generic-prompt-loader';
+
+// Prompt configurations
+export {
+  PROMPT_CONFIGS,
+  getPromptConfig,
+  createCustomPromptConfig
+} from './prompt-configs';
 
 // Factory and convenience functions
 export {
   PromptFactory,
   PromptLoaderType,
   loadSupervisorPrompt,
+  loadTasksPrompt,
   loadQueryPrompt,
-  loadMutationPrompt
+  loadMutationPrompt,
+  loadContextGatheringPrompt,
+  loadResultFormattingPrompt,
+  loadGenericPrompt
 } from './prompt-factory'; 

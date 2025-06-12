@@ -8,6 +8,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { logEvent } from "../agents/supervisor-agent";
 import { AgentType } from "../types/agents";
+import { BasePromptConfig } from "../prompts/base-prompt-loader";
+import { loadTasksPrompt } from "../prompts/prompt-factory";
 
 /**
  * Creates a new data requirement
@@ -568,152 +570,53 @@ export function createTask({
  * The LLM will intelligently break down the request into individual tasks,
  * determining their types and dependencies.
  */
-async function extractTasksWithLLM(request: string): Promise<Task[]> {
+async function extractTasksWithLLM(request: string, state?: ExtendedState, config?: any): Promise<Task[]> {
   const model = new ChatOpenAI({
     model: 'gpt-4o-mini', // Use more reliable model
     temperature: 0,
     maxTokens: 1000 // Add token limit to prevent issues
   });
 
-  const prompt = `You are a task extraction assistant. Your job is to break down user requests into individual tasks.
-IMPORTANT: You must respond with ONLY a valid JSON array, no other text or explanation.
-
-For each task, determine:
-1. The task type (query or mutation)
-2. The target agent (query_agent or mutation_agent)
-3. Any dependencies between tasks
-4. The task description should be clear and actionable, but preserve exact IDs and specific values
-
-Task Types and Keywords:
-- Query tasks (query_agent):
-  * Keywords: get, find, retrieve, view, show, list, read, request, fetch, search
-  * Examples: "get user info", "find all orders", "list available products"
-  * Purpose: Retrieving or viewing data without modifying it
-
-- Mutation tasks (mutation_agent):
-  * Keywords: create, update, delete, modify, change, set, add, remove, edit, rename
-  * Examples: "update user email", "create new order", "delete old records"
-  * Purpose: Modifying, creating, or deleting data
-
-Dependency Rules:
-1. Tasks that need data from other tasks should depend on those tasks
-2. Use task IDs (task_0, task_1, etc.) to reference dependencies
-3. Dependencies should be listed in the order they need to be completed
-4. Each task should have a clear, actionable description
-5. Tasks should be broken down into the smallest meaningful units
-
-Special Pattern - Email-based Employee Queries:
-When the user wants data about an employee but provides an email address instead of an employee ID, create two tasks:
-1. First task: Find/lookup the employee using the email address
-2. Second task: Get the requested data for that employee (depends on task_0)
-Examples: "get contract/payments/details of employee with email X" becomes two tasks
-
-IMPORTANT: When the request contains specific IDs, company names, or other exact values, preserve them exactly as written. For example:
-- "get employees of companyclient2" -> keep "companyclient2" exactly as is
-- "find orders for user123" -> keep "user123" exactly as is
-- "show payments for contract-456" -> keep "contract-456" exactly as is
-
-Your response must be a JSON array in this exact format:
-[
-  {
-    "description": "clear and actionable task description with exact IDs preserved",
-    "type": "query" or "mutation",
-    "targetAgent": "query_agent" or "mutation_agent",
-    "dependencies": ["task_id of dependency"]
+  // Load the tasks prompt using the new dynamic prompt system
+  let prompt: any = ``;
+  try {
+    const promptConfig: BasePromptConfig = {
+      promptId: "sup_tasks",
+      model: model,
+      extractSystemPrompts: false
+    };
+    
+    // Create a temporary state with the request for prompt population
+    const promptState = state || {
+      messages: [],
+      systemMessages: [],
+      memory: new Map([['userRequest', request]])
+    };
+    
+    const promptResult = await loadTasksPrompt({
+      state: {
+        ...promptState,
+        memory: new Map([
+          ...Array.from(promptState.memory || new Map()),
+          ['userRequest', request],
+          ['request', request] // Add request directly to memory for prompt resolution
+        ])
+      },
+      config: {
+        ...config,
+        configurable: promptConfig
+      }
+    });
+    
+    prompt = promptResult.populatedPrompt.value;
+    console.log("🔧 TASKS - Successfully loaded dynamic prompt");
+    console.log("🔧 TASKS - Prompt preview:", typeof prompt === 'string' ? prompt.substring(0, 200) + '...' : 'Not a string');
+  } catch (error) {
+    
+    console.warn("Failed to load sup_tasks prompt from LangSmith:", error);
+    // Fallback to default prompt
+    prompt = `lala`;
   }
-]
-
-Examples:
-
-Input: "get user info and update their email"
-Output:
-[
-  {
-    "description": "get user information",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": []
-  },
-  {
-    "description": "update user email address",
-    "type": "mutation",
-    "targetAgent": "mutation_agent",
-    "dependencies": ["task_0"]
-  }
-]
-
-Input: "find all orders from last month and create a report"
-Output:
-[
-  {
-    "description": "find all orders from last month",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": []
-  },
-  {
-    "description": "create a report",
-    "type": "mutation",
-    "targetAgent": "mutation_agent",
-    "dependencies": ["task_0"]
-  }
-]
-
-Input: "get employees of companyclient2"
-Output:
-[
-  {
-    "description": "get employees of companyclient2",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": []
-  }
-]
-
-Input: "get contract of employee with email john@example.com"
-Output:
-[
-  {
-    "description": "find employee with email john@example.com",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": []
-  },
-  {
-    "description": "get contracts for the employee",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": ["task_0"]
-  }
-]
-
-Input: "show payments for employee test@company.com"
-Output:
-[
-  {
-    "description": "find employee with email test@company.com",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": []
-  },
-  {
-    "description": "get payments for the employee",
-    "type": "query",
-    "targetAgent": "query_agent",
-    "dependencies": ["task_0"]
-  }
-]
-
-User request: ${request}
-
-Remember: 
-1. Respond with ONLY the JSON array, no other text
-2. Make task descriptions clear and actionable
-3. Include all necessary dependencies
-4. Use the correct task type and agent for each task
-5. Break down complex tasks into smaller units
-6. Ensure each task has a single, clear purpose
-7. Preserve exact IDs, company names, and specific values exactly as written`;
 
   try {
     const response = await model.invoke([
@@ -798,9 +701,9 @@ Remember:
 /**
  * Extracts tasks from a user request using LLM with fallback to basic extraction.
  */
-export const extractTasks = async (request: string): Promise<Task[]> => {
+export const extractTasks = async (request: string, state?: ExtendedState, config?: any): Promise<Task[]> => {
   try {
-    return await extractTasksWithLLM(request);
+    return await extractTasksWithLLM(request, state, config);
   } catch (error) {
     console.error('Error in LLM task extraction:', error);
     // Fallback to basic task extraction if LLM fails
