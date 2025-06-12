@@ -28,6 +28,50 @@ jest.mock('../../tasks/tasks-handling', () => ({
   createGetNextTaskTool: jest.fn(() => ({ name: 'get_next_task' }))
 }));
 
+// Mock GraphQL client to prevent environment variable requirement
+jest.mock('../../../../utils/graphql-client', () => ({
+  ProjectBGraphQLClient: jest.fn().mockImplementation(() => ({
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  })),
+  graphqlClient: {
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  }
+}));
+
+// Mock user service
+jest.mock('../../../../utils/user-service', () => ({
+  userService: {
+    getUserName: jest.fn(() => Promise.resolve('Test User')),
+    getCompanyName: jest.fn(() => Promise.resolve('Test Company')),
+    getCompanyId: jest.fn(() => Promise.resolve('test-company-456')),
+    getUserEmail: jest.fn(() => Promise.resolve('test@example.com')),
+    getUserRole: jest.fn(() => Promise.resolve('ADMIN')),
+    getUserLanguage: jest.fn(() => Promise.resolve('en'))
+  }
+}));
+
+// Mock placeholder manager
+jest.mock('../../../../placeholders/manager', () => ({
+  placeholderManager: {
+    buildInvokeObject: jest.fn(() => Promise.resolve({
+      userId: 'test-user-123',
+      auto_companyid: 'test-company-456'
+    })),
+    register: jest.fn(),
+    resolve: jest.fn(() => Promise.resolve('resolved-value')),
+    getRegisteredPlaceholders: jest.fn(() => ['test-placeholder'])
+  }
+}));
+
+// Mock prompt loading
+jest.mock('../../prompts/prompt-factory', () => ({
+  loadSupervisorPrompt: jest.fn()
+}));
+
 // Import the function under test after mocking
 const { supervisorAgent } = require('../supervisor-agent');
 
@@ -59,6 +103,12 @@ describe('SupervisorAgent', () => {
     mockGetNextTask.mockReturnValue({
       task: null,
       updatedState: mockState
+    });
+
+    // Mock loadSupervisorPrompt
+    const { loadSupervisorPrompt } = require('../../prompts/prompt-factory');
+    loadSupervisorPrompt.mockResolvedValue({
+      populatedPrompt: 'Test supervisor prompt'
     });
   });
 

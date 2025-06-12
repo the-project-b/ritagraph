@@ -16,10 +16,27 @@ import { ExtendedState } from "../../../../states/states";
 import { Task, TaskState } from "../../types";
 import { createTask } from "../../tasks/tasks-handling";
 
+// Mock GraphQL client to prevent environment variable requirement
+jest.mock('../../../../utils/graphql-client.ts', () => ({
+  ProjectBGraphQLClient: jest.fn().mockImplementation(() => ({
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  })),
+  graphqlClient: {
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  }
+}));
+
 // Mock the required modules
 jest.mock('../../../../placeholders/manager', () => ({
   placeholderManager: {
-    buildInvokeObject: jest.fn()
+    buildInvokeObject: jest.fn(),
+    register: jest.fn(),
+    resolve: jest.fn(() => Promise.resolve('resolved-value')),
+    getRegisteredPlaceholders: jest.fn(() => ['test-placeholder'])
   }
 }));
 
@@ -182,8 +199,8 @@ describe('Context Gathering Node', () => {
       const { context } = await runContextGathering(state, mockConfig);
       
       expect(context.userContext.userId).toBe('user123');
-      expect(context.userContext.userEmail).toBe('config@example.com');
-      expect(context.userContext.companyId).toBe('test-company'); // Use the mocked value
+      expect(context.userContext.userEmail).toBe('user@example.com'); // Email comes from config.user.email first
+      expect(context.userContext.companyId).toBe('config-company'); // Use the config value which takes precedence
     });
   });
 

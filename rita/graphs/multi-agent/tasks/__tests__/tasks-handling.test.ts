@@ -1,6 +1,46 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { ExtendedState } from '../../../../states/states';
 import { Task, TaskState } from '../../types';
+
+// Mock GraphQL client to prevent environment variable requirement
+jest.mock('../../../../utils/graphql-client.ts', () => ({
+  ProjectBGraphQLClient: jest.fn().mockImplementation(() => ({
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  })),
+  graphqlClient: {
+    request: jest.fn(),
+    setEndpoint: jest.fn(),
+    setHeaders: jest.fn()
+  }
+}));
+
+// Mock user service
+jest.mock('../../../../utils/user-service.ts', () => ({
+  userService: {
+    getUserName: jest.fn(() => Promise.resolve('Test User')),
+    getCompanyName: jest.fn(() => Promise.resolve('Test Company')),
+    getCompanyId: jest.fn(() => Promise.resolve('test-company-456')),
+    getUserEmail: jest.fn(() => Promise.resolve('test@example.com')),
+    getUserRole: jest.fn(() => Promise.resolve('ADMIN')),
+    getUserLanguage: jest.fn(() => Promise.resolve('en'))
+  }
+}));
+
+// Mock placeholder manager
+jest.mock('../../../../placeholders/manager', () => ({
+  placeholderManager: {
+    buildInvokeObject: jest.fn(() => Promise.resolve({
+      userId: 'test-user-123',
+      auto_companyid: 'test-company-456'
+    })),
+    register: jest.fn(),
+    resolve: jest.fn(() => Promise.resolve('resolved-value')),
+    getRegisteredPlaceholders: jest.fn(() => ['test-placeholder'])
+  }
+}));
+
 import {
   updateTaskResult,
   getNextTask,

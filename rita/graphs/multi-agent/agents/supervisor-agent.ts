@@ -16,6 +16,8 @@ import {
   getNextTask,
   createGetNextTaskTool,
 } from '../tasks/tasks-handling';
+import { BasePromptConfig } from "../prompts/base-prompt-loader";
+import { loadSupervisorPrompt } from "../prompts/prompt-factory";
 
 // Define interfaces
 export interface AgentDecision {
@@ -182,87 +184,41 @@ export const createSupervisorTools = () => {
 /**
  * Creates a supervisor agent core with specific tools and prompt.
  */
-const createSupervisorAgentCore = (model: ChatOpenAI) => {
+const createSupervisorAgentCore = async (model: ChatOpenAI, state: ExtendedState, config: any) => {
   const supervisorTools = createSupervisorTools();
-  
+    
+  // Load the supervisor prompt using the new dynamic prompt system
+  let prompt: any = ``;
+  try {
+    const promptConfig: BasePromptConfig = {
+      promptId: "sup_main",
+      model: model,
+      extractSystemPrompts: false
+    };
+    
+    const promptResult = await loadSupervisorPrompt({
+      state,
+      config: {
+        ...config,
+        configurable: promptConfig
+      }
+    });
+    
+    prompt = promptResult.populatedPrompt.value;
+    console.log("🔧 SUPERVISOR - Successfully loaded dynamic prompt");
+  } catch (error) {
+    console.warn("Failed to load sup_main prompt from LangSmith:", error);
+    // Fallback to default prompt
+    prompt = ``;
+  }
+
   return createReactAgent({
     llm: model,
     tools: supervisorTools,
-    prompt: `You are a supervisor agent responsible for managing and executing tasks.
-
-TASK MANAGEMENT:
-- Use get_next_task to select the next available task when no specific task is provided
-- Action parameter: "select_next" to get the next available task based on dependencies
-
-TASK EXECUTION RULES:
-1. For data retrieval tasks (get, find, retrieve, view, show, list, read, request):
-   - Use transfer_to_query_agent
-   - Example: "get user info" -> transfer_to_query_agent
-
-2. For data modification tasks (create, update, delete, modify, change, set):
-   - Use transfer_to_mutation_agent
-   - Example: "update email" -> transfer_to_mutation_agent
-
-WORKFLOW:
-1. If no current task is specified, use get_next_task with action "select_next"
-2. Once you have a task, use the appropriate transfer tool based on task type
-3. Provide clear reasons for tool usage
-
-DECISION PROCESS:
-1. Check if a current task is available
-2. If not, use get_next_task to select the next available task
-3. Review the task description and type
-4. Use the task's target agent to determine which transfer tool to use
-5. Provide a clear reason for the transfer
-
-AVAILABLE TOOLS:
-- get_next_task: Select next available task
-- transfer_to_query_agent: Transfer to query agent
-- transfer_to_mutation_agent: Transfer to mutation agent  
-
-CRITICAL INSTRUCTIONS:
-- ALWAYS use tools to manage workflow
-- Use get_next_task when no current task is available
-- Use appropriate transfer tools based on task type
-- Provide specific reasons for tool usage
-- Keep responses focused and actionable`,
-    name: "supervisor_agent"
+    prompt: prompt,
+    name: "multi_agent"
   });
 };
-
-// const supervisorTools = createSupervisorTools();
-  
-// // Load the supervisor prompt using the new dynamic prompt system
-// let prompt: any = ``;
-// try {
-//   const promptConfig: BasePromptConfig = {
-//     promptId: "sup_main",
-//     model: model,
-//     extractSystemPrompts: false
-//   };
-  
-//   const promptResult = await loadSupervisorPrompt({
-//     state,
-//     config: {
-//       ...config,
-//       configurable: promptConfig
-//     }
-//   });
-  
-//   prompt = promptResult.populatedPrompt;
-//   console.log("🔧 SUPERVISOR - Successfully loaded dynamic prompt");
-// } catch (error) {
-//   console.warn("Failed to load sup_main prompt from LangSmith:", error);
-//   // Fallback to default prompt
-//   prompt = ``;
-// }
-
-// return createReactAgent({
-//   llm: model,
-//   tools: supervisorTools,
-//   prompt: prompt,
-//   name: "supervisor_agent"
-// });
 
 /**
  * Main supervisor agent function that handles routing and task execution.
@@ -518,7 +474,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   let result: any;
   try {
     const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0 });
-    supervisorAgentCore = createSupervisorAgentCore(model);
+    supervisorAgentCore = await createSupervisorAgentCore(model, state, config);
 
     result = await supervisorAgentCore.invoke(state, config);
     logEvent('info', AgentType.SUPERVISOR, 'core_completed', {
