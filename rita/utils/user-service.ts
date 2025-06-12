@@ -1,5 +1,5 @@
-import { graphqlClient } from "./graphql-client.js";
-import { ME_QUERY, MeResponse } from "./graphql-queries.js";
+import { graphqlClient } from "./graphql-client";
+import { ME_QUERY, MeResponse, EMPLOYEES_BY_COMPANY_QUERY, EmployeesByCompanyResponse, EmployeesByCompanyInput } from "./graphql-queries";
 import { PlaceholderContext } from "../placeholders/types.js";
 
 /**
@@ -102,6 +102,19 @@ class UserService {
   }
 
   /**
+   * Get user's company id
+   */
+  async getCompanyId(context: PlaceholderContext): Promise<string> {
+    try {
+      const userData = await this.getUserData(context);
+      return userData.me.company.id;
+    } catch (error) {
+      console.warn("UserService: Failed to get company id, using fallback");
+      return "companyclient4";
+    }
+  }
+
+  /**
    * Get user's email
    */
   async getUserEmail(context: PlaceholderContext): Promise<string> {
@@ -137,6 +150,43 @@ class UserService {
     } catch (error) {
       console.warn("UserService: Failed to get user language, using fallback");
       return "en";
+    }
+  }
+
+  /**
+   * Get contract IDs for employees in user's company
+   */
+  async getContractIds(context: PlaceholderContext): Promise<string[]> {
+    try {
+      const userData = await this.getUserData(context);
+      const companyId = userData.me.company.id;
+
+      console.log("UserService: Fetching employees for company:", companyId);
+      
+      const response = await graphqlClient.request<EmployeesByCompanyResponse>(
+        EMPLOYEES_BY_COMPANY_QUERY,
+        { data: { companyId } },
+        context
+      );
+
+      const contractIds: string[] = [];
+      
+      // Extract contract IDs from all employees and their contracts
+      response.employeesByCompany.forEach(employee => {
+        if (employee.employeeContract && Array.isArray(employee.employeeContract)) {
+          employee.employeeContract.forEach(contract => {
+            if (contract.id) {
+              contractIds.push(contract.id);
+            }
+          });
+        }
+      });
+
+      console.log("UserService: Found contract IDs:", contractIds);
+      return contractIds;
+    } catch (error) {
+      console.warn("UserService: Failed to get contract IDs:", error.message);
+      return [];
     }
   }
 
