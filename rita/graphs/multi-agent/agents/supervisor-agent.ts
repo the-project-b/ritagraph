@@ -256,6 +256,11 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     logEvent('error', AgentType.SUPERVISOR, 'recursion_limit_reached', {
       count: recursionCount
     });
+    
+    // Clear task creation tracking to allow fresh conversations after recursion limit
+    const clearedMemory = new Map(state.memory || new Map());
+    clearedMemory.delete('lastTaskCreationMessage');
+    
     return new Command({
       goto: END,
       update: {
@@ -264,7 +269,8 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
           new AIMessage({
             content: "I apologize, but I've reached the maximum number of processing steps. Please try rephrasing your request or breaking it down into smaller parts."
           })
-        ]
+        ],
+        memory: clearedMemory
       }
     });
   }
@@ -290,7 +296,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // CRITICAL FIX: Reset recursionCount to 0 for new user messages
   // This ensures fresh user input is always treated as user-initiated
   let effectiveRecursionCount = recursionCount;
-  if (isDifferentMessage || (allTasksCompleted && !hasActiveTasks && !alreadyCreatedTasksForThisMessage)) {
+  if (isDifferentMessage || (allTasksCompleted && !hasActiveTasks)) {
     effectiveRecursionCount = 0;
   }
 
@@ -299,14 +305,30 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // - If effectiveRecursionCount > 0, we're in internal processing loop (should not create new tasks for same message)
   const isUserInitiatedMessage = effectiveRecursionCount === 0;
   const shouldCreateTasks = isUserInitiatedMessage || isDifferentMessage;
+  
+  // Additional check: prevent infinite loops during active processing
+  // Block if: already created tasks for this message AND high recursion count (internal processing) AND same message
+  const isInternalProcessingLoop = recursionCount > 3; // High recursion indicates internal loop, not user input
+  const shouldBlockForInfiniteLoop = alreadyCreatedTasksForThisMessage && isInternalProcessingLoop && !isDifferentMessage;
+  
+     if (shouldBlockForInfiniteLoop) {
+     logEvent('info', AgentType.SUPERVISOR, 'blocking_infinite_loop', {
+       message: newUserMessage,
+       alreadyCreatedTasksForThisMessage,
+       isInternalProcessingLoop,
+       isDifferentMessage,
+       recursionCount
+     });
+   }
 
   // Create tasks if:
   // 1. No active tasks AND
   // 2. We have a user message AND
   // 3. (This is a user-initiated message OR it's a different message) AND
-  // 4. (No existing tasks OR user-initiated message (allows re-asking after completion) OR different message)
+  // 4. (No existing tasks OR user-initiated message (allows re-asking after completion) OR different message) AND
+  // 5. NOT blocked for infinite loop prevention
   if (!hasActiveTasks && newUserMessage && typeof newUserMessage === 'string' && 
-      shouldCreateTasks && (!existingTaskState || isUserInitiatedMessage || isDifferentMessage)) {
+      shouldCreateTasks && (!existingTaskState || isUserInitiatedMessage || isDifferentMessage) && !shouldBlockForInfiniteLoop) {
     logEvent('info', AgentType.SUPERVISOR, 'creating_tasks_for_message', {
       message: newUserMessage,
       hasExistingTasks: !!existingTaskState,
@@ -356,11 +378,16 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   const taskState = state.memory?.get('taskState') as TaskState;
   if (!taskState) {
     logEvent('info', AgentType.SUPERVISOR, 'no_task_state');
+    
+    // Clear task creation tracking to allow fresh conversations
+    const clearedMemory = new Map(state.memory || new Map());
+    clearedMemory.delete('lastTaskCreationMessage');
+    
     return new Command({
       goto: END,
       update: { 
         messages: state.messages,
-        memory: state.memory  // Preserve any existing context
+        memory: clearedMemory  // Clear session tracking but preserve other context
       }
     });
   }
@@ -461,6 +488,10 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
         error: error.message
       });
       
+      // Clear task creation tracking to allow fresh conversations even on errors
+      const clearedMemory = new Map(state.memory || new Map());
+      clearedMemory.delete('lastTaskCreationMessage');
+      
       return new Command({
         goto: END,
         update: { 
@@ -472,7 +503,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
               content: 'Something went wrong while processing your request. Please try again.'
             })
           ],
-          memory: state.memory  // Preserve context even on errors
+          memory: clearedMemory  // Clear session tracking but preserve other context
         }
       });
     }
@@ -508,6 +539,11 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
       const { task, updatedState } = getNextTask(state);
       if (!task) {
         logEvent('info', AgentType.SUPERVISOR, 'no_available_tasks');
+        
+        // Clear task creation tracking to allow fresh conversations
+        const clearedMemory = new Map(state.memory || new Map());
+        clearedMemory.delete('lastTaskCreationMessage');
+        
         return new Command({
           goto: END,
           update: { 
@@ -517,7 +553,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
                 content: 'No available tasks to execute.'
               })
             ],
-            memory: state.memory  // Preserve context and completed tasks
+            memory: clearedMemory  // Clear session tracking but preserve other context
           }
         });
       }
@@ -642,6 +678,11 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     }
 
     logEvent('info', AgentType.SUPERVISOR, 'no_available_tasks_fallback');
+    
+    // Clear task creation tracking to allow fresh conversations
+    const clearedMemory = new Map(state.memory || new Map());
+    clearedMemory.delete('lastTaskCreationMessage');
+    
     return new Command({
       goto: END,
       update: { 
@@ -650,7 +691,8 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
           new AIMessage({
             content: 'All tasks have been completed.'
           })
-        ]
+        ],
+        memory: clearedMemory
       }
     });
   }

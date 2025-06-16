@@ -393,6 +393,91 @@ describe('SupervisorAgent', () => {
       expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
     });
 
+    it('should allow conversation continuation even when lastTaskCreationMessage matches (CRITICAL BUG)', async () => {
+      // 🚨 THIS IS THE MISSING TEST CASE that covers the user's exact logs scenario
+      // SCENARIO: User asks "who am I" → tasks complete → lastTaskCreationMessage = "who am I" 
+      //           → User asks "who am I" again → should STILL create new tasks (conversation restart)
+      const stateWithLastTaskCreationMessageBlocking: ExtendedState = {
+        ...mockState,
+        messages: [
+          new HumanMessage({ content: 'who am I' }),
+          new AIMessage({ content: 'You are John Doe' }),
+          new HumanMessage({ content: 'who am I' }) // Same message, but should be allowed after completion
+        ],
+        memory: new Map<string, any>([
+          ['taskState', {
+            tasks: [{
+              id: 'task_0',
+              status: 'completed',
+              type: 'query',
+              targetAgent: 'query_agent',
+              dependencies: [],
+              sources: [],
+              citations: [],
+              confidence: 0.5,
+              verificationStatus: 'unverified',
+              context: { dataRequirements: [], phase: 'completion', context: {} }
+            }],
+            completedTasks: new Set<string>(['task_0']),
+            failedTasks: new Set<string>(),
+            executionStartTime: Date.now()
+          }],
+          ['lastProcessedMessage', 'who am I'],
+          ['lastTaskCreationMessage', 'who am I'], // 🚨 This is blocking recursionCount reset
+          ['recursionCount', 1] // Current processing count > 0
+        ])
+      };
+
+      // Expected: System should recognize this as a conversation restart scenario
+      // Because: allTasksCompleted = true, hasActiveTasks = false
+      // Therefore: Should allow re-asking even with lastTaskCreationMessage match
+
+      const newTask: Task = {
+        id: 'task_1',
+        description: 'get user information again',
+        type: 'query' as const,
+        targetAgent: 'query_agent' as const,
+        dependencies: [],
+        status: 'pending' as const,
+        sources: [],
+        citations: [],
+        confidence: 0.5,
+        verificationStatus: 'unverified' as const,
+        context: { dataRequirements: [], phase: 'initialization' as const, context: {} }
+      };
+
+      mockExtractTasks.mockResolvedValue([newTask]);
+      mockExtendTaskStateWithNewTasks.mockReturnValue({
+        ...stateWithLastTaskCreationMessageBlocking,
+        memory: new Map<string, any>([
+          ['taskState', {
+            tasks: [
+              (stateWithLastTaskCreationMessageBlocking.memory as Map<string, any>).get('taskState').tasks[0],
+              newTask
+            ],
+            completedTasks: new Set<string>(['task_0']),
+            failedTasks: new Set<string>(),
+            executionStartTime: Date.now()
+          }]
+        ])
+      });
+
+      const result = await supervisorAgent(stateWithLastTaskCreationMessageBlocking, mockConfig);
+      
+      // 🎯 CRITICAL ASSERTION: This test will FAIL until the bug is fixed
+      // The bug is in supervisor-agent.ts line 292: the condition
+      // `!alreadyCreatedTasksForThisMessage` prevents conversation restart
+      // when all tasks are completed.
+      
+      // Expected behavior: Should create new tasks for conversation restart
+      expect(mockExtractTasks).toHaveBeenCalledWith('who am I', expect.any(Object), expect.any(Object));
+      expect(mockExtendTaskStateWithNewTasks).toHaveBeenCalled();
+      
+      // This test exposes the exact bug from the user's logs:
+      // The system goes to END instead of creating new tasks because
+      // lastTaskCreationMessage = newUserMessage prevents effectiveRecursionCount reset
+    });
+
     it('should prevent infinite loop by not creating tasks for same message already processed in session', async () => {
       // This test prevents the infinite loop where the same message keeps creating new tasks
       const stateWithTasksAlreadyCreatedForMessage: ExtendedState = {
@@ -429,55 +514,11 @@ describe('SupervisorAgent', () => {
       expect(mockExtendTaskStateWithNewTasks).not.toHaveBeenCalled();
     });
 
-    it('should clear task creation tracking when all tasks complete to allow re-asking', async () => {
-      // This test ensures that after tasks complete, users can ask the same question again
-      const stateWithAllTasksCompleted: ExtendedState = {
-        ...mockState,
-        messages: [new HumanMessage({ content: 'who am I' })],
-        memory: new Map<string, any>([
-          ['taskState', {
-            tasks: [{
-              id: 'task_0',
-              status: 'completed',
-              type: 'query',
-              targetAgent: 'query_agent',
-              dependencies: [],
-              sources: [],
-              citations: [],
-              confidence: 0.5,
-              verificationStatus: 'unverified',
-              context: { dataRequirements: [], phase: 'completion', context: {} }
-            }],
-            completedTasks: new Set<string>(['task_0']),
-            failedTasks: new Set<string>(),
-            executionStartTime: Date.now()
-          }],
-          ['lastProcessedMessage', 'who am I'],
-          ['lastTaskCreationMessage', 'who am I'], // This should be cleared when tasks complete
-          ['recursionCount', 1]
-        ])
-      };
-
-      mockGetTaskProgress.mockReturnValue({
-        total: 1,
-        completed: 1,
-        pending: 0,
-        failed: 0,
-        dataGathering: 0
-      });
-
-      const result = await supervisorAgent(stateWithAllTasksCompleted, mockConfig);
-      
-      expect(result).toBeInstanceOf(Command);
-      expect(result.goto).toEqual([END]);
-      
-      // CRITICAL: lastTaskCreationMessage should be cleared from memory
-      expect(result.update.memory?.has('lastTaskCreationMessage')).toBe(false);
-      
-      // Other context should be preserved
-      expect(result.update.memory?.has('taskState')).toBe(true);
-      expect(result.update.memory?.has('lastProcessedMessage')).toBe(true);
-    });
+    // NOTE: Removed test "should clear task creation tracking when all tasks complete to allow re-asking"
+    // This test was redundant because:
+    // 1. All END paths now clear lastTaskCreationMessage (implemented in the fix)
+    // 2. The conversation continuation test already verifies users can re-ask questions
+    // 3. The test scenario didn't represent real user flow (same message with high recursion)
 
     it('should reset recursionCount for different user messages after task completion', async () => {
       // This test covers the scenario that was missed: 
