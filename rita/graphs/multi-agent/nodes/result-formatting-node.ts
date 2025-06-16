@@ -8,7 +8,7 @@ import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
 import { updateTaskStateWithSets, getCompletedTasksContext } from "../tasks/tasks-handling";
 import { GatheredContext } from "./context-gathering-node";
-import { loadGenericPrompt } from "../prompts/prompt-factory";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 // All template-based formatting removed - using LLM generation instead
 
@@ -176,7 +176,7 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
 
     const updatedState = {
       ...state,
-      memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+      memory: safeCreateMemoryMap(state.memory).set('taskState', updatedTaskState)
     };
 
     // Generate LLM completion message

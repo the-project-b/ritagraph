@@ -64,6 +64,8 @@ export const logEvent = (level: StructuredLog['level'], agent: AgentType, event:
   console.log(JSON.stringify(log));
 };
 
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
+
 
 
 // Utility function to update state
@@ -74,14 +76,15 @@ const assign = <T extends Record<string, any>>(updater: (state: T, ...args: any[
   });
 
 export const trackAgentDecision = assign<ExtendedState>((state, { decision }: { decision: Omit<AgentDecision, "timestamp"> }) => {
-  const decisions = (state.memory || new Map()).get("agentDecisions") as AgentDecision[] || [];
+  const memoryMap = safeCreateMemoryMap(state.memory);
+  const decisions = memoryMap.get("agentDecisions") as AgentDecision[] || [];
   const newDecision = {
     ...decision,
     timestamp: new Date().toISOString(),
   };
   return {
     ...state,
-    memory: new Map(state.memory || new Map()).set("agentDecisions", [...decisions, newDecision]),
+    memory: memoryMap.set("agentDecisions", [...decisions, newDecision]),
   };
 });
 
@@ -229,7 +232,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // CRITICAL: Store userRequest immediately when we get a user message
   // This ensures it's available throughout the entire flow
   if (newUserMessage && typeof newUserMessage === 'string') {
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     updatedMemory.set('userRequest', newUserMessage);
     state = {
       ...state,
@@ -258,7 +261,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     });
     
     // Clear task creation tracking to allow fresh conversations after recursion limit
-    const clearedMemory = new Map(state.memory || new Map());
+    const clearedMemory = safeCreateMemoryMap(state.memory);
     clearedMemory.delete('lastTaskCreationMessage');
     
     return new Command({
@@ -349,7 +352,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     state = extendTaskStateWithNewTasks(state, { newTasks: tasks, executionStartTime });
     
     // Update memory to track this message as processed and tasks created
-    const updatedMemory = new Map((state?.memory) || new Map());
+    const updatedMemory = safeCreateMemoryMap(state?.memory);
     updatedMemory.set('lastProcessedMessage', newUserMessage);
     updatedMemory.set('lastTaskCreationMessage', newUserMessage);
     updatedMemory.set('userRequest', newUserMessage); // Store user request for other nodes
@@ -380,7 +383,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     logEvent('info', AgentType.SUPERVISOR, 'no_task_state');
     
     // Clear task creation tracking to allow fresh conversations
-    const clearedMemory = new Map(state.memory || new Map());
+    const clearedMemory = safeCreateMemoryMap(state.memory);
     clearedMemory.delete('lastTaskCreationMessage');
     
     return new Command({
@@ -412,7 +415,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     });
     
     // Clear task creation tracking to allow fresh conversations
-    const clearedMemory = new Map(state.memory || new Map());
+    const clearedMemory = safeCreateMemoryMap(state.memory);
     clearedMemory.delete('lastTaskCreationMessage');
     
     return new Command({
@@ -430,7 +433,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     logEvent('info', AgentType.SUPERVISOR, reason);
     
     // Clear task creation tracking to allow fresh conversations
-    const clearedMemory = new Map(state.memory || new Map());
+    const clearedMemory = safeCreateMemoryMap(state.memory);
     clearedMemory.delete('lastTaskCreationMessage');
     
     // If no tasks were created, provide a helpful message
@@ -456,7 +459,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   const currentRecursionCount = (state.memory?.get('recursionCount') as number) || 0;
   const newRecursionCount = currentRecursionCount + 1;
   
-  const newMemory = new Map(state.memory || new Map());
+  const newMemory = safeCreateMemoryMap(state.memory);
   newMemory.set('recursionCount', newRecursionCount);
   // Remove the isProcessing flag that was causing the loop
   state = {
@@ -489,7 +492,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
       });
       
       // Clear task creation tracking to allow fresh conversations even on errors
-      const clearedMemory = new Map(state.memory || new Map());
+      const clearedMemory = safeCreateMemoryMap(state.memory);
       clearedMemory.delete('lastTaskCreationMessage');
       
       return new Command({
@@ -541,7 +544,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
         logEvent('info', AgentType.SUPERVISOR, 'no_available_tasks');
         
         // Clear task creation tracking to allow fresh conversations
-        const clearedMemory = new Map(state.memory || new Map());
+        const clearedMemory = safeCreateMemoryMap(state.memory);
         clearedMemory.delete('lastTaskCreationMessage');
         
         return new Command({
@@ -680,7 +683,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     logEvent('info', AgentType.SUPERVISOR, 'no_available_tasks_fallback');
     
     // Clear task creation tracking to allow fresh conversations
-    const clearedMemory = new Map(state.memory || new Map());
+    const clearedMemory = safeCreateMemoryMap(state.memory);
     clearedMemory.delete('lastTaskCreationMessage');
     
     return new Command({

@@ -8,6 +8,8 @@ import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { Task } from "../types/index.js";
 
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
+
 /**
  * Type Discovery Node - Fetches type details for the selected query
  */
@@ -136,7 +138,7 @@ export const typeDiscoveryNode = async (state: ExtendedState, config: any) => {
     }
 
     // Store the raw type details in the selected query
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.rawTypeDetails = typeDetails;
     updatedMemory.set('taskState', taskState);
 

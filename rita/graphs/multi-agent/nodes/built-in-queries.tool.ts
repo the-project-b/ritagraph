@@ -9,6 +9,8 @@ import { logEvent } from "../agents/supervisor-agent";
 import { placeholderManager } from "../../../placeholders/manager";
 import { userService } from "../../../utils/user-service";
 
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
+
 export interface BuiltInQueryHandler {
   name: string;
   description: string;
@@ -261,7 +263,7 @@ export class BuiltInQueryManager {
       };
 
       // Store the result in the task's queryDetails for consistent formatting
-      const updatedMemory = new Map(state.memory || new Map());
+      const updatedMemory = safeCreateMemoryMap(state.memory);
       
       // CRITICAL: Store userRequest in memory for result formatting
       updatedMemory.set('userRequest', userRequest);
@@ -339,7 +341,7 @@ export class BuiltInQueryManager {
       };
 
       // Store the result
-      const updatedMemory = new Map(state.memory || new Map());
+      const updatedMemory = safeCreateMemoryMap(state.memory);
       
       // CRITICAL: Store userRequest in memory for result formatting
       updatedMemory.set('userRequest', userRequest);
@@ -414,7 +416,7 @@ export class BuiltInQueryManager {
       };
 
       // Store the result
-      const updatedMemory = new Map(state.memory || new Map());
+      const updatedMemory = safeCreateMemoryMap(state.memory);
       
       // CRITICAL: Store userRequest in memory for result formatting
       updatedMemory.set('userRequest', userRequest);
