@@ -1,4 +1,4 @@
-import { AIMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, ToolMessage, HumanMessage } from "@langchain/core/messages";
 import { END, StateGraph } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "@langchain/core/tools";
@@ -64,46 +64,71 @@ export const logEvent = (level: StructuredLog['level'], agent: AgentType, event:
   console.log(JSON.stringify(log));
 };
 
-// Generate initial plan message for user
-export const generateInitialPlanMessage = (request: string, tasks: Task[]): string | null => {
+// Generate initial plan message for user using LLM
+export const generateInitialPlanMessage = async (request: string, tasks: Task[]): Promise<string | null> => {
   if (!tasks.length) return null;
 
-  // Determine the main action based on task types
-  const hasQuery = tasks.some(t => t.type === 'query');
-  const hasMutation = tasks.some(t => t.type === 'mutation');
-  const taskCount = tasks.length;
+  try {
+    const model = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
 
-  let actionDescription = '';
-  
-  if (hasQuery && hasMutation) {
-    actionDescription = `retrieve and update data (${taskCount} operations)`;
-  } else if (hasQuery) {
-    if (request.toLowerCase().includes('employee')) {
-      actionDescription = 'retrieve employee information';
-    } else if (request.toLowerCase().includes('user')) {
-      actionDescription = 'retrieve user information';
-    } else if (request.toLowerCase().includes('list') || request.toLowerCase().includes('get') || request.toLowerCase().includes('find')) {
-      actionDescription = 'retrieve the requested information';
+    // Determine the main action based on task types
+    const hasQuery = tasks.some(t => t.type === 'query');
+    const hasMutation = tasks.some(t => t.type === 'mutation');
+    const taskCount = tasks.length;
+
+    // Prepare task information for the LLM
+    const taskInfo = tasks.map(task => ({
+      type: task.type,
+      description: task.description
+    }));
+
+    const prompt = `You are an AI assistant that generates initial plan messages for users. Your job is to tell the user what you're about to do based on their request and the tasks you've identified.
+
+USER REQUEST: "${request}"
+
+IDENTIFIED TASKS:
+${taskInfo.map((task, index) => `${index + 1}. ${task.description} (${task.type})`).join('\n')}
+
+TASK ANALYSIS:
+- Total tasks: ${taskCount}
+- Has query operations: ${hasQuery}
+- Has mutation operations: ${hasMutation}
+
+INSTRUCTIONS:
+1. Detect the language of the user's request and respond in the SAME language
+2. Generate a friendly, concise message (1-2 sentences) explaining what you're about to do
+3. Use appropriate emojis to make it engaging
+4. Be specific about what type of information you'll retrieve or what actions you'll perform
+5. Keep it conversational and helpful
+
+EXAMPLES:
+- English: "🔍 I'll help you retrieve the employee information. Let me analyze the data structure and fetch the results."
+- German: "🔍 Ich helfe Ihnen dabei, die Mitarbeiterinformationen abzurufen. Lassen Sie mich die Datenstruktur analysieren und die Ergebnisse abrufen."
+
+Generate ONLY the plan message, nothing else:`;
+
+    const response = await model.invoke([new HumanMessage(prompt)]);
+    const planMessage = typeof response.content === 'string' ? response.content.trim() : '';
+
+    console.log('🔧 SUPERVISOR - Generated LLM plan message:', planMessage);
+    return planMessage || null;
+
+  } catch (error) {
+    console.warn('🔧 SUPERVISOR - LLM plan generation failed, using fallback:', error.message);
+    
+    // Fallback to simple hardcoded message if LLM fails
+    const hasQuery = tasks.some(t => t.type === 'query');
+    const hasMutation = tasks.some(t => t.type === 'mutation');
+    
+    if (hasQuery && hasMutation) {
+      return `🔄 I'll retrieve and update data for you (${tasks.length} operations).`;
+    } else if (hasQuery) {
+      return `🔍 I'll retrieve the requested information for you.`;
+    } else if (hasMutation) {
+      return `⚙️ I'll perform the requested changes for you.`;
     } else {
-      actionDescription = 'retrieve data';
+      return `🔍 I'll process your request for you.`;
     }
-  } else if (hasMutation) {
-    actionDescription = 'perform the requested changes';
-  } else {
-    actionDescription = 'process your request';
-  }
-
-  // Generate contextual message
-  if (request.toLowerCase().includes('employee')) {
-    return `🔍 I'll help you ${actionDescription}. Let me analyze the employee data structure and fetch the results.`;
-  } else if (request.toLowerCase().includes('user') && request.toLowerCase().includes('me')) {
-    return `👤 I'll retrieve your user profile information.`;
-  } else if (request.toLowerCase().includes('list') || request.toLowerCase().includes('all')) {
-    return `📋 I'll ${actionDescription}. This may require analyzing data structures first.`;
-  } else if (hasMutation) {
-    return `⚙️ I'll ${actionDescription}. Let me process this safely.`;
-  } else {
-    return `🔍 I'll ${actionDescription} for you.`;
   }
 };
 
@@ -382,20 +407,27 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     });
 
     // Generate and return initial plan message
-    const planMessage = tasks && tasks.length > 0 ? generateInitialPlanMessage(newUserMessage, tasks) : null;
-    if (planMessage) {
-      return new Command({
-        goto: AgentType.SUPERVISOR,
-        update: {
-          messages: [
-            ...state.messages,
-            new AIMessage({
-              content: planMessage
-            })
-          ],
-          memory: state.memory
+    if (tasks && tasks.length > 0) {
+      try {
+        const planMessage = await generateInitialPlanMessage(newUserMessage, tasks);
+        if (planMessage && typeof planMessage === 'string') {
+          return new Command({
+            goto: AgentType.SUPERVISOR,
+            update: {
+              messages: [
+                ...state.messages,
+                new AIMessage({
+                  content: planMessage
+                })
+              ],
+              memory: state.memory
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.warn('🔧 SUPERVISOR - Plan message generation failed:', error.message);
+        // Continue without plan message
+      }
     }
   }
 
