@@ -140,7 +140,11 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
 
         // Store result for next node with parsed types and skip settings
         const updatedMemory = new Map(state.memory || new Map());
-        updatedMemory.set('userRequest', userRequest);
+        
+        // CRITICAL: Preserve original userRequest from memory, not task description
+        const originalUserRequest = state.memory?.get('userRequest') || userRequest;
+        updatedMemory.set('userRequest', originalUserRequest);
+        console.log('🔧 INTENT_MATCHING - Preserved userRequest:', originalUserRequest);
 
         // Update current task with selected query data
         const updatedTaskState = { ...taskState };

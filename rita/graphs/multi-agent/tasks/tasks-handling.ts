@@ -612,10 +612,23 @@ async function extractTasksWithLLM(request: string, state?: ExtendedState, confi
     console.log("🔧 TASKS - Successfully loaded dynamic prompt");
     console.log("🔧 TASKS - Prompt preview:", typeof prompt === 'string' ? prompt.substring(0, 200) + '...' : 'Not a string');
   } catch (error) {
-    
     console.warn("Failed to load sup_tasks prompt from LangSmith:", error);
-    // Fallback to default prompt
-    prompt = `lala`;
+    // Fallback to a basic but functional prompt
+    prompt = `You are a task extraction assistant. Extract tasks from the user request and respond with ONLY a valid JSON array.
+
+For the user request: "${request}"
+
+Respond with a JSON array in this format:
+[
+  {
+    "description": "clear task description",
+    "type": "query",
+    "targetAgent": "query_agent", 
+    "dependencies": []
+  }
+]
+
+For simple requests like "who am I", create a single query task.`;
   }
 
   try {
@@ -716,11 +729,14 @@ export const extractTasks = async (request: string, state?: ExtendedState, confi
  * This is a minimal fallback mechanism when LLM extraction fails.
  */
 const basicExtractTasks = (request: string): Task[] => {
+  console.log('🔧 BASIC_EXTRACT_TASKS - Input request:', JSON.stringify(request));
   const tasks: Task[] = [];
   let taskCounter = 0;
   
   // Normalize the request text
   const normalizedRequest = request.toLowerCase().trim();
+  console.log('🔧 BASIC_EXTRACT_TASKS - Normalized request:', JSON.stringify(normalizedRequest));
+  console.log('🔧 BASIC_EXTRACT_TASKS - Request length:', normalizedRequest.length);
   
   // Special handling for email-based employee queries
   const emailEmployeePattern = /(.+)\s+(?:of\s+)?employee\s+with\s+email\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
@@ -756,6 +772,7 @@ const basicExtractTasks = (request: string): Task[] => {
   
   // If the request is very short or simple, treat it as a single query task
   if (normalizedRequest.length < 20 || !normalizedRequest.includes(' and ')) {
+    console.log('🔧 BASIC_EXTRACT_TASKS - Creating single task for short/simple request');
     const task = createTask({
       id: `task_${taskCounter++}`,
       description: request.trim(), // Use original case
@@ -765,7 +782,9 @@ const basicExtractTasks = (request: string): Task[] => {
       confidence: 0.5 // Medium confidence for basic extraction
     });
     
+    console.log('🔧 BASIC_EXTRACT_TASKS - Created task:', task);
     tasks.push(task);
+    console.log('🔧 BASIC_EXTRACT_TASKS - Returning tasks:', tasks);
     return tasks;
   }
   
@@ -801,6 +820,7 @@ const basicExtractTasks = (request: string): Task[] => {
   
   // If no valid tasks were created, create a single query task
   if (tasks.length === 0) {
+    console.log('🔧 BASIC_EXTRACT_TASKS - No tasks created, creating fallback task');
     const task = createTask({
       id: `task_0`,
       description: request.trim(),
@@ -810,9 +830,11 @@ const basicExtractTasks = (request: string): Task[] => {
       confidence: 0.3
     });
     
+    console.log('🔧 BASIC_EXTRACT_TASKS - Created fallback task:', task);
     tasks.push(task);
   }
   
+  console.log('🔧 BASIC_EXTRACT_TASKS - Final tasks array:', tasks);
   return tasks;
 };
 

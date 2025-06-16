@@ -114,6 +114,23 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
       throw new Error('No task state found in memory');
     }
 
+    // Get user request with fallback options
+    const userRequestFromMemory = state.memory?.get('userRequest') as string;
+    const lastProcessedMessage = state.memory?.get('lastProcessedMessage') as string;
+    const userRequestFromMessages = (state.messages && state.messages.length > 0 ? 
+                                    state.messages.filter(msg => msg.constructor.name === 'HumanMessage')
+                                      .map(msg => msg.content).pop() : '') as string;
+    
+    const userRequest = userRequestFromMemory || lastProcessedMessage || userRequestFromMessages;
+    
+    console.log('🔧 RESULT_FORMATTING - UserRequest sources:', {
+      fromMemory: userRequestFromMemory || 'EMPTY',
+      fromLastProcessed: lastProcessedMessage || 'EMPTY', 
+      fromMessages: userRequestFromMessages || 'EMPTY',
+      final: userRequest || 'EMPTY',
+      memoryKeys: state.memory ? Array.from(state.memory.keys()) : []
+    });
+
     // Get the current task
     const currentTaskIndex = taskState.tasks.findIndex(task => task.status === 'in_progress');
     const currentTask: Task = taskState.tasks[currentTaskIndex];
@@ -124,7 +141,9 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
     logEvent('info', AgentType.TOOL, 'formatting_result', {
       taskId: currentTask.id,
       taskType: currentTask.type,
-      hasResult: !!currentTask.result
+      hasResult: !!currentTask.result,
+      userRequest: userRequest?.substring(0, 100) || 'N/A',
+      hasUserRequest: !!userRequest
     });
 
     // Get the result data
@@ -238,6 +257,24 @@ async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIn
   const isSingleTask = totalTasks === 1;
   const isIndividualCompletion = !isLastTask || isSingleTask;
 
+  // Get user request for context
+  const userRequestFromMemory = state?.memory?.get('userRequest') as string;
+  const lastProcessedMessage = state?.memory?.get('lastProcessedMessage') as string;
+  const userRequestFromMessages = (state?.messages && state.messages.length > 0 ? 
+                                  state.messages.filter(msg => msg.constructor.name === 'HumanMessage')
+                                    .map(msg => msg.content).pop() : '') as string;
+  
+  const userRequest = userRequestFromMemory || lastProcessedMessage || userRequestFromMessages;
+  
+  console.log('🔧 GENERATE_MESSAGE - UserRequest sources:', {
+    fromMemory: userRequestFromMemory || 'EMPTY',
+    fromLastProcessed: lastProcessedMessage || 'EMPTY',
+    fromMessages: userRequestFromMessages || 'EMPTY', 
+    final: userRequest || 'EMPTY',
+    hasState: !!state,
+    hasMemory: !!state?.memory
+  });
+
   // Prepare simplified data for LLM
   const messageData = {
     scenario: isSingleTask ? 'SINGLE_TASK' : (isIndividualCompletion ? 'INDIVIDUAL_COMPLETION' : 'FINAL_SUMMARY'),
@@ -245,7 +282,8 @@ async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIn
     taskState: { totalTasks, completedCount: completedTasks.length, failedCount: failedTasks.length, currentTaskNumber: parseInt(currentTask.id.replace('task_', '')) + 1 },
     allTasks: isLastTask ? taskState.tasks : null,
     context,
-    executionTime: taskState.executionStartTime ? Math.round((Date.now() - taskState.executionStartTime) / 1000) : null
+    executionTime: taskState.executionStartTime ? Math.round((Date.now() - taskState.executionStartTime) / 1000) : null,
+    userRequest: userRequest || 'User request not available'
   };
 
      return await generateMessageWithLLM(messageData);
@@ -281,7 +319,8 @@ async function generateMessageWithLLM(messageData: any): Promise<string> {
             failedTasks: new Set(),
             executionStartTime: Date.now()
           }],
-          ['gatheredContext', messageData.context?.gatheredContext]
+          ['gatheredContext', messageData.context?.gatheredContext],
+          ['userRequest', messageData.userRequest]
         ])
       } as any,
       config: {
@@ -300,6 +339,7 @@ async function generateMessageWithLLM(messageData: any): Promise<string> {
     // Fallback to default prompt
     prompt = `Generate a natural task completion message.
 
+USER REQUEST: ${messageData.userRequest}
 SCENARIO: ${messageData.scenario}
 TASK: ${messageData.currentTask.description} (${taskStatus})
 PROGRESS: ${messageData.taskState.currentTaskNumber}/${messageData.taskState.totalTasks}
@@ -313,12 +353,13 @@ CONTEXT: ${contextInfo}
 EXECUTION TIME: ${executionTimeInfo}
 
 Generate a user-friendly completion message that:
-1. Acknowledges the task completion
-2. Summarizes the key results
-3. Provides context about progress if multiple tasks
-4. Uses a conversational, helpful tone
+1. Acknowledges the task completion 
+2. References the original user request
+3. Summarizes the key results
+4. Provides context about progress if multiple tasks
+5. Uses a conversational, helpful tone
 
-Keep the message concise but informative.`;
+Keep the message concise but informative and ensure it directly addresses the user's original question.`;
   }
 
   try {

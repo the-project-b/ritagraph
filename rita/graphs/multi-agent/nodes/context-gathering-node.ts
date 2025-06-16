@@ -939,7 +939,11 @@ export const contextGatheringNode = async (state: ExtendedState, config: any) =>
   try {
     // Get current task and user request
     const taskState = state.memory?.get('taskState') as TaskState;
-    const userRequest = state.memory?.get('userRequest') as string;
+    const userRequest = state.memory?.get('userRequest') as string || 
+                       state.memory?.get('lastProcessedMessage') as string ||
+                       (state.messages && state.messages.length > 0 ? 
+                        state.messages.filter(msg => msg.constructor.name === 'HumanMessage')
+                          .map(msg => msg.content).pop() : '') as string;
     
     if (!taskState || !userRequest) {
       throw new Error('Missing task state or user request for context gathering');

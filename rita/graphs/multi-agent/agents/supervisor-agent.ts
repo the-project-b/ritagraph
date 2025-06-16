@@ -267,6 +267,18 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // Get the most recent user message
   const newUserMessage = userMessages[userMessages.length - 1];
 
+  // CRITICAL: Store userRequest immediately when we get a user message
+  // This ensures it's available throughout the entire flow
+  if (newUserMessage && typeof newUserMessage === 'string') {
+    const updatedMemory = new Map(state.memory || new Map());
+    updatedMemory.set('userRequest', newUserMessage);
+    state = {
+      ...state,
+      memory: updatedMemory
+    };
+    console.log('🔧 SUPERVISOR - Stored userRequest:', newUserMessage);
+  }
+
   // Log state for debugging
   logEvent('info', AgentType.SUPERVISOR, 'state_check', {
     hasTaskState: !!state.memory?.get('taskState'),
@@ -275,7 +287,8 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     recursionCount: state.memory?.get('recursionCount'),
     messageCount: state.messages.length,
     userMessageCount: userMessages.length,
-    newUserMessage
+    newUserMessage,
+    storedUserRequest: state.memory?.get('userRequest')
   });
 
   // Check for recursion limit
@@ -358,6 +371,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     const updatedMemory = new Map((state?.memory) || new Map());
     updatedMemory.set('lastProcessedMessage', newUserMessage);
     updatedMemory.set('lastTaskCreationMessage', newUserMessage);
+    updatedMemory.set('userRequest', newUserMessage); // Store user request for other nodes
     state = {
       ...state,
       memory: updatedMemory
@@ -430,18 +444,29 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     });
   }
 
-  // If no tasks are pending, end the flow
-  if (progress.pending === 0 && progress.total > 0) {
-    logEvent('info', AgentType.SUPERVISOR, 'no_pending_tasks');
+  // If no tasks exist at all, or no tasks are pending, end the flow
+  if (progress.total === 0 || (progress.pending === 0 && progress.total > 0)) {
+    const reason = progress.total === 0 ? 'no_tasks_created' : 'no_pending_tasks';
+    logEvent('info', AgentType.SUPERVISOR, reason);
     
     // Clear task creation tracking to allow fresh conversations
     const clearedMemory = new Map(state.memory || new Map());
     clearedMemory.delete('lastTaskCreationMessage');
     
+    // If no tasks were created, provide a helpful message
+    const messages = progress.total === 0 
+      ? [
+          ...state.messages,
+          new AIMessage({
+            content: "I understand you're asking, but I'm not sure what specific information you need. Could you please provide more details about what you'd like to know?"
+          })
+        ]
+      : state.messages;
+    
     return new Command({
       goto: END,
       update: { 
-        messages: state.messages,
+        messages,
         memory: clearedMemory  // Clear session tracking but preserve other context
       }
     });

@@ -86,16 +86,23 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
         `\n\nPlease provide these details and try again.`;
 
       // Store the error result
-      const updatedMemory = new Map(state.memory || new Map());
-      selectedQuery.queryResult = {
-        success: false,
-        error: errorMessage,
-        errorType: 'MISSING_PARAMETERS',
-        missingParameters: placeholderCheck.placeholders,
-        suggestions: placeholderCheck.suggestions,
-        executedAt: new Date().toISOString()
-      };
-      updatedMemory.set('taskState', taskState);
+          const updatedMemory = new Map(state.memory || new Map());
+    selectedQuery.queryResult = {
+      success: false,
+      error: errorMessage,
+      errorType: 'MISSING_PARAMETERS',
+      missingParameters: placeholderCheck.placeholders,
+      suggestions: placeholderCheck.suggestions,
+      executedAt: new Date().toISOString()
+    };
+    
+    // CRITICAL: Preserve userRequest in memory even for errors
+    if (userRequest) {
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 QUERY_EXECUTION (ERROR) - Preserved userRequest:', userRequest);
+    }
+    
+    updatedMemory.set('taskState', taskState);
 
       logEvent('info', AgentType.QUERY, 'query_execution_completed', {
         queryName: selectedQuery.selectedQueryName,
@@ -126,6 +133,13 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
     // Store the generated query
     const updatedMemory = new Map(state.memory || new Map());
     selectedQuery.queryResult = result;
+    
+    // CRITICAL: Preserve userRequest in memory throughout the flow
+    if (userRequest) {
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 QUERY_EXECUTION - Preserved userRequest:', userRequest);
+    }
+    
     updatedMemory.set('taskState', taskState);
 
     logEvent('info', AgentType.QUERY, 'query_execution_completed', {
@@ -178,6 +192,14 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
       errorType: 'EXECUTION_ERROR',
       executedAt: new Date().toISOString()
     };
+    
+    // CRITICAL: Preserve userRequest in memory even for execution errors
+    const userRequest = state.memory?.get('userRequest');
+    if (userRequest) {
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 QUERY_EXECUTION (EXEC_ERROR) - Preserved userRequest:', userRequest);
+    }
+    
     updatedMemory.set('taskState', taskState);
 
     logEvent('info', AgentType.QUERY, 'query_execution_completed', {

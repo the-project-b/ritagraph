@@ -335,6 +335,13 @@ Return only the GraphQL query without any additional text or formatting.`;
     // Store the generated query
     const updatedMemory = new Map(state.memory || new Map());
     selectedQuery.generatedQuery = query;
+    
+    // CRITICAL: Preserve userRequest in memory throughout the flow
+    if (userRequest) {
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 QUERY_GENERATION - Preserved userRequest:', userRequest);
+    }
+    
     updatedMemory.set('taskState', taskState);
 
     logEvent('info', AgentType.TOOL, 'query_generation_completed', {

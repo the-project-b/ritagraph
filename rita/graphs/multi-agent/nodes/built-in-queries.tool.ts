@@ -262,6 +262,11 @@ export class BuiltInQueryManager {
 
       // Store the result in the task's queryDetails for consistent formatting
       const updatedMemory = new Map(state.memory || new Map());
+      
+      // CRITICAL: Store userRequest in memory for result formatting
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 BUILT_IN_QUERY - Stored userRequest for me query:', userRequest);
+      
       const updatedTaskState = { ...taskState };
       const currentTaskIndex = taskState.tasks.findIndex((task: any) => task.status === 'in_progress');
       
@@ -335,6 +340,11 @@ export class BuiltInQueryManager {
 
       // Store the result
       const updatedMemory = new Map(state.memory || new Map());
+      
+      // CRITICAL: Store userRequest in memory for result formatting
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 BUILT_IN_QUERY - Stored userRequest for version query:', userRequest);
+      
       const updatedTaskState = { ...taskState };
       const currentTaskIndex = taskState.tasks.findIndex((task: any) => task.status === 'in_progress');
       
@@ -405,6 +415,11 @@ export class BuiltInQueryManager {
 
       // Store the result
       const updatedMemory = new Map(state.memory || new Map());
+      
+      // CRITICAL: Store userRequest in memory for result formatting
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 BUILT_IN_QUERY - Stored userRequest for health query:', userRequest);
+      
       const updatedTaskState = { ...taskState };
       const currentTaskIndex = taskState.tasks.findIndex((task: any) => task.status === 'in_progress');
       
