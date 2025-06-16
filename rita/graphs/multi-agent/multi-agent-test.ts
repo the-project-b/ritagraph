@@ -19,6 +19,7 @@ import {
   mutationDiscoveryNode,
   mutationExecutionNode,
   mutationGenerationNode,
+  initialPlanNode,
 } from "./nodes";
 
 // Tool node is now imported from ./tools/tool-node
@@ -30,7 +31,11 @@ const create_multi_agent_rita_graph = async () => {
     // Create the nodes
     const workflow = new StateGraph(MergedAnnotation)
       .addNode(AgentType.SUPERVISOR, supervisorAgent, {
-        ends: ["QUERY_DISCOVERY", "MUTATION_DISCOVERY", END]
+        ends: ["INITIAL_PLAN", "QUERY_DISCOVERY", "MUTATION_DISCOVERY", END]
+      })
+      // Initial plan node
+      .addNode("INITIAL_PLAN", initialPlanNode, {
+        ends: [AgentType.SUPERVISOR]
       })
       // Query flow nodes
       .addNode("QUERY_DISCOVERY", queryDiscoveryNode, {

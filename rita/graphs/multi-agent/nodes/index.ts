@@ -22,6 +22,7 @@ export { typeDiscoveryNode } from './type-discovery-node';
 export { queryGenerationNode } from './query-generation-node';
 export { queryExecutionNode } from './query-execution-node';
 export { resultFormattingNode } from './result-formatting-node';
+export { initialPlanNode } from './initial-plan-node';
 
 // Mutation processing nodes
 export { mutationDiscoveryNode } from './mutation-discovery-node';
