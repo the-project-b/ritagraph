@@ -2,7 +2,7 @@ import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { ExtendedState } from "../../../states/states";
 import { BasePromptConfig, DynamicPromptContext, PromptResult } from "./base-prompt-loader";
 import { GenericPromptLoader } from "./generic-prompt-loader";
-import { createCustomPromptConfig } from "./prompt-configs";
+import { createCustomPromptConfig, getPromptConfig } from "./prompt-configs";
 
 /**
  * Maps template keys to their default prompt IDs for fallback behavior
@@ -15,6 +15,20 @@ const TEMPLATE_FALLBACK_MAPPING = {
   template_mutation_generation: "sup_query_generation",
   template_result_formatting: "sup_formatting_result",
   template_tasks: "sup_tasks"
+} as const;
+
+/**
+ * Maps template keys to their corresponding prompt config types
+ * This ensures the correct buildInvokeObject function is used for each template
+ */
+const TEMPLATE_CONFIG_TYPE_MAPPING = {
+  template_supervisor: "supervisor",
+  template_initial_plan: "supervisor",
+  template_intent_matching: "intentMatching", 
+  template_query_generation: "queryGeneration",
+  template_mutation_generation: "queryGeneration",
+  template_result_formatting: "resultFormatting",
+  template_tasks: "tasks"
 } as const;
 
 /**
@@ -93,11 +107,22 @@ export async function loadTemplatePrompt(
       extractSystemPrompts
     );
     
-    // Use the existing generic prompt loader
-    const promptConfig = createCustomPromptConfig(
-      templateKey,
-      `TEMPLATE_${templateKey.toUpperCase()}`
-    );
+    // Get the appropriate prompt config type for this template
+    const configType = TEMPLATE_CONFIG_TYPE_MAPPING[templateKey];
+    
+    let promptConfig;
+    if (configType) {
+      // Use the existing prompt config with proper buildInvokeObject function
+      promptConfig = getPromptConfig(configType);
+      console.log(`🔧 Using existing prompt config '${configType}' for template ${templateKey}`);
+    } else {
+      // Fallback to custom config (shouldn't happen with current mappings)
+      promptConfig = createCustomPromptConfig(
+        templateKey,
+        `TEMPLATE_${templateKey.toUpperCase()}`
+      );
+      console.log(`🔧 Using custom prompt config for template ${templateKey}`);
+    }
     
     const loader = new GenericPromptLoader(promptConfig);
     const result = await loader.loadPrompt(promptContext);

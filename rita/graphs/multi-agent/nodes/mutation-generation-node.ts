@@ -49,30 +49,16 @@ export const mutationGenerationNode = async (state: ExtendedState, config: any) 
     // Load the mutation generation prompt using configurable template system
     let prompt = '';
     try {
+      // Store mutation-specific data in state memory for template access
+      state.memory?.set('intentMatch', intentMatch);
+      state.memory?.set('availableMutations', availableMutations);
+      state.memory?.set('typeDetails', typeDetails);
+      state.memory?.set('userRequest', currentTask.description);
 
-      
-      const mockState = { 
-        messages: [],
-        memory: new Map([
-          ['intentMatch', intentMatch],
-          ['availableMutations', availableMutations],
-          ['typeDetails', typeDetails]
-        ]),
-        accessToken: '',
-        systemMessages: []
-      } as any;
-      
-      // Use a mock config with default template fallback
-      const mockConfig = {
-        configurable: {
-          template_mutation_generation: "-/sup_mutation_generation" // Will use fallback if not overridden
-        }
-      };
-      
       const promptResult = await loadTemplatePrompt(
         "template_mutation_generation",
-        mockState,
-        mockConfig,
+        state,
+        config,
         model,
         false
       );
