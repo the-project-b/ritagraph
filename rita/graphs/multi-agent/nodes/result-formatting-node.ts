@@ -348,7 +348,7 @@ async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIn
  * Generate completion message using LLM
  */
 async function generateMessageWithLLM(messageData: any, state?: ExtendedState, config?: any): Promise<string> {
-  const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0.3 });
+  const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0 });
 
   // Prepare data for the prompt
   const taskStatus = messageData.currentTask.error ? 'FAILED' : 'COMPLETED';
