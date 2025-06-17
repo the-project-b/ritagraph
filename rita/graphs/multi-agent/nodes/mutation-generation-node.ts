@@ -5,6 +5,7 @@ import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { MutationInfo } from "./index";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 
 /**
  * Generates a GraphQL mutation based on intent and type information
@@ -45,8 +46,43 @@ export const mutationGenerationNode = async (state: ExtendedState, config: any) 
       temperature: 0,
     });
 
-    // Prepare prompt for mutation generation
-    const prompt = `You are a GraphQL mutation generation expert. Your task is to generate a mutation based on the user's intent and available type information.
+    // Load the mutation generation prompt using configurable template system
+    let prompt = '';
+    try {
+
+      
+      const mockState = { 
+        messages: [],
+        memory: new Map([
+          ['intentMatch', intentMatch],
+          ['availableMutations', availableMutations],
+          ['typeDetails', typeDetails]
+        ]),
+        accessToken: '',
+        systemMessages: []
+      } as any;
+      
+      // Use a mock config with default template fallback
+      const mockConfig = {
+        configurable: {
+          template_mutation_generation: "-/sup_mutation_generation" // Will use fallback if not overridden
+        }
+      };
+      
+      const promptResult = await loadTemplatePrompt(
+        "template_mutation_generation",
+        mockState,
+        mockConfig,
+        model,
+        false
+      );
+      
+      prompt = promptResult.populatedPrompt?.value || '';
+      console.log("🔧 MUTATION GENERATION - Successfully loaded configurable template prompt");
+    } catch (error) {
+      console.warn("Failed to load mutation generation template prompt:", error);
+      // Fallback to default prompt
+      prompt = `You are a GraphQL mutation generation expert. Your task is to generate a mutation based on the user's intent and available type information.
 
 User Intent:
 ${intentMatch.reason}
@@ -84,6 +120,7 @@ Remember:
 - Include all required variables
 - Follow the type structure exactly
 - Validate against the type information`;
+    }
 
     // Generate mutation using LLM
     const response = await model.invoke([

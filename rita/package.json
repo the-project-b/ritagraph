@@ -11,6 +11,7 @@
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
     "langgraph:dev": "npx @langchain/langgraph-cli dev",
+    "langgraph:dev:tunnel": "npx @langchain/langgraph-cli dev --tunnel",
     "test": "jest"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",

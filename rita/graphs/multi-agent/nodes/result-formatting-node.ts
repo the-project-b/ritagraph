@@ -1,12 +1,13 @@
 // Result Formatting Node - Formats operation results using LLM-generated messages
-import { Command } from "@langchain/langgraph";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
+import { getCompletedTasksContext, updateTaskStateWithSets } from "../tasks/tasks-handling";
 import { Task, TaskState } from "../types";
-import { updateTaskStateWithSets, getCompletedTasksContext } from "../tasks/tasks-handling";
+import { AgentType } from "../types/agents";
 import { GatheredContext } from "./context-gathering-node";
 import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
@@ -305,37 +306,51 @@ async function generateMessageWithLLM(messageData: any): Promise<string> {
     formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None';
   const executionTimeInfo = messageData.executionTime ? `${messageData.executionTime}s` : '';
 
-  // Load the result formatting prompt dynamically
+  // Load the result formatting prompt using configurable template system
   let prompt = '';
   try {
-    const { loadResultFormattingPrompt } = await import('../prompts/prompt-factory');
-    const promptResult = await loadResultFormattingPrompt({
-      state: { 
-        messages: [],
-        memory: new Map([
-          ['taskState', {
-            tasks: [messageData.currentTask],
-            completedTasks: new Set(),
-            failedTasks: new Set(),
-            executionStartTime: Date.now()
-          }],
-          ['gatheredContext', messageData.context?.gatheredContext],
-          ['userRequest', messageData.userRequest]
-        ])
-      } as any,
-      config: {
-        configurable: {
-          promptId: "sup_formatting_result",
-          model: model,
-          extractSystemPrompts: false
-        }
-      }
-    });
+
     
-    prompt = promptResult.populatedPrompt.value;
-    console.log("🔧 RESULT FORMATTING - Successfully loaded dynamic prompt");
+    const mockState = { 
+      messages: [],
+      memory: new Map([
+        ['taskState', {
+          tasks: [messageData.currentTask],
+          completedTasks: new Set(),
+          failedTasks: new Set(),
+          executionStartTime: Date.now()
+        }],
+        ['gatheredContext', messageData.context?.gatheredContext],
+        ['userRequest', messageData.userRequest],
+        ['scenario', messageData.scenario],
+        ['taskStatus', messageData.currentTask.error ? 'FAILED' : 'COMPLETED'],
+        ['resultData', messageData.currentTask.result?.data],
+        ['contextInfo', messageData.currentTask.context?.gatheredContext ? formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None'],
+        ['executionTime', messageData.executionTime]
+      ]),
+      accessToken: '',
+      systemMessages: []
+    } as any;
+    
+    // Use a mock config that would have the configurable templates
+    const mockConfig = {
+      configurable: {
+        template_result_formatting: "-/sup_formatting_result" // This will be overridden if a real config exists
+      }
+    };
+    
+    const promptResult = await loadTemplatePrompt(
+      "template_result_formatting",
+      mockState,
+      mockConfig,
+      model,
+      false
+    );
+    
+    prompt = promptResult.populatedPrompt?.value || '';
+    console.log("🔧 RESULT FORMATTING - Successfully loaded configurable template prompt");
   } catch (error) {
-    console.warn("Failed to load sup_formatting_result prompt from LangSmith:", error);
+    console.warn("Failed to load result formatting template prompt:", error);
     // Fallback to default prompt
     prompt = `Generate a natural task completion message.
 

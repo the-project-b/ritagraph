@@ -6,32 +6,66 @@ import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
+import { loadTemplatePrompt, isTemplateConfigured } from "../prompts/configurable-prompt-resolver";
 
 /**
- * Generate initial plan message for user using LLM
+ * Generate initial plan message using template prompt or LLM fallback
  */
-export const generateInitialPlanMessage = async (request: string, tasks: Task[]): Promise<string | null> => {
+export const generateInitialPlanMessage = async (
+  request: string, 
+  tasks: Task[], 
+  state: ExtendedState, 
+  config: any
+): Promise<string | null> => {
   if (!tasks.length) return null;
 
   try {
+    // Try to use configured template prompt first
+    
+    if (isTemplateConfigured("template_initial_plan", config)) {
+      console.log('🔧 INITIAL_PLAN - Using configured template prompt');
+      
+      const model = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
+      
+      // Add task information to state memory for template use
+      const updatedState = {
+        ...state,
+        memory: new Map(state.memory || new Map())
+          .set('userRequest', request)
+          .set('tasks', tasks)
+          .set('taskCount', tasks.length)
+          .set('hasQuery', tasks.some(t => t.type === 'query'))
+          .set('hasMutation', tasks.some(t => t.type === 'mutation'))
+      };
+      
+      const promptResult = await loadTemplatePrompt(
+        "template_initial_plan",
+        updatedState,
+        config,
+        model,
+        false
+      );
+      
+      if (promptResult.messages && promptResult.messages.length > 0) {
+        const planMessage = typeof promptResult.messages[0].content === 'string' 
+          ? promptResult.messages[0].content.trim() 
+          : '';
+        
+        if (planMessage) {
+          console.log('🔧 INITIAL_PLAN - Generated template-based plan message:', planMessage);
+          return planMessage;
+        }
+      }
+    }
+    
+    // Fallback to LLM-based approach
+    console.log('🔧 INITIAL_PLAN - Using LLM fallback approach');
     const model = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
-
-    // Determine the main action based on task types
-    const hasQuery = tasks.some(t => t.type === 'query');
-    const hasMutation = tasks.some(t => t.type === 'mutation');
-    const taskCount = tasks.length;
-
-    // Prepare task information for the LLM
-    const taskInfo = tasks.map(task => ({
-      type: task.type,
-      description: task.description
-    }));
 
     const prompt = `You are an AI assistant that generates initial plan messages for users. Your job is to tell the user what you're about to do based on their request and the tasks you've identified.
     IMPORTANT: Respond in the SAME language as the user's request.
 
 USER REQUEST: "${request}"
-
 
 INSTRUCTIONS:
 1. First, identify the language of the user request: "${request}"
@@ -50,9 +84,9 @@ Generate ONLY the plan message, nothing else:`;
     return planMessage || null;
 
   } catch (error) {
-    console.warn('🔧 INITIAL_PLAN - LLM plan generation failed, using fallback:', error.message);
+    console.warn('🔧 INITIAL_PLAN - Both template and LLM failed, using hardcoded fallback:', error.message);
     
-    // Fallback to simple hardcoded message if LLM fails
+    // Final fallback to simple hardcoded message
     const hasQuery = tasks.some(t => t.type === 'query');
     const hasMutation = tasks.some(t => t.type === 'mutation');
     
@@ -103,7 +137,7 @@ export const initialPlanNode = async (state: ExtendedState, config: any) => {
     });
 
     // Generate plan message
-    const planMessage = await generateInitialPlanMessage(userRequest, taskState.tasks);
+    const planMessage = await generateInitialPlanMessage(userRequest, taskState.tasks, state, config);
 
     if (planMessage && typeof planMessage === 'string') {
       logEvent('info', AgentType.TOOL, 'initial_plan_completed', {

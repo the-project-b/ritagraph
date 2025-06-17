@@ -88,7 +88,7 @@ export class GenericPromptLoader extends BasePromptLoader {
       
       // Debug: Log the actual template content if it exists
       if (promptTemplate.template) {
-        console.log(`🔧 ${this.config.logPrefix} - Direct template preview:`, promptTemplate.template.substring(0, 200));
+        console.log(`🔧 ${this.config.logPrefix} - Direct template preview (substring):`, promptTemplate.template.substring(0, 200));
       }
       if (promptTemplate.messages) {
         console.log(`🔧 ${this.config.logPrefix} - Messages count:`, promptTemplate.messages.length);

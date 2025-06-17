@@ -27,16 +27,16 @@
 // CRITICAL: Single bracket {variable} syntax is AVOIDED to prevent conflicts
 // with GraphQL object syntax like {field1, field2} and {variable: value}
 //
-import { Command } from "@langchain/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
+import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
 import { placeholderManager } from "../../../placeholders/manager";
+import { ExtendedState } from "../../../states/states";
+import { logEvent } from "../agents/supervisor-agent";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 import { Task } from "../types";
-import { GatheredContext, ContextUtils } from "./context-gathering-node";
-import { loadGenericPrompt } from "../prompts/prompt-factory";
+import { AgentType } from "../types/agents";
+import { ContextUtils, GatheredContext } from "./context-gathering-node";
 
 /**
  * Generate parameter resolution strategies description for the LLM prompt
@@ -133,39 +133,48 @@ export const queryGenerationNode = async (state: ExtendedState, config: any) => 
     const model = new ChatOpenAI({ model: "gpt-4.1", temperature: 0 });
     // const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20240620", temperature: 0 });
     
-    // Load the query generation prompt dynamically
+    // Load the query generation prompt using configurable template system
     let prompt = '';
     try {
-      const { loadQueryGenerationPrompt } = await import('../prompts/prompt-factory');
-      const promptResult = await loadQueryGenerationPrompt({
-        state: { 
-          messages: [],
-          memory: new Map([
-            ['userRequest', userRequest],
-            ['selectedQueryName', selectedQuery.selectedQueryName],
-            ['rawQueryDetails', selectedQuery.rawQueryDetails],
-            ['rawTypeDetails', selectedQuery?.rawTypeDetails],
-            ['originalInputType', selectedQuery.originalInputType],
-            ['signatureInputType', selectedQuery.signature?.input?.type],
-            ['originalOutputType', selectedQuery.originalOutputType],
-            ['signatureOutputType', selectedQuery.signature?.output?.type],
-            ['parameterStrategies', parameterStrategies],
-            ['gatheredContext', gatheredContext]
-          ])
-        } as any,
-        config: {
-          configurable: {
-            promptId: "sup_query_generation",
-            model: model,
-            extractSystemPrompts: false
-          }
-        }
-      });
+
       
-      prompt = promptResult.populatedPrompt.value;
-      console.log("🔧 QUERY GENERATION - Successfully loaded dynamic prompt");
+      const mockState = { 
+        messages: [],
+        memory: new Map([
+          ['userRequest', userRequest],
+          ['selectedQueryName', selectedQuery.selectedQueryName],
+          ['rawQueryDetails', selectedQuery.rawQueryDetails],
+          ['rawTypeDetails', selectedQuery?.rawTypeDetails],
+          ['originalInputType', selectedQuery.originalInputType],
+          ['signatureInputType', selectedQuery.signature?.input?.type],
+          ['originalOutputType', selectedQuery.originalOutputType],
+          ['signatureOutputType', selectedQuery.signature?.output?.type],
+          ['parameterStrategies', parameterStrategies],
+          ['gatheredContext', gatheredContext]
+        ]),
+        accessToken: '',
+        systemMessages: []
+      } as any;
+      
+      // Use a mock config with default template fallback
+      const mockConfig = {
+        configurable: {
+          template_query_generation: "-/sup_query_generation" // Will use fallback if not overridden
+        }
+      };
+      
+      const promptResult = await loadTemplatePrompt(
+        "template_query_generation",
+        mockState,
+        mockConfig,
+        model,
+        false
+      );
+      
+      prompt = promptResult.populatedPrompt?.value || '';
+      console.log("🔧 QUERY GENERATION - Successfully loaded configurable template prompt");
     } catch (error) {
-      console.warn("Failed to load sup_query_generation prompt from LangSmith:", error);
+      console.warn("Failed to load query generation template prompt:", error);
       // Fallback to default prompt
       prompt = `Generate a GraphQL query based on the following information:
 

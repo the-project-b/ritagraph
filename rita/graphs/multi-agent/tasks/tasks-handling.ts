@@ -10,6 +10,7 @@ import { logEvent } from "../agents/supervisor-agent";
 import { AgentType } from "../types/agents";
 import { BasePromptConfig } from "../prompts/base-prompt-loader";
 import { loadTasksPrompt } from "../prompts/prompt-factory";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 
 /**
  * Creates a new data requirement
@@ -593,22 +594,36 @@ async function extractTasksWithLLM(request: string, state?: ExtendedState, confi
       memory: new Map([['userRequest', request]])
     };
     
-    const promptResult = await loadTasksPrompt({
-      state: {
-        ...promptState,
-        memory: new Map([
-          ...Array.from(promptState.memory || new Map()),
-          ['userRequest', request],
-          ['request', request] // Add request directly to memory for prompt resolution
-        ])
-      },
-      config: {
-        ...config,
-        configurable: promptConfig
-      }
-    });
+    // Use the configurable template system
     
-    prompt = promptResult.populatedPrompt.value;
+    const templateState = {
+      ...promptState,
+      accessToken: '',
+      systemMessages: [],
+      memory: new Map([
+        ...Array.from(promptState.memory || new Map()),
+        ['userRequest', request],
+        ['request', request] // Add request directly to memory for prompt resolution
+      ])
+    };
+    
+    // Use a mock config with default template fallback
+    const templateConfig = {
+      configurable: {
+        template_tasks: "-/sup_tasks", // Will use fallback if not overridden
+        ...promptConfig
+      }
+    };
+    
+    const promptResult = await loadTemplatePrompt(
+      "template_tasks",
+      templateState,
+      templateConfig,
+      model,
+      false
+    );
+    
+    prompt = promptResult.populatedPrompt?.value || '';
     console.log("🔧 TASKS - Successfully loaded dynamic prompt");
     console.log("🔧 TASKS - Prompt preview:", typeof prompt === 'string' ? prompt.substring(0, 200) + '...' : 'Not a string');
   } catch (error) {

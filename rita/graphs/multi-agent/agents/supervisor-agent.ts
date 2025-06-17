@@ -149,26 +149,23 @@ export const createSupervisorTools = () => {
 const createSupervisorAgentCore = async (model: ChatOpenAI, state: ExtendedState, config: any) => {
   const supervisorTools = createSupervisorTools();
     
-  // Load the supervisor prompt using the new dynamic prompt system
+  // Load the supervisor prompt using the configurable template system
   let prompt: any = ``;
   try {
-    const promptResult = await loadSupervisorPrompt({
+    const { loadTemplatePrompt } = await import("../prompts/configurable-prompt-resolver");
+    const promptResult = await loadTemplatePrompt(
+      "template_supervisor",
       state,
-      config: {
-        ...config,
-        configurable: {
-          promptId: "sup_main",
-          model: model,
-          extractSystemPrompts: false
-        }
-      }
-    });
+      config,
+      model,
+      false
+    );
     
-    prompt = promptResult.populatedPrompt.value;
-    console.log("🔧 SUPERVISOR - Successfully loaded dynamic prompt");
+    prompt = promptResult.populatedPrompt?.value || '';
+    console.log("🔧 SUPERVISOR - Successfully loaded configurable template prompt");
   } catch (error) {
-    console.warn("Failed to load sup_main prompt from LangSmith:", error);
-    // Fallback to default prompt
+    console.warn("Failed to load supervisor template prompt:", error);
+    // Fallback to default prompt - supervisor will work with empty prompt
     prompt = ``;
   }
 

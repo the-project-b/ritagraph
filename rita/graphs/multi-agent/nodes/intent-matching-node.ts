@@ -1,16 +1,16 @@
 // Intent Matching Node - Step 2: Match Query to Intent
 // Your prompt: "Given the user's request... Choose the most appropriate query from the list that matches what the user wants to achieve."
 
+import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
 import client from "../../../mcp/client.js";
-import { builtInQueryManager } from "./built-in-queries.tool";
+import { ExtendedState } from "../../../states/states";
+import { logEvent } from "../agents/supervisor-agent";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 import { TaskState } from "../types";
-import { loadGenericPrompt } from "../prompts/prompt-factory";
+import { AgentType } from "../types/agents";
+import { builtInQueryManager } from "./built-in-queries.tool";
 
 interface SkipSettings {
   skipDiscovery?: boolean;
@@ -190,32 +190,41 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
 async function matchQueryToIntent(userRequest: string, queries: string): Promise<IntentMatch> {
   const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0 });
 
-  // Load the intent matching prompt dynamically
+  // Load the intent matching prompt using configurable template system
   let prompt = '';
   try {
-    const { loadIntentMatchingPrompt } = await import('../prompts/prompt-factory');
-    const promptResult = await loadIntentMatchingPrompt({
-      state: { 
-        messages: [],
-        memory: new Map([
-          ['userRequest', userRequest], 
-          ['queries', queries],
-          ['discoveredQueries', queries]
-        ]) 
-      } as any,
-      config: {
-        configurable: {
-          promptId: "sup_intent_matching",
-          model: model,
-          extractSystemPrompts: false
-        }
-      }
-    });
+
     
-    prompt = promptResult.populatedPrompt.value;
-    console.log("🔧 INTENT MATCHING - Successfully loaded dynamic prompt");
+    const mockState = { 
+      messages: [],
+      memory: new Map([
+        ['userRequest', userRequest], 
+        ['queries', queries],
+        ['discoveredQueries', queries]
+      ]),
+      accessToken: '',
+      systemMessages: []
+    } as any;
+    
+    // Use a mock config with default template fallback
+    const mockConfig = {
+      configurable: {
+        template_intent_matching: "-/sup_intent_matching" // Will use fallback if not overridden
+      }
+    };
+    
+    const promptResult = await loadTemplatePrompt(
+      "template_intent_matching",
+      mockState,
+      mockConfig,
+      model,
+      false
+    );
+    
+    prompt = promptResult.populatedPrompt?.value || '';
+    console.log("🔧 INTENT MATCHING - Successfully loaded configurable template prompt");
   } catch (error) {
-    console.warn("Failed to load sup_intent_matching prompt from LangSmith:", error);
+    console.warn("Failed to load intent matching template prompt:", error);
     // Fallback to default prompt
     prompt = `Given the user's request: "${userRequest}"
 And the following available GraphQL queries:
