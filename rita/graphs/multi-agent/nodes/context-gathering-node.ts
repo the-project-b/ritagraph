@@ -1078,6 +1078,10 @@ export const contextGatheringNode = async (state: ExtendedState, config: any) =>
       tasks: updatedTasks
     };
     updatedMemory.set('taskState', updatedTaskState);
+    
+    // CRITICAL: Preserve userRequest for result formatting
+    updatedMemory.set('userRequest', userRequest);
+    console.log('🔧 CONTEXT_GATHERING - Preserved userRequest:', userRequest);
 
     logEvent('info', AgentType.TOOL, 'context_gathering_completed', {
       duration: Date.now() - startTime,

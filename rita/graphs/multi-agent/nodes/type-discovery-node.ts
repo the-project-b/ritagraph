@@ -142,6 +142,13 @@ export const typeDiscoveryNode = async (state: ExtendedState, config: any) => {
     const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.rawTypeDetails = typeDetails;
     updatedMemory.set('taskState', taskState);
+    
+    // CRITICAL: Preserve userRequest for result formatting
+    const userRequest = state.memory?.get('userRequest');
+    if (userRequest) {
+      updatedMemory.set('userRequest', userRequest);
+      console.log('🔧 TYPE_DISCOVERY - Preserved userRequest:', userRequest);
+    }
 
     logEvent('info', AgentType.TOOL, 'type_discovery_completed', {
       queryName: selectedQuery.selectedQueryName,

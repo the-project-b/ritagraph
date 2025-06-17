@@ -32,7 +32,7 @@ export const generateInitialPlanMessage = async (
       const updatedState = {
         ...state,
         memory: safeCreateMemoryMap(state.memory)
-          .set('userRequest', request)
+          // DON'T overwrite userRequest - preserve original user input
           .set('tasks', tasks)
           .set('taskCount', tasks.length)
           .set('hasQuery', tasks.some(t => t.type === 'query'))

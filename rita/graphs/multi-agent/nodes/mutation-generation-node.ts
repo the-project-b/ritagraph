@@ -54,7 +54,7 @@ export const mutationGenerationNode = async (state: ExtendedState, config: any) 
       state.memory?.set('intentMatch', intentMatch);
       state.memory?.set('availableMutations', availableMutations);
       state.memory?.set('typeDetails', typeDetails);
-      state.memory?.set('userRequest', currentTask.description);
+      // DON'T overwrite userRequest with task description - preserve original user request
 
       const promptResult = await loadTemplatePrompt(
         "template_mutation_generation",

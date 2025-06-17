@@ -61,10 +61,12 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
       throw new Error('No current task found');
     }
 
-    // Use task description instead of original user request
-    const userRequest = currentTask.description;
+    // CRITICAL: Use original user request from memory, not task description
+    // Task description may be translated/interpreted, but we want original user language
+    const originalUserRequest = state.memory?.get('userRequest') as string;
+    const userRequest = originalUserRequest || currentTask.description;
     if (!userRequest) {
-      throw new Error('No task description found');
+      throw new Error('No user request found');
     }
 
     logEvent('info', AgentType.TOOL, 'matching_intent', { 
@@ -142,10 +144,9 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
         // Store result for next node with parsed types and skip settings
         const updatedMemory = safeCreateMemoryMap(state.memory);
         
-        // CRITICAL: Preserve original userRequest from memory, not task description
-        const originalUserRequest = state.memory?.get('userRequest') || userRequest;
-        updatedMemory.set('userRequest', originalUserRequest);
-        console.log('🔧 INTENT_MATCHING - Preserved userRequest:', originalUserRequest);
+        // Preserve userRequest (already using original from memory)
+        updatedMemory.set('userRequest', userRequest);
+        console.log('🔧 INTENT_MATCHING - Preserved userRequest:', userRequest);
 
         // Update current task with selected query data
         const updatedTaskState = { ...taskState };
