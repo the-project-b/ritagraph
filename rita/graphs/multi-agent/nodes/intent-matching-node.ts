@@ -74,7 +74,7 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
     let selectedQuery: IntentMatch | null = null;
     let selectedMutation: IntentMatch | null = null;
     if(currentTask.type === 'query') {
-      selectedQuery = await matchQueryToIntent(userRequest, queries);
+      selectedQuery = await matchQueryToIntent(userRequest, queries, state, config);
       
       // Check for built-in query handlers that bypass the normal pipeline
       const builtInResult = await builtInQueryManager.handleBuiltInQuery(state, config, userRequest, selectedQuery);
@@ -187,36 +187,20 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
 /**
  * Match user intent to best query using LLM
  */
-async function matchQueryToIntent(userRequest: string, queries: string): Promise<IntentMatch> {
+async function matchQueryToIntent(userRequest: string, queries: string, state: ExtendedState, config: any): Promise<IntentMatch> {
   const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0 });
 
   // Load the intent matching prompt using configurable template system
   let prompt = '';
   try {
-
-    
-    const mockState = { 
-      messages: [],
-      memory: new Map([
-        ['userRequest', userRequest], 
-        ['queries', queries],
-        ['discoveredQueries', queries]
-      ]),
-      accessToken: '',
-      systemMessages: []
-    } as any;
-    
-    // Use a mock config with default template fallback
-    const mockConfig = {
-      configurable: {
-        template_intent_matching: "-/sup_intent_matching" // Will use fallback if not overridden
-      }
-    };
+    // Store data in state memory for template access
+    state.memory?.set('queries', queries);
+    state.memory?.set('discoveredQueries', queries);
     
     const promptResult = await loadTemplatePrompt(
       "template_intent_matching",
-      mockState,
-      mockConfig,
+      state,
+      config,
       model,
       false
     );

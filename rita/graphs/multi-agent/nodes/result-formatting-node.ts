@@ -181,7 +181,7 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
     };
 
     // Generate LLM completion message
-    const completionMessage = await generateTaskCompletionMessage(updatedState.memory.get('taskState') as TaskState, currentTaskIndex, updatedState);
+    const completionMessage = await generateTaskCompletionMessage(updatedState.memory.get('taskState') as TaskState, currentTaskIndex, updatedState, config);
 
     logEvent('info', AgentType.TOOL, 'result_formatting_completed', {
       taskId: currentTask.id,
@@ -241,7 +241,7 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
  * 2. Multi-Task (Individual completion) 
  * 3. Multi-Task (Final summary)
  */
-async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIndex: number, state?: ExtendedState): Promise<string> {
+async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIndex: number, state?: ExtendedState, config?: any): Promise<string> {
   const completedTasks = taskState.tasks.filter(task => task.status === 'completed');
   const failedTasks = taskState.tasks.filter(task => task.status === 'failed');
   const totalTasks = taskState.tasks.length;
@@ -287,13 +287,13 @@ async function generateTaskCompletionMessage(taskState: TaskState, currentTaskIn
     userRequest: userRequest || 'User request not available'
   };
 
-     return await generateMessageWithLLM(messageData);
+     return await generateMessageWithLLM(messageData, state, config);
 }
 
 /**
  * Generate completion message using LLM
  */
-async function generateMessageWithLLM(messageData: any): Promise<string> {
+async function generateMessageWithLLM(messageData: any, state?: ExtendedState, config?: any): Promise<string> {
   const model = new ChatOpenAI({ model: "gpt-4.1-mini", temperature: 0.3 });
 
   // Prepare data for the prompt
@@ -309,46 +309,34 @@ async function generateMessageWithLLM(messageData: any): Promise<string> {
   // Load the result formatting prompt using configurable template system
   let prompt = '';
   try {
-
-    
-    const mockState = { 
-      messages: [],
-      memory: new Map([
-        ['taskState', {
-          tasks: [messageData.currentTask],
-          completedTasks: new Set(),
-          failedTasks: new Set(),
-          executionStartTime: Date.now()
-        }],
-        ['gatheredContext', messageData.context?.gatheredContext],
-        ['userRequest', messageData.userRequest],
-        ['scenario', messageData.scenario],
-        ['taskStatus', messageData.currentTask.error ? 'FAILED' : 'COMPLETED'],
-        ['resultData', messageData.currentTask.result?.data],
-        ['contextInfo', messageData.currentTask.context?.gatheredContext ? formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None'],
-        ['executionTime', messageData.executionTime]
-      ]),
-      accessToken: '',
-      systemMessages: []
-    } as any;
-    
-    // Use a mock config that would have the configurable templates
-    const mockConfig = {
-      configurable: {
-        template_result_formatting: "-/sup_formatting_result" // This will be overridden if a real config exists
-      }
-    };
-    
-    const promptResult = await loadTemplatePrompt(
-      "template_result_formatting",
-      mockState,
-      mockConfig,
-      model,
-      false
-    );
-    
-    prompt = promptResult.populatedPrompt?.value || '';
-    console.log("🔧 RESULT FORMATTING - Successfully loaded configurable template prompt");
+    if (state && config) {
+      // Store data in state memory for template access
+      state.memory?.set('taskState', {
+        tasks: [messageData.currentTask],
+        completedTasks: new Set(),
+        failedTasks: new Set(),
+        executionStartTime: Date.now()
+      });
+      state.memory?.set('gatheredContext', messageData.context?.gatheredContext);
+      state.memory?.set('scenario', messageData.scenario);
+      state.memory?.set('taskStatus', messageData.currentTask.error ? 'FAILED' : 'COMPLETED');
+      state.memory?.set('resultData', messageData.currentTask.result?.data);
+      state.memory?.set('contextInfo', messageData.currentTask.context?.gatheredContext ? formatContextInfo(messageData.currentTask.context.gatheredContext) : 'None');
+      state.memory?.set('executionTime', messageData.executionTime);
+      
+      const promptResult = await loadTemplatePrompt(
+        "template_result_formatting",
+        state,
+        config,
+        model,
+        false
+      );
+      
+      prompt = promptResult.populatedPrompt?.value || '';
+      console.log("🔧 RESULT FORMATTING - Successfully loaded configurable template prompt");
+    } else {
+      throw new Error("State or config not provided");
+    }
   } catch (error) {
     console.warn("Failed to load result formatting template prompt:", error);
     // Fallback to default prompt

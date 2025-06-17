@@ -35,10 +35,10 @@ type PromptId = string;
 
 const ConfigurableAnnotation = Annotation.Root({
   template_supervisor: AnnotationWithDefault<PromptId>("-/sup_main"),
-  template_initial_plan: AnnotationWithDefault<PromptId>("-/sup_main"),
+  template_initial_plan: AnnotationWithDefault<PromptId>(""),
   template_intent_matching: AnnotationWithDefault<PromptId>("-/sup_intent_matching"),
   template_query_generation: AnnotationWithDefault<PromptId>("-/sup_query_generation"),
-  template_mutation_generation: AnnotationWithDefault<PromptId>("-/sup_query_generation"),
+  template_mutation_generation: AnnotationWithDefault<PromptId>(""),
   template_result_formatting: AnnotationWithDefault<PromptId>("-/sup_formatting_result"),
   template_tasks: AnnotationWithDefault<PromptId>("-/sup_tasks"),
 });

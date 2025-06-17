@@ -136,37 +136,21 @@ export const queryGenerationNode = async (state: ExtendedState, config: any) => 
     // Load the query generation prompt using configurable template system
     let prompt = '';
     try {
+      // Store query-specific data in state memory for template access
+      state.memory?.set('selectedQueryName', selectedQuery.selectedQueryName);
+      state.memory?.set('rawQueryDetails', selectedQuery.rawQueryDetails);
+      state.memory?.set('rawTypeDetails', selectedQuery?.rawTypeDetails);
+      state.memory?.set('originalInputType', selectedQuery.originalInputType);
+      state.memory?.set('signatureInputType', selectedQuery.signature?.input?.type);
+      state.memory?.set('originalOutputType', selectedQuery.originalOutputType);
+      state.memory?.set('signatureOutputType', selectedQuery.signature?.output?.type);
+      state.memory?.set('parameterStrategies', parameterStrategies);
+      state.memory?.set('gatheredContext', gatheredContext);
 
-      
-      const mockState = { 
-        messages: [],
-        memory: new Map([
-          ['userRequest', userRequest],
-          ['selectedQueryName', selectedQuery.selectedQueryName],
-          ['rawQueryDetails', selectedQuery.rawQueryDetails],
-          ['rawTypeDetails', selectedQuery?.rawTypeDetails],
-          ['originalInputType', selectedQuery.originalInputType],
-          ['signatureInputType', selectedQuery.signature?.input?.type],
-          ['originalOutputType', selectedQuery.originalOutputType],
-          ['signatureOutputType', selectedQuery.signature?.output?.type],
-          ['parameterStrategies', parameterStrategies],
-          ['gatheredContext', gatheredContext]
-        ]),
-        accessToken: '',
-        systemMessages: []
-      } as any;
-      
-      // Use a mock config with default template fallback
-      const mockConfig = {
-        configurable: {
-          template_query_generation: "-/sup_query_generation" // Will use fallback if not overridden
-        }
-      };
-      
       const promptResult = await loadTemplatePrompt(
         "template_query_generation",
-        mockState,
-        mockConfig,
+        state,
+        config,
         model,
         false
       );
