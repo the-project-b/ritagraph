@@ -8,6 +8,7 @@ import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Check for unresolved placeholders in the query
@@ -86,7 +87,7 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
         `\n\nPlease provide these details and try again.`;
 
       // Store the error result
-          const updatedMemory = new Map(state.memory || new Map());
+          const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.queryResult = {
       success: false,
       error: errorMessage,
@@ -131,7 +132,7 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
     const result = await executeQuery(selectedQuery.generatedQuery, state, config);
 
     // Store the generated query
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.queryResult = result;
     
     // CRITICAL: Preserve userRequest in memory throughout the flow
@@ -184,7 +185,7 @@ export const queryExecutionNode = async (state: ExtendedState, config: any) => {
       userFriendlyError = 'Network connection issue. Please check your connection and try again.';
     }
 
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.queryResult = {
       success: false,
       error: userFriendlyError,

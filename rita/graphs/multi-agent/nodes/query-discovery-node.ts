@@ -2,10 +2,12 @@
 // Your prompt: "You are a discovery assistant. Your task is to call the MCP server to get the list of all available GraphQL queries."
 
 import { Command } from "@langchain/langgraph";
+import { AIMessage } from "@langchain/core/messages";
 import client from "../../../mcp/client.js";
 import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Query Discovery Node - Discovers and caches available GraphQL queries
@@ -21,7 +23,7 @@ export const queryDiscoveryNode = async (state: ExtendedState, config: any) => {
       logEvent('info', AgentType.TOOL, 'using_cached_queries');
       
       // Store in memory for next node
-      const updatedMemory = new Map(state.memory || new Map());
+      const updatedMemory = safeCreateMemoryMap(state.memory);
       updatedMemory.set('discoveredQueries', cached.queries);
       
       return new Command({
@@ -67,7 +69,7 @@ export const queryDiscoveryNode = async (state: ExtendedState, config: any) => {
     logEvent('info', AgentType.TOOL, 'queries_discovered');
 
     // Cache the result and store for next node
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     updatedMemory.set('cachedQueries', { queries, timestamp: Date.now() });
     updatedMemory.set('discoveredQueries', queries);
 
@@ -81,6 +83,60 @@ export const queryDiscoveryNode = async (state: ExtendedState, config: any) => {
 
   } catch (error) {
     logEvent('error', AgentType.TOOL, 'query_discovery_error', { error: error.message });
-    throw new Error(`Query discovery failed: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Query discovery failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Failed to discover available queries: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback: if no task state, still don't throw
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Query discovery failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 }; 

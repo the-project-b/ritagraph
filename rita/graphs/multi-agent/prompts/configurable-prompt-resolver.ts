@@ -3,6 +3,7 @@ import { ExtendedState } from "../../../states/states";
 import { BasePromptConfig, DynamicPromptContext, PromptResult } from "./base-prompt-loader";
 import { GenericPromptLoader } from "./generic-prompt-loader";
 import { createCustomPromptConfig, getPromptConfig } from "./prompt-configs";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 /**
  * Maps template keys to their default prompt IDs for fallback behavior
@@ -182,7 +183,7 @@ export async function loadNodeTemplatePrompt(
   // Enhance state with additional memory data if provided
   let enhancedState = state;
   if (additionalMemoryData) {
-    const enhancedMemory = new Map(state.memory || new Map());
+    const enhancedMemory = safeCreateMemoryMap(state.memory);
     Object.entries(additionalMemoryData).forEach(([key, value]) => {
       enhancedMemory.set(key, value);
     });

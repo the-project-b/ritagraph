@@ -27,7 +27,7 @@
 // CRITICAL: Single bracket {variable} syntax is AVOIDED to prevent conflicts
 // with GraphQL object syntax like {field1, field2} and {variable: value}
 //
-import { HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { placeholderManager } from "../../../placeholders/manager";
@@ -37,6 +37,7 @@ import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 import { Task } from "../types";
 import { AgentType } from "../types/agents";
 import { ContextUtils, GatheredContext } from "./context-gathering-node";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 /**
  * Generate parameter resolution strategies description for the LLM prompt
@@ -326,7 +327,7 @@ Return only the GraphQL query without any additional text or formatting.`;
     console.log('🔍 Query Generation: Generated query:', query);
 
     // Store the generated query
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     selectedQuery.generatedQuery = query;
     
     // CRITICAL: Preserve userRequest in memory throughout the flow
@@ -360,6 +361,61 @@ Return only the GraphQL query without any additional text or formatting.`;
 
   } catch (error) {
     logEvent('error', AgentType.TOOL, 'query_generation_error', { error: error.message });
-    throw new Error(`Query generation failed: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors that cause infinite loops
+    // Instead, mark the task as failed and return to supervisor
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Query generation failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Failed to generate query: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback: if no task state, still don't throw
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Query generation failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 }; 

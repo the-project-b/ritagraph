@@ -7,6 +7,7 @@ import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
 import { loadTemplatePrompt, isTemplateConfigured } from "../prompts/configurable-prompt-resolver";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 /**
  * Generate initial plan message using template prompt or LLM fallback
@@ -30,7 +31,7 @@ export const generateInitialPlanMessage = async (
       // Add task information to state memory for template use
       const updatedState = {
         ...state,
-        memory: new Map(state.memory || new Map())
+        memory: safeCreateMemoryMap(state.memory)
           .set('userRequest', request)
           .set('tasks', tasks)
           .set('taskCount', tasks.length)

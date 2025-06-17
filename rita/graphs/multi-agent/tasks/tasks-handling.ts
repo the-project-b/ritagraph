@@ -11,6 +11,7 @@ import { AgentType } from "../types/agents";
 import { BasePromptConfig } from "../prompts/base-prompt-loader";
 import { loadTasksPrompt } from "../prompts/prompt-factory";
 import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
+import { safeCreateMemoryMap } from '../utils/memory-helpers';
 
 /**
  * Creates a new data requirement
@@ -230,7 +231,7 @@ export function getNextTask(state: ExtendedState): { task: Task | null; updatedS
       task: null,
       updatedState: {
         ...state,
-        memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+        memory: safeCreateMemoryMap(state.memory).set('taskState', updatedTaskState)
       }
     };
   }
@@ -283,7 +284,7 @@ export function getNextTask(state: ExtendedState): { task: Task | null; updatedS
     task: availableTask,
     updatedState: {
       ...state,
-      memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+      memory: safeCreateMemoryMap(state.memory).set('taskState', updatedTaskState)
     }
   };
 }
@@ -903,7 +904,7 @@ export function calculateTaskConfidence(task: Task): number {
 export function updateMemoryWithTaskState(state: ExtendedState, { tasks, executionStartTime }: { tasks: Task[]; executionStartTime?: number }): ExtendedState {
   return {
     ...state,
-    memory: new Map(state.memory || new Map()).set("taskState", {
+    memory: safeCreateMemoryMap(state.memory).set("taskState", {
       tasks,
       completedTasks: new Set<string>(),
       failedTasks: new Set<string>(),
@@ -991,7 +992,7 @@ export function extendTaskStateWithNewTasks(
 
     return {
       ...state,
-      memory: new Map(state.memory || new Map()).set("taskState", newTaskState)
+      memory: safeCreateMemoryMap(state.memory).set("taskState", newTaskState)
     };
   }
 
@@ -1041,7 +1042,7 @@ export function extendTaskStateWithNewTasks(
 
   return {
     ...state,
-    memory: new Map(state.memory || new Map()).set("taskState", extendedTaskState)
+    memory: safeCreateMemoryMap(state.memory).set("taskState", extendedTaskState)
   };
 }
 
@@ -1062,7 +1063,7 @@ export function updateTaskProgress(
   
   return {
     ...state,
-    memory: new Map(state.memory || new Map()).set("taskState", updatedTaskState)
+    memory: safeCreateMemoryMap(state.memory).set("taskState", updatedTaskState)
   };
 }
 
@@ -1283,6 +1284,6 @@ export function clearCompletedTaskHistory(state: ExtendedState): ExtendedState {
 
   return {
     ...state,
-    memory: new Map(state.memory || new Map()).set("taskState", clearedTaskState)
+    memory: safeCreateMemoryMap(state.memory).set("taskState", clearedTaskState)
   };
 }

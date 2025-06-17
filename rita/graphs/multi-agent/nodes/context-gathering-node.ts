@@ -63,11 +63,13 @@
 // The gathered context is stored in memory for use by subsequent nodes
 
 import { Command } from "@langchain/langgraph";
+import { AIMessage } from "@langchain/core/messages";
 import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { Task, TaskState } from "../types";
 import { getCompletedTasksContext } from "../tasks/tasks-handling";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 /**
  * Context information structure
@@ -1052,7 +1054,7 @@ export const contextGatheringNode = async (state: ExtendedState, config: any) =>
     };
 
     // 2. Store in conversation-level memory (for cross-task usage)
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     updatedMemory.set('gatheredContext', gatheredContext);
     
     // 3. Also maintain conversation-level context history
@@ -1116,7 +1118,61 @@ export const contextGatheringNode = async (state: ExtendedState, config: any) =>
 
   } catch (error) {
     logEvent('error', AgentType.TOOL, 'context_gathering_error', { error: error.message });
-    throw new Error(`Context gathering failed: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Context gathering failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Context gathering failed: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback if no task state
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Context gathering failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 };
  

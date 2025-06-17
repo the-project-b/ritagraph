@@ -6,6 +6,7 @@ import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { MutationInfo } from "./index";
 import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
+import { safeCreateMemoryMap } from "../utils/memory-helpers";
 
 /**
  * Generates a GraphQL mutation based on intent and type information
@@ -137,7 +138,7 @@ Remember:
     // Update state
     const updatedState = {
       ...state,
-      memory: new Map(state.memory || new Map()).set('mutationContext', updatedMutationContext)
+      memory: safeCreateMemoryMap(state.memory).set('mutationContext', updatedMutationContext)
     };
 
     // Log success
@@ -188,7 +189,7 @@ Remember:
               content: `Failed to generate mutation: ${error.message}`
             })
           ],
-          memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+          memory: safeCreateMemoryMap(state.memory).set('taskState', updatedTaskState)
         }
       });
     }

@@ -280,6 +280,27 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   const hasActiveTasks = existingTaskState?.tasks.some(t => 
     t.status === 'pending' || t.status === 'in_progress'
   );
+  const hasPendingTasks = existingTaskState?.tasks.some(t => t.status === 'pending');
+  const hasAnyIncompleteTasks = existingTaskState?.tasks.some(t => 
+    t.status === 'pending' || t.status === 'in_progress' || 
+    (t.status !== 'completed' && t.status !== 'failed')
+  );
+  
+  // DEBUG: Log actual task states to find the issue
+  if (existingTaskState?.tasks) {
+    logEvent('info', AgentType.SUPERVISOR, 'task_state_debug', {
+      totalTasks: existingTaskState.tasks.length,
+      taskStatuses: existingTaskState.tasks.map(t => ({ 
+        id: t.id, 
+        status: t.status, 
+        dependencies: t.dependencies 
+      })),
+      hasActiveTasks,
+      hasPendingTasks,
+      hasAnyIncompleteTasks,
+      recursionCount
+    });
+  }
   
   // Check if this is a different message from what we processed before
   const lastProcessedMessage = state.memory?.get('lastProcessedMessage') as string;
@@ -296,7 +317,7 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // CRITICAL FIX: Reset recursionCount to 0 for new user messages
   // This ensures fresh user input is always treated as user-initiated
   let effectiveRecursionCount = recursionCount;
-  if (isDifferentMessage || (allTasksCompleted && !hasActiveTasks)) {
+  if (isDifferentMessage || (allTasksCompleted && !hasAnyIncompleteTasks)) {
     effectiveRecursionCount = 0;
   }
 
@@ -304,6 +325,12 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // - If effectiveRecursionCount is 0, this is a fresh user input (should process)
   // - If effectiveRecursionCount > 0, we're in internal processing loop (should not create new tasks for same message)
   const isUserInitiatedMessage = effectiveRecursionCount === 0;
+  
+  // CRITICAL FIX: Don't create tasks if we're coming from internal processing (high recursion count)
+  // This prevents the result-formatting-node → supervisor loop from creating duplicate tasks
+  // BUT allow legitimate user re-asking after all tasks are completed
+  const isComingFromInternalProcessing = recursionCount > 0 && !isDifferentMessage && hasAnyIncompleteTasks;
+  
   const shouldCreateTasks = isUserInitiatedMessage || isDifferentMessage;
   
   // Additional check: prevent infinite loops during active processing
@@ -326,9 +353,11 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
   // 2. We have a user message AND
   // 3. (This is a user-initiated message OR it's a different message) AND
   // 4. (No existing tasks OR user-initiated message (allows re-asking after completion) OR different message) AND
-  // 5. NOT blocked for infinite loop prevention
+  // 5. NOT blocked for infinite loop prevention AND
+  // 6. NOT coming from internal processing (prevents result-formatting → supervisor loops)
   if (!hasActiveTasks && newUserMessage && typeof newUserMessage === 'string' && 
-      shouldCreateTasks && (!existingTaskState || isUserInitiatedMessage || isDifferentMessage) && !shouldBlockForInfiniteLoop) {
+      shouldCreateTasks && (!existingTaskState || isUserInitiatedMessage || isDifferentMessage) && 
+      !shouldBlockForInfiniteLoop && !isComingFromInternalProcessing) {
     logEvent('info', AgentType.SUPERVISOR, 'creating_tasks_for_message', {
       message: newUserMessage,
       hasExistingTasks: !!existingTaskState,
@@ -338,7 +367,10 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
       shouldCreate: shouldCreateTasks,
       recursionCount,
       alreadyCreatedTasksForThisMessage,
-      effectiveRecursionCount
+      effectiveRecursionCount,
+      isComingFromInternalProcessing,
+      hasPendingTasks,
+      hasAnyIncompleteTasks
     });
 
     const executionStartTime = Date.now();
@@ -597,12 +629,16 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
         currentTask: task
       });
 
+      // Clear retry count on successful task selection and transfer
+      const clearedMemory = safeCreateMemoryMap(state.memory);
+      clearedMemory.delete('noTaskRetryCount');
+
       // Direct transfer to avoid tool node recursion
       return new Command({
         goto: targetAgent,
         update: {
           messages: state.messages, // No technical messages
-          memory: state.memory
+          memory: clearedMemory
         }
       });
     }
@@ -629,18 +665,32 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
       currentTask: null
     });
 
+    // Clear retry count on successful tool-based transfer
+    const clearedMemory = safeCreateMemoryMap(state.memory);
+    clearedMemory.delete('noTaskRetryCount');
+
     // Direct transfer to avoid tool node recursion
     return new Command({
       goto: targetAgent,
       update: {
         messages: state.messages, // No technical messages
-        memory: state.memory
+        memory: clearedMemory
       }
     });
   }
   
   // If no tool calls were made, try to get next task directly
   const { task, updatedState } = getNextTask(state);
+  
+  // DEBUG: Log getNextTask result
+  logEvent('info', AgentType.SUPERVISOR, 'get_next_task_result', {
+    foundTask: !!task,
+    taskId: task?.id,
+    taskStatus: task?.status,
+    taskDependencies: task?.dependencies,
+    totalTasksInState: (state.memory?.get('taskState') as TaskState)?.tasks?.length || 0
+  });
+  
   if (!task) {
     // Check if we have any pending tasks
     const taskState = state.memory?.get('taskState') as TaskState;
@@ -648,30 +698,131 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
       const pendingTasks = taskState.tasks.filter(t => t.status === 'pending');
       const inProgressTasks = taskState.tasks.filter(t => t.status === 'in_progress');
       
+      // CRITICAL FIX: Add circuit breaker to prevent infinite loops
+      const noTaskRetryCount = (state.memory?.get('noTaskRetryCount') as number) || 0;
+      const maxNoTaskRetries = 3; // Allow only 3 attempts to find available tasks
+      
       if (pendingTasks.length > 0) {
-        logEvent('info', AgentType.SUPERVISOR, 'pending_tasks_exist', {
-          pendingTasks: pendingTasks.map(t => t.id)
+        if (noTaskRetryCount >= maxNoTaskRetries) {
+          // Circuit breaker activated - mark all pending tasks as failed due to deadlock
+          logEvent('error', AgentType.SUPERVISOR, 'task_deadlock_detected', {
+            pendingTasks: pendingTasks.map(t => ({ 
+              id: t.id, 
+              dependencies: t.dependencies,
+              description: t.description 
+            })),
+            retryCount: noTaskRetryCount
+          });
+          
+          // Mark all pending tasks as failed to break the deadlock
+          const updatedTaskState = {
+            ...taskState,
+            tasks: taskState.tasks.map(task => 
+              task.status === 'pending' ? {
+                ...task,
+                status: 'failed' as const,
+                error: 'Task failed due to dependency deadlock or infinite loop prevention'
+              } : task
+            ),
+            failedTasks: new Set([
+              ...taskState.failedTasks, 
+              ...pendingTasks.map(t => t.id)
+            ])
+          };
+          
+          // Clear retry count and end the flow
+          const clearedMemory = safeCreateMemoryMap(state.memory);
+          clearedMemory.delete('noTaskRetryCount');
+          clearedMemory.delete('lastTaskCreationMessage');
+          clearedMemory.set('taskState', updatedTaskState);
+          
+          return new Command({
+            goto: END,
+            update: { 
+              messages: [
+                ...state.messages,
+                new AIMessage({
+                  content: 'I encountered a dependency deadlock and had to stop processing. Some tasks could not be completed due to unresolved dependencies.'
+                })
+              ],
+              memory: clearedMemory
+            }
+          });
+        }
+        
+        logEvent('info', AgentType.SUPERVISOR, 'pending_tasks_exist_with_retry', {
+          pendingTasks: pendingTasks.map(t => t.id),
+          retryCount: noTaskRetryCount
         });
         
-        // Continue to supervisor to process next task
+        // Increment retry count and try once more
+        const newMemory = safeCreateMemoryMap(state.memory);
+        newMemory.set('noTaskRetryCount', noTaskRetryCount + 1);
+        
         return new Command({
           goto: AgentType.SUPERVISOR,
           update: {
             messages: state.messages,
-            memory: state.memory
+            memory: newMemory
           }
         });
       } else if (inProgressTasks.length > 0) {
-        logEvent('info', AgentType.SUPERVISOR, 'in_progress_tasks_exist', {
-          inProgressTasks: inProgressTasks.map(t => t.id)
+        if (noTaskRetryCount >= maxNoTaskRetries) {
+          // Circuit breaker for in-progress tasks too
+          logEvent('error', AgentType.SUPERVISOR, 'in_progress_task_timeout', {
+            inProgressTasks: inProgressTasks.map(t => t.id),
+            retryCount: noTaskRetryCount
+          });
+          
+          // Mark stuck in-progress tasks as failed
+          const updatedTaskState = {
+            ...taskState,
+            tasks: taskState.tasks.map(task => 
+              task.status === 'in_progress' ? {
+                ...task,
+                status: 'failed' as const,
+                error: 'Task failed due to timeout or infinite loop prevention'
+              } : task
+            ),
+            failedTasks: new Set([
+              ...taskState.failedTasks, 
+              ...inProgressTasks.map(t => t.id)
+            ])
+          };
+          
+          const clearedMemory = safeCreateMemoryMap(state.memory);
+          clearedMemory.delete('noTaskRetryCount');
+          clearedMemory.delete('lastTaskCreationMessage');
+          clearedMemory.set('taskState', updatedTaskState);
+          
+          return new Command({
+            goto: END,
+            update: { 
+              messages: [
+                ...state.messages,
+                new AIMessage({
+                  content: 'Some tasks took too long to complete and were terminated to prevent infinite loops.'
+                })
+              ],
+              memory: clearedMemory
+            }
+          });
+        }
+        
+        logEvent('info', AgentType.SUPERVISOR, 'in_progress_tasks_exist_with_retry', {
+          inProgressTasks: inProgressTasks.map(t => t.id),
+          retryCount: noTaskRetryCount
         });
         
-        // Wait for in-progress tasks to complete
+        // Increment retry count and wait a bit more
+        const newMemory = safeCreateMemoryMap(state.memory);
+        newMemory.set('noTaskRetryCount', noTaskRetryCount + 1);
+        
         return new Command({
           goto: AgentType.SUPERVISOR,
           update: {
             messages: state.messages,
-            memory: state.memory
+            memory: newMemory
           }
         });
       }
@@ -720,12 +871,16 @@ export const supervisorAgent = async (state: ExtendedState, config: any) => {
     currentTask: task
   });
 
+  // Clear retry count on successful direct transfer
+  const finalClearedMemory = safeCreateMemoryMap(state.memory);
+  finalClearedMemory.delete('noTaskRetryCount');
+
   // Direct transfer without going through tool node to avoid recursion
   return new Command({
     goto: targetAgent,
     update: {
       messages: state.messages, // No technical messages
-      memory: state.memory
+      memory: finalClearedMemory
     }
   });
 };

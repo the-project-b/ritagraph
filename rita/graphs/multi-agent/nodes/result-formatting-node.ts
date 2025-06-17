@@ -230,7 +230,61 @@ export const resultFormattingNode = async (state: ExtendedState, config: any) =>
       error: error.message,
       duration: Date.now() - startTime
     });
-    throw new Error(`Result formatting failed: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Result formatting failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `I encountered an error while formatting the results: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback: if no task state, still don't throw
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Result formatting failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 };
 
@@ -310,8 +364,8 @@ async function generateMessageWithLLM(messageData: any, state?: ExtendedState, c
   let prompt = '';
   try {
     if (state && config) {
-      // Store data in state memory for template access
-      state.memory?.set('taskState', {
+      // CRITICAL FIX: Store template-specific data in temporary keys, don't overwrite real taskState
+      state.memory?.set('templateTaskState', {
         tasks: [messageData.currentTask],
         completedTasks: new Set(),
         failedTasks: new Set(),
@@ -334,6 +388,14 @@ async function generateMessageWithLLM(messageData: any, state?: ExtendedState, c
       
       prompt = promptResult.populatedPrompt?.value || '';
       console.log("🔧 RESULT FORMATTING - Successfully loaded configurable template prompt");
+      
+      // Clean up temporary template data to avoid memory pollution
+      state.memory?.delete('templateTaskState');
+      state.memory?.delete('scenario');
+      state.memory?.delete('taskStatus');
+      state.memory?.delete('resultData');
+      state.memory?.delete('contextInfo');
+      state.memory?.delete('executionTime');
     } else {
       throw new Error("State or config not provided");
     }

@@ -5,6 +5,7 @@ import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { MutationExecutionResult } from "./index";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Executes a GraphQL mutation using the MCP client
@@ -75,7 +76,7 @@ export const mutationExecutionNode = async (state: ExtendedState, config: any) =
     // Update task result
     const updatedState = {
       ...state,
-      memory: new Map(state.memory || new Map()).set('mutationExecutionResult', executionResult)
+      memory: safeCreateMemoryMap(state.memory).set('mutationExecutionResult', executionResult)
     };
 
     // Log success
@@ -126,7 +127,7 @@ export const mutationExecutionNode = async (state: ExtendedState, config: any) =
               content: `Failed to execute mutation: ${error.message}`
             })
           ],
-          memory: new Map(state.memory || new Map()).set('taskState', updatedTaskState)
+          memory: safeCreateMemoryMap(state.memory).set('taskState', updatedTaskState)
         }
       });
     }

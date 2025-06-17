@@ -2,6 +2,7 @@
 // Your prompt: "You are a GraphQL type analyzer. Your task is to discover and analyze the structure of input and output types for the selected query."
 
 import { Command } from "@langchain/langgraph";
+import { AIMessage } from "@langchain/core/messages";
 import client from "../../../mcp/client.js";
 import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
@@ -162,6 +163,60 @@ export const typeDiscoveryNode = async (state: ExtendedState, config: any) => {
       error: error.message,
       queryName: state.memory?.get('selectedQuery')?.name
     });
-    throw new Error(`Failed to get type details: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Type discovery failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Failed to analyze query types: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback: if no task state, still don't throw
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Type discovery failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 };

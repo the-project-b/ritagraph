@@ -7,6 +7,7 @@ import { ExtendedState } from "../../../states/states";
 import { AgentType } from "../types/agents";
 import { logEvent } from "../agents/supervisor-agent";
 import { MutationInfo } from "./index";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Mutation Discovery Node - Discovers and caches available GraphQL mutations
@@ -22,7 +23,7 @@ export const mutationDiscoveryNode = async (state: ExtendedState, config: any) =
       logEvent('info', AgentType.MUTATION, 'using_cached_mutations');
       
       // Store in memory for next node
-      const updatedMemory = new Map(state.memory || new Map());
+      const updatedMemory = safeCreateMemoryMap(state.memory);
       updatedMemory.set('discoveredMutations', cached.mutations);
       
       return new Command({
@@ -70,7 +71,7 @@ export const mutationDiscoveryNode = async (state: ExtendedState, config: any) =
     });
 
     // Cache the result and store for next node
-    const updatedMemory = new Map(state.memory || new Map());
+    const updatedMemory = safeCreateMemoryMap(state.memory);
     updatedMemory.set('cachedMutations', { mutations, timestamp: Date.now() });
     updatedMemory.set('discoveredMutations', mutations);
 

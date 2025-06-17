@@ -130,7 +130,8 @@ export const PROMPT_CONFIGS: Record<string, PromptLoaderConfig> = {
     name: 'resultFormatting',
     logPrefix: 'RESULT FORMATTING PROMPT',
     buildInvokeObject: (context: DynamicPromptContext, baseObject: Record<string, any>) => {
-      const taskState = context.state.memory?.get('taskState');
+      // Use templateTaskState if available (for template rendering), otherwise use real taskState
+      const taskState = context.state.memory?.get('templateTaskState') || context.state.memory?.get('taskState');
       const currentTask = baseObject.currentTasks?.find((t: any) => t.status === 'in_progress') || 
                          baseObject.currentTasks?.[0];
       const currentTaskIndex = taskState?.tasks?.findIndex((t: any) => t.status === 'in_progress') ?? -1;

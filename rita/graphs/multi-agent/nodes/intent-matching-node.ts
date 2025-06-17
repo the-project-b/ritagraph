@@ -1,7 +1,7 @@
 // Intent Matching Node - Step 2: Match Query to Intent
 // Your prompt: "Given the user's request... Choose the most appropriate query from the list that matches what the user wants to achieve."
 
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import client from "../../../mcp/client.js";
@@ -11,6 +11,7 @@ import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
 import { TaskState } from "../types";
 import { AgentType } from "../types/agents";
 import { builtInQueryManager } from "./built-in-queries.tool";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 interface SkipSettings {
   skipDiscovery?: boolean;
@@ -139,7 +140,7 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
         console.log('  - Raw Details:', detailsText);
 
         // Store result for next node with parsed types and skip settings
-        const updatedMemory = new Map(state.memory || new Map());
+        const updatedMemory = safeCreateMemoryMap(state.memory);
         
         // CRITICAL: Preserve original userRequest from memory, not task description
         const originalUserRequest = state.memory?.get('userRequest') || userRequest;
@@ -171,16 +172,171 @@ export const intentMatchingNode = async (state: ExtendedState, config: any) => {
 
       } catch (error) {
         console.error('🔍 INTENT MATCHING: Failed to parse query details:', error);
-        throw new Error(`Failed to parse query details: ${error.message}`);
+        
+        // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+        const updatedTaskState = {
+          ...taskState,
+          tasks: taskState.tasks.map(task => 
+            task.id === currentTask.id ? {
+              ...task,
+              status: 'failed' as const,
+              error: `Failed to parse query details: ${error.message}`
+            } : task
+          ),
+          failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+        };
+        
+        const updatedMemory = safeCreateMemoryMap(state.memory);
+        updatedMemory.set('taskState', updatedTaskState);
+        
+        // Preserve userRequest
+        const userRequest = state.memory?.get('userRequest');
+        if (userRequest) {
+          updatedMemory.set('userRequest', userRequest);
+        }
+        
+        return new Command({
+          goto: AgentType.SUPERVISOR,
+          update: {
+            messages: [
+              ...state.messages,
+              new AIMessage({
+                content: `Failed to match intent: ${error.message}`
+              })
+            ],
+            memory: updatedMemory
+          }
+        });
       }
     } else if(currentTask.type === 'mutation') {
       // selectedMutation = await matchMutationToIntent(userRequest, queries);
+      // TODO: Handle mutation intent matching
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: 'Mutation intent matching not yet implemented'
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: 'Mutation operations are not yet supported'
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
     } else {
-      throw new Error('Invalid task type');
+      // Invalid task type - mark as failed
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Invalid task type: ${currentTask.type}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Invalid task type: ${currentTask.type}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
     }
   } catch (error) {
     logEvent('error', AgentType.TOOL, 'intent_matching_error', { error: error.message });
-    throw new Error(`Intent matching failed: ${error.message}`);
+    
+    // CRITICAL FIX: Don't throw errors, mark task as failed and continue
+    const taskState = state.memory?.get('taskState');
+    const currentTaskIndex = taskState?.tasks.findIndex(task => task.status === 'in_progress');
+    
+    if (currentTaskIndex >= 0 && taskState) {
+      const currentTask = taskState.tasks[currentTaskIndex];
+      const updatedTaskState = {
+        ...taskState,
+        tasks: taskState.tasks.map(task => 
+          task.id === currentTask.id ? {
+            ...task,
+            status: 'failed' as const,
+            error: `Intent matching failed: ${error.message}`
+          } : task
+        ),
+        failedTasks: new Set([...taskState.failedTasks, currentTask.id])
+      };
+      
+      const updatedMemory = safeCreateMemoryMap(state.memory);
+      updatedMemory.set('taskState', updatedTaskState);
+      
+      // Preserve userRequest
+      const userRequest = state.memory?.get('userRequest');
+      if (userRequest) {
+        updatedMemory.set('userRequest', userRequest);
+      }
+      
+      return new Command({
+        goto: AgentType.SUPERVISOR,
+        update: {
+          messages: [
+            ...state.messages,
+            new AIMessage({
+              content: `Intent matching failed: ${error.message}`
+            })
+          ],
+          memory: updatedMemory
+        }
+      });
+    }
+    
+    // Fallback if no task state
+    return new Command({
+      goto: AgentType.SUPERVISOR,
+      update: {
+        messages: [
+          ...state.messages,
+          new AIMessage({
+            content: `Intent matching failed: ${error.message}`
+          })
+        ],
+        memory: state.memory
+      }
+    });
   }
 };
 
