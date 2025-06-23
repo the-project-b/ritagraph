@@ -3,11 +3,12 @@
   "dockerfile_lines": [],
   "dependencies": ["."],
   "graphs": {
-    "multi-agent": "./graphs/multi-agent/multi-agent-test.ts:create_multi_agent_rita_graph",
-    "multi-agent-dynamic": "./graphs/multi-agent/multi-agent-dynamic.ts:create_multi_agent_rita_graph"
+    "multi-agent": "./src/legacy-graphs/multi-agent/multi-agent-test.ts:create_multi_agent_rita_graph",
+    "multi-agent-dynamic": "./src/legacy-graphs/multi-agent/multi-agent-dynamic.ts:create_multi_agent_rita_graph",
+    "rita": "./src/graphs/rita/graph.ts:graph"
   },
   "auth": {
-    "path": "security/auth.ts:auth"
+    "path": "src/security/auth.ts:auth"
   },
   "env": ".env"
 }
