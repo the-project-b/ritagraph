@@ -15,19 +15,19 @@
 // 5. Mutation Generation Node - Generate GraphQL mutations
 // 6. Mutation Execution Node - Execute mutations
 
-export { queryDiscoveryNode } from './query-discovery-node';
-export { intentMatchingNode } from './intent-matching-node';
-export { contextGatheringNode } from './context-gathering-node';
-export { typeDiscoveryNode } from './type-discovery-node';
-export { queryGenerationNode } from './query-generation-node';
-export { queryExecutionNode } from './query-execution-node';
-export { resultFormattingNode } from './result-formatting-node';
-export { initialPlanNode } from './initial-plan-node';
+export { queryDiscoveryNode } from "./query-discovery-node";
+export { intentMatchingNode } from "./intent-matching-node";
+export { contextGatheringNode } from "./context-gathering-node";
+export { typeDiscoveryNode } from "./type-discovery-node";
+export { queryGenerationNode } from "./query-generation-node";
+export { queryExecutionNode } from "./query-execution-node";
+export { resultFormattingNode } from "./result-formatting-node";
+export { initialPlanNode } from "./initial-plan-node";
 
 // Mutation processing nodes
-export { mutationDiscoveryNode } from './mutation-discovery-node';
-export { mutationExecutionNode } from './mutation-execution-node';
-export { mutationGenerationNode } from './mutation-generation-node';
+export { mutationDiscoveryNode } from "./mutation-discovery-node";
+export { mutationExecutionNode } from "./mutation-execution-node";
+export { mutationGenerationNode } from "./mutation-generation-node";
 
 // Types
 export interface QueryInfo {
@@ -46,7 +46,7 @@ export interface MutationInfo {
 
 export interface IntentMatch {
   name: string;
-  type: 'query' | 'mutation';
+  type: "query" | "mutation";
   reason: string;
   confidence: number;
   variables?: Record<string, any>;
