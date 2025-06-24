@@ -11,11 +11,11 @@ const getRelatedContext = tool(
     // In here we can use in memory vector store to get related context
     // for now just a mock
     return `
-    The user is a Payroll Specialist and can request data from the payroll system.
-    - Get employee and its data by id
-    - Get all employees with their ids
-    - For each employee get their information
-    - List all employees with uncomplete information for next pay run
+The user is a Payroll Specialist and can request data from the payroll system.
+  - Get employee and its data by id
+  - Get all employees with their ids
+  - For each employee get their information
+  - List all employees with uncomplete information for next pay run
     `;
   },
   {
