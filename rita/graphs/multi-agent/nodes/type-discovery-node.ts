@@ -61,6 +61,10 @@ export const typeDiscoveryNode = async (state: ExtendedState, config: any) => {
     const authAccessToken = authUser?.token;
     const accessToken = state.accessToken || authAccessToken;
 
+    if (!accessToken) {
+      throw new Error('Missing access token – supply state.accessToken or config.langgraph_auth_user.token');
+    }
+
     // Collect all types to analyze
     const typesToAnalyze = new Set<string>();
     
@@ -103,7 +107,7 @@ export const typeDiscoveryNode = async (state: ExtendedState, config: any) => {
     const toolParams = {
       typeNames,
       includeRelatedTypes: true,
-      accessToken: accessToken || undefined
+      accessToken
     };
 
     console.log('🔍 TYPE DISCOVERY: Tool parameters:', toolParams);

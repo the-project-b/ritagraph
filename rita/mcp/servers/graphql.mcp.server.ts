@@ -8,6 +8,13 @@ export const graphqlMCP = {
   graphql: {
     transport: 'sse' as const,
     url: process.env.GRAPHQL_MCP_ENDPOINT!,
+    headers: {
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    },
+    useNodeEventSource: true,
+    automaticSSEFallback: true,
     reconnect: {
       enabled: true,
       maxAttempts: 5,

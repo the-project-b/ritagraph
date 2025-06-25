@@ -36,5 +36,9 @@ auth.authenticate(async (request: any) => {
     name: 'placeholderForName',
     token, // Pass the token so it is available in config.user.token
     permissions: [], // Required by BaseAuthReturn
+    // Expose token under a predictable key for graph nodes
+    langgraph_auth_user: {
+      token,
+    },
   };
 }); 
