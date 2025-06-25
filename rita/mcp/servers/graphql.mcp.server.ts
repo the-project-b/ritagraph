@@ -6,15 +6,17 @@ dotenv.config();
 // Export the Graphql MCP server configuration
 export const graphqlMCP = {
   graphql: {
-    transport: 'sse' as const,
+    // Use streamable HTTP transport; will automatically fall back to SSE if needed
+    transport: 'http' as const,
     url: process.env.GRAPHQL_MCP_ENDPOINT!,
     headers: {
-      'Accept': 'text/event-stream',
+      Accept: 'application/json',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
+      Connection: 'keep-alive',
     },
-    useNodeEventSource: true,
     automaticSSEFallback: true,
+    // Ensure Node.js EventSource implementation is used when we do fall back to SSE
+    useNodeEventSource: true,
     reconnect: {
       enabled: true,
       maxAttempts: 5,
