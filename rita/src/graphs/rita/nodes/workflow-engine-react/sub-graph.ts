@@ -15,6 +15,7 @@ import { output } from "./nodes/output";
 
 import { preWorkflowResponse } from "../communication-nodes/pre-workflow-response";
 import { availableTools } from "./tools";
+import { quickUpdate } from "./nodes/communication-nodes/quick-update";
 
 export type TaskExecutionLog = {
   taskDescription: string;
@@ -47,21 +48,17 @@ const tools: WorkflowEngineNode = async (state) => {
  */
 let subGraph = new StateGraph(WorkflowPlannerState, ConfigurableAnnotation);
 
-const noOpNode: WorkflowEngineNode = async () => {
-  return {};
-};
-
 subGraph
-  .addNode("entry", noOpNode)
   .addNode("preWorkflowResponse", preWorkflowResponse)
   .addNode("plan", plan)
   .addNode("reflect", reflect)
   .addNode("output", output)
   .addNode("tools", tools)
-  .addEdge(START, "entry")
-  .addEdge("entry", "preWorkflowResponse")
-  .addEdge("entry", "plan")
+  .addNode("quickUpdate", quickUpdate)
+  .addEdge(START, "preWorkflowResponse")
+  .addEdge("preWorkflowResponse", "plan")
   .addEdge("tools", "plan")
+  .addEdge("reflect", "quickUpdate")
   .addConditionalEdges("plan", planEdgeDecision, ["tools", "reflect"])
   .addConditionalEdges("reflect", reflectionEdggeDecision, ["plan", "output"])
   .addEdge("output", END);

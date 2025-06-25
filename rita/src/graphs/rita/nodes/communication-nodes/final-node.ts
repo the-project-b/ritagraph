@@ -16,6 +16,7 @@ export const finalNode: Node = async (state, { userLocale }) => {
   const finalPrompt = await PromptTemplate.fromTemplate(
     `Respond to the user briefly and well structured using tables or lists.
 Use emojis only for structuring the response. Be concise but friendly.
+
 Speak in {language}.
 
 Drafted Response: {draftedResponse}
