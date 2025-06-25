@@ -66,7 +66,7 @@ const queryExecutor = async (state: QueryState) => {
     };
 
     const result = mockResults[state.generatedQuery!] || [
-      { message: "Query executed successfully", query: state.generatedQuery },
+      ...mockResults["SELECT * FROM employees"],
     ];
 
     return {
@@ -117,9 +117,9 @@ const searchForInformation = tool(
     };
   },
   {
-    name: "search_for_information",
+    name: "custom_search",
     description:
-      "Search for information in the database by building and executing SQL queries based on natural language requests",
+      "Describe what information you want to search for in the database like employees by name or all employees",
     schema: z.object({
       userRequest: z
         .string()

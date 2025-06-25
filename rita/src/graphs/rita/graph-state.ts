@@ -2,7 +2,16 @@ import { z } from "zod";
 import { Runnable } from "@langchain/core/runnables";
 import { Annotation, Command, MessagesAnnotation } from "@langchain/langgraph";
 
-export const ConfigurableAnnotation = Annotation.Root({});
+function AnnotationWithDefault<T>(defaultValue: T) {
+  return Annotation<T>({
+    value: (currentValue: T, update?: T) => update || currentValue,
+    default: () => defaultValue,
+  });
+}
+
+export const ConfigurableAnnotation = Annotation.Root({
+  userLocale: AnnotationWithDefault<"en" | "de">("de"),
+});
 
 export const GraphState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -13,7 +22,11 @@ export const GraphState = Annotation.Root({
     },
     default: () => [],
   }),
+  workflowEngineResponseDraft: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
+  routingDecision: Annotation<
+    "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
+  >(),
 });
 
 export type GraphStateType = typeof GraphState.State;

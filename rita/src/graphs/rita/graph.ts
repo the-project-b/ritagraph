@@ -1,12 +1,7 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-
-// Import placeholders to ensure they're registered
-import "../../placeholders/index";
-
-import { router, workflowEngine } from "./nodes";
 import { ConfigurableAnnotation, GraphState } from "./graph-state";
-import { finalNode } from "./nodes/final-node";
-import { directResponse } from "./nodes/communication-nodes/direct-response";
+import { router, finalNode, workflowEngineReAct, quickResponse } from "./nodes";
+import { routerEdgeDecision } from "./nodes/router";
 
 const graph = async () => {
   try {
@@ -15,12 +10,15 @@ const graph = async () => {
     // Create the nodes
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
       .addNode("router", router)
-      .addNode("directResponse", directResponse)
-      .addNode("workflowEngine", workflowEngine)
+      .addNode("quickResponse", quickResponse)
+      .addNode("workflowEngine", workflowEngineReAct)
       .addNode("finalNode", finalNode)
+
       .addEdge(START, "router")
-      .addEdge(START, "directResponse")
-      .addEdge("router", "workflowEngine")
+      .addConditionalEdges("router", routerEdgeDecision, [
+        "quickResponse",
+        "workflowEngine",
+      ])
       .addEdge("workflowEngine", "finalNode")
       .addEdge("finalNode", END);
 
