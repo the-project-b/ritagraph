@@ -1,10 +1,7 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-
-// Import placeholders to ensure they're registered
-import "../../placeholders/index";
-
-import { tempAgent } from "./nodes";
 import { ConfigurableAnnotation, GraphState } from "./graph-state";
+import { router, finalNode, workflowEngineReAct, quickResponse } from "./nodes";
+import { routerEdgeDecision } from "./nodes/router";
 
 const graph = async () => {
   try {
@@ -12,10 +9,18 @@ const graph = async () => {
 
     // Create the nodes
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
-      .addNode("temp_agent", tempAgent, {
-        ends: [END],
-      })
-      .addEdge(START, "temp_agent");
+      .addNode("router", router)
+      .addNode("quickResponse", quickResponse)
+      .addNode("workflowEngine", workflowEngineReAct)
+      .addNode("finalNode", finalNode)
+
+      .addEdge(START, "router")
+      .addConditionalEdges("router", routerEdgeDecision, [
+        "quickResponse",
+        "workflowEngine",
+      ])
+      .addEdge("workflowEngine", "finalNode")
+      .addEdge("finalNode", END);
 
     // Compile the graph
     const memory = new MemorySaver();
