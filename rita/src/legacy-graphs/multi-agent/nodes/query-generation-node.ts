@@ -30,14 +30,14 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { placeholderManager } from "../../../placeholders/manager";
-import { ExtendedState } from "../../../states/states";
-import { logEvent } from "../agents/supervisor-agent";
-import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
-import { Task } from "../types";
-import { AgentType } from "../types/agents";
-import { ContextUtils, GatheredContext } from "./context-gathering-node";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { placeholderManager } from "../../../placeholders/manager.js";
+import { ExtendedState } from "../../../states/states.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver.js";
+import { Task } from "../types/index.js";
+import { AgentType } from "../types/agents.js";
+import { ContextUtils, GatheredContext } from "./context-gathering-node.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Generate parameter resolution strategies description for the LLM prompt
@@ -257,7 +257,7 @@ Return only the GraphQL query without any additional text or formatting.`;
         try {
           // Import the companyId resolver directly
           const { companyIdResolver } = await import(
-            "../../../placeholders/companyId"
+            "../../../placeholders/companyId.js"
           );
           const autoCompanyId = await companyIdResolver.resolve({
             state: state as any,
@@ -285,7 +285,7 @@ Return only the GraphQL query without any additional text or formatting.`;
         try {
           // Import the contractIds resolver directly
           const { contractIdsResolver } = await import(
-            "../../../placeholders/contractIds"
+            "../../../placeholders/contractIds.js"
           );
           const autoContractIds = await contractIdsResolver.resolve({
             state: state as any,

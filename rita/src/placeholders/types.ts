@@ -1,4 +1,4 @@
-import { MergedAnnotation } from "../states/states";
+import { MergedAnnotation } from "../states/states.js";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 
 export interface PlaceholderContext {

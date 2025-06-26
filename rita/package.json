@@ -1,13 +1,26 @@
 {
-  "name": "rita-v2",
-  "description": "Rita V2 LangGraph.js example",
-  "version": "0.0.0",
+  "name": "@the-project-b/rita-v2-graphs",
+  "description": "Rita V2 LangGraph.js graphs for evaluation",
+  "version": "2.1.9",
   "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-project-b/ritagraph.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
-    "build": "yarn tsc --project tsconfig.json --outDir dist",
+    "build": "tsc",
     "start": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
     "lint": "eslint src",
-    "lint:fix": "yarn lint --fix",
+    "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
     "langgraph:dev": "npx @langchain/langgraph-cli dev",

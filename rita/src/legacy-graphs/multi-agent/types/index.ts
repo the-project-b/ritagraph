@@ -1,4 +1,4 @@
-import { AgentType } from './agents';
+import { AgentType } from './agents.js';
 
 /**
  * Represents a source of information with metadata

@@ -1,7 +1,7 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-import { ConfigurableAnnotation, GraphState } from "./graph-state";
-import { router, finalNode, workflowEngineReAct, quickResponse } from "./nodes";
-import { routerEdgeDecision } from "./nodes/router";
+import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
+import { router, finalNode, workflowEngineReAct, quickResponse } from "./nodes/index.js";
+import { routerEdgeDecision } from "./nodes/router.js";
 
 const graph = async () => {
   try {

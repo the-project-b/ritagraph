@@ -1,9 +1,9 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { Node } from "../../graph-state";
+import { Node } from "../../graph-state.js";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage } from "@langchain/core/messages";
-import { getConversationMessages } from "../../../../utils/format-helpers/message-filters";
-import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language";
+import { getConversationMessages } from "../../../../utils/format-helpers/message-filters.js";
+import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 
 /**
  * At the moment just a pass through node

@@ -1,6 +1,6 @@
-import { BasePromptLoader, DynamicPromptContext, PromptResult } from './base-prompt-loader';
-import { GenericPromptLoader, PromptLoaderConfig } from './generic-prompt-loader';
-import { getPromptConfig, createCustomPromptConfig } from './prompt-configs';
+import { BasePromptLoader, DynamicPromptContext, PromptResult } from './base-prompt-loader.js';
+import { GenericPromptLoader, PromptLoaderConfig } from './generic-prompt-loader.js';
+import { getPromptConfig, createCustomPromptConfig } from './prompt-configs.js';
 
 export enum PromptLoaderType {
   SUPERVISOR = 'supervisor',

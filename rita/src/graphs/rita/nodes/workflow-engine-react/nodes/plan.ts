@@ -1,8 +1,8 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
-import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph";
-import { availableTools } from "../tools";
+import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
+import { availableTools } from "../tools.js";
 
 export const plan: WorkflowEngineNode = async (state) => {
   console.log("🚀 Task Initiator - Starting task");

@@ -1,8 +1,8 @@
-import { Task, TaskState, StructuredLog } from '../types';
-import { AgentType, AgentMessage } from '../types/agents';
+import { Task, TaskState, StructuredLog } from '../types/index.js';
+import { AgentType, AgentMessage } from '../types/agents.js';
 
 // Re-export ExecutionStateManager for easy imports
-export { ExecutionStateManager, executionStateManager, type AgentExecutionState } from './execution-state-manager';
+export { ExecutionStateManager, executionStateManager, type AgentExecutionState } from './execution-state-manager.js';
 
 /**
  * Creates a structured log entry

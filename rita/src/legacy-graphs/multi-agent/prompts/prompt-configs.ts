@@ -1,5 +1,5 @@
-import { PromptLoaderConfig } from './generic-prompt-loader';
-import { DynamicPromptContext } from './base-prompt-loader';
+import { PromptLoaderConfig } from './generic-prompt-loader.js';
+import { DynamicPromptContext } from './base-prompt-loader.js';
 
 // Configuration for different prompt types
 export const PROMPT_CONFIGS: Record<string, PromptLoaderConfig> = {

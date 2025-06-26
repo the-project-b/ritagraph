@@ -3,10 +3,10 @@
 
 import { Command } from "@langchain/langgraph";
 import client from "../../../mcp/client.js";
-import { ExtendedState } from "../../../../states/states.js";
+import { ExtendedState } from "../../../states/states.js";
 import { AgentType } from "../types/agents.js";
 import { logEvent } from "../agents/supervisor-agent.js";
-import { MutationInfo } from "./index";
+import { MutationInfo } from "./index.js";
 import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**

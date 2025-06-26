@@ -5,10 +5,10 @@ import { AIMessage } from "@langchain/core/messages";
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 
 // Import the text files directly
-// import mcpFirstStepContent from "../prompts/hardcoded/mcp-first-step.ts";
-// // import mcpEffectivenessContent from '../prompts/hardcoded/mcp-effectiveness.ts';
-// import mcpInstructionsContent from "../prompts/hardcoded/mcp-instructions.ts";
-// import mcpWorkingExamplesContent from "../prompts/hardcoded/mcp-working-examples.ts";
+// import mcpFirstStepContent from "../prompts/hardcoded/mcp-first-step.js";
+// // import mcpEffectivenessContent from '../prompts/hardcoded/mcp-effectiveness.js';
+// import mcpInstructionsContent from "../prompts/hardcoded/mcp-instructions.js";
+// import mcpWorkingExamplesContent from "../prompts/hardcoded/mcp-working-examples.js";
 
 import client from "../mcp/client.js";
 import { createHumanReviewNode } from "../nodes/humanReviewNode.js";

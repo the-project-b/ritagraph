@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
-import { MergedAnnotation } from "../states/states";
+import { MergedAnnotation } from "../states/states.js";
 
 interface LlmNodeConfig {
   systemPrompt?: string;

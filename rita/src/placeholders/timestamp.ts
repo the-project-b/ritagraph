@@ -1,4 +1,4 @@
-import { PlaceholderResolver, PlaceholderContext } from "./types";
+import { PlaceholderResolver, PlaceholderContext } from "./types.js";
 
 export const timestampResolver: PlaceholderResolver = {
   name: "current_timestamp",

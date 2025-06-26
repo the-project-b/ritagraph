@@ -1,4 +1,4 @@
-import { PlaceholderResolver, PlaceholderRegistry, PlaceholderContext } from "./types";
+import { PlaceholderResolver, PlaceholderRegistry, PlaceholderContext } from "./types.js";
 
 export class PlaceholderManager {
   private registry: PlaceholderRegistry = {};
