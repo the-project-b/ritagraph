@@ -1,5 +1,5 @@
 {
-  "name": "evaluator",
+  "name": "@the-project-b/experiments",
   "version": "1.0.0",
   "description": "A dedicated server to run LangSmith evaluations against Rita graphs.",
   "type": "module",
