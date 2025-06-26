@@ -14,6 +14,8 @@ import { reflect, reflectionEdggeDecision } from "./nodes/reflect.js";
 import { output } from "./nodes/output.js";
 import { preWorkflowResponse } from "../communication-nodes/pre-workflow-response.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
+import mcpClient from "../../../../mcp/client.js";
+import { getAuthUser } from "../../../../security/auth.js";
 
 export type TaskExecutionLog = {
   taskDescription: string;
@@ -29,18 +31,24 @@ export const WorkflowPlannerState = Annotation.Root({
 
 export type WorkflowEngineNode = Node<typeof WorkflowPlannerState.State>;
 
-export const buildWorkflowEngineReAct = (
-  tools: Array<StructuredToolInterface>
-) => {
-  // Wrap the tool node to be able to not use the standard message channel...
-  const toolsNode: WorkflowEngineNode = async (state) => {
-    const toolNode = new ToolNode(tools);
-    const result = await toolNode.invoke({
-      messages: state.taskEngineMessages,
-    });
-    return {
-      taskEngineMessages: [...result.messages],
-    };
+export const buildWorkflowEngineReAct = () => {
+  // Updated toolsNode to fetch authenticated tools at runtime
+  const toolsNode: WorkflowEngineNode = async (state, config) => {
+    try {
+      const authenticatedTools = await fetchAndMapToolsWithAuth(config);
+      const toolNode = new ToolNode(authenticatedTools);
+      const result = await toolNode.invoke({
+        messages: state.taskEngineMessages,
+      });
+      return {
+        taskEngineMessages: [...result.messages],
+      };
+    } catch (error) {
+      console.error("[TOOLS NODE] Error:", error);
+      return {
+        taskEngineMessages: state.taskEngineMessages,
+      };
+    }
   };
 
   /**
@@ -65,3 +73,24 @@ export const buildWorkflowEngineReAct = (
     .addEdge("output", END);
   return subGraph.compile();
 };
+
+async function fetchAndMapToolsWithAuth(config) {
+  const authUser = await getAuthUser(config);
+
+  return mcpClient.getTools().then((tools) =>
+    tools.map((tool) => {
+      console.log("[CALLED TOOL]", tool.name, authUser.token);
+      return {
+        ...tool,
+        invoke: (params) =>
+          tool.invoke({
+            ...params,
+            args: {
+              ...params.args,
+              accessToken: authUser.token,
+            },
+          }),
+      };
+    })
+  );
+}

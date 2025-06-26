@@ -3,14 +3,13 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
 import mcpClient from "../../../../../mcp/client.js";
-import { getAuthUser } from "../../../../../security/auth.js";
 
 export const plan: WorkflowEngineNode = async (state, config) => {
   console.log("🚀 Plan - Planning the task");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
-  const tools = await fetchAndMapToolsWithAuth(config);
+  const tools = await mcpClient.getTools(); // No auth wrapper needed, just load the tools so they know which ones exist
 
   console.log(
     "[TOOLS]",
@@ -68,22 +67,4 @@ export function planEdgeDecision(state: typeof WorkflowPlannerState.State) {
   }
 
   return "reflect";
-}
-
-async function fetchAndMapToolsWithAuth(config) {
-  const authUser = await getAuthUser(config);
-
-  return mcpClient.getTools().then((tools) =>
-    tools.map((tool) => {
-      console.log("[CALLED TOOL]", tool.name, authUser.token);
-      return {
-        ...tool,
-        invoke: (params) =>
-          tool.invoke({
-            ...params,
-            accessToken: authUser.token,
-          }),
-      };
-    })
-  );
 }

@@ -7,19 +7,15 @@ import {
   quickResponse,
 } from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
-import mcpClient from "../../mcp/client.js";
 
 const graph = async () => {
   try {
     console.log("Initializing Dynamic Multi-Agent RITA Graph...");
 
-    // Create the nodes
-    const tools = await fetchTools();
-
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
       .addNode("router", router)
       .addNode("quickResponse", quickResponse)
-      .addNode("workflowEngine", buildWorkflowEngineReAct(tools))
+      .addNode("workflowEngine", buildWorkflowEngineReAct())
       .addNode("finalNode", finalNode)
 
       .addEdge(START, "router")
@@ -48,18 +44,3 @@ const graph = async () => {
 // All query logic is now in dedicated nodes under ./nodes/
 
 export { graph };
-
-async function fetchTools() {
-  console.log("[MCP client] Fetching tools...");
-  try {
-    const tools = await mcpClient.getTools();
-    console.log("[MCP client] Tools fetched successfully");
-    return tools;
-  } catch (error) {
-    console.warn(
-      "[WARNING] fetching failed, using empty toolset instead",
-      error
-    );
-    return [];
-  }
-}
