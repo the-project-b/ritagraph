@@ -1,0 +1,1 @@
+declare module '@the-project-b/rita-v2-graphs'; 
