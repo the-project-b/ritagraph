@@ -163,7 +163,7 @@ const createSupervisorAgentCore = async (
   let prompt: any = ``;
   try {
     const { loadTemplatePrompt } = await import(
-      "../prompts/configurable-prompt-resolver"
+      "../prompts/configurable-prompt-resolver.js"
     );
     const promptResult = await loadTemplatePrompt(
       "template_supervisor",

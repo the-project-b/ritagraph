@@ -257,7 +257,7 @@ Return only the GraphQL query without any additional text or formatting.`;
         try {
           // Import the companyId resolver directly
           const { companyIdResolver } = await import(
-            "../../../placeholders/companyId"
+            "../../../placeholders/companyId.js"
           );
           const autoCompanyId = await companyIdResolver.resolve({
             state: state as any,
@@ -285,7 +285,7 @@ Return only the GraphQL query without any additional text or formatting.`;
         try {
           // Import the contractIds resolver directly
           const { contractIdsResolver } = await import(
-            "../../../placeholders/contractIds"
+            "../../../placeholders/contractIds.js"
           );
           const autoContractIds = await contractIdsResolver.resolve({
             state: state as any,

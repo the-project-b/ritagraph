@@ -193,7 +193,7 @@ export class BuiltInQueryManager {
       // Get additional user data from userService without fallbacks
       let userName, companyName, companyId, userEmail, userRole, userLanguage;
       try {
-        const { userService } = await import("../../../utils/user-service");
+        const { userService } = await import("../../../utils/user-service.js");
         const context = { state: state as any, config };
 
         userName = await userService.getUserName(context);

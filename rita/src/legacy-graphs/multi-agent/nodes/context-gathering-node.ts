@@ -631,9 +631,9 @@ async function extractUserContext(
   // ENHANCED: Use placeholder system to efficiently gather user context
   try {
     // Import both the manager and ensure placeholders are registered
-    await import("../../../placeholders/index");
+    await import("../../../placeholders/index.js");
     const { placeholderManager } = await import(
-      "../../../placeholders/manager"
+      "../../../placeholders/manager.js"
     );
 
     // Use placeholder system to get all user context data efficiently
@@ -704,7 +704,7 @@ async function extractUserContext(
 
     // Try direct userService calls without fallbacks
     try {
-      const { userService } = await import("../../../utils/user-service");
+      const { userService } = await import("../../../utils/user-service.js");
       const context = { state: state as any, config };
 
       // Get raw values without fallbacks

@@ -11,9 +11,10 @@ import { createEvaluator } from './evaluators.js';
 // Map aliases
 const create_multi_agent_rita_graph_static = create_multi_agent_rita_graph;
 const create_multi_agent_rita_graph_dynamic = create_multi_agent_dynamic_rita_graph;
+const create_rita_graph = rita;
 
 // Graph names supported by this evaluator service
-export type GraphName = 'multi_agent' | 'multi_agent_dynamic';
+export type GraphName = 'multi_agent' | 'multi_agent_dynamic' | 'rita';
 
 export interface EvaluatorInput {
   type: 'CORRECTNESS';
@@ -56,6 +57,7 @@ export class LangSmithService {
     const graphFactoryMap: Record<GraphName, () => Promise<any>> = {
       multi_agent: create_multi_agent_rita_graph_static,
       multi_agent_dynamic: create_multi_agent_rita_graph_dynamic,
+      rita: create_rita_graph,
     };
 
     const graphFactory = graphFactoryMap[graphName];

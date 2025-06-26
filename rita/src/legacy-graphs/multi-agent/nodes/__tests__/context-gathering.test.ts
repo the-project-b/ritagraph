@@ -556,7 +556,7 @@ describe("Context Gathering Node", () => {
       // This tests the integration between task extraction and context gathering
 
       // Import the extractTasks function for testing
-      const { extractTasks } = await import("../../tasks/tasks-handling");
+      const { extractTasks } = await import("../../tasks/tasks-handling.js");
 
       // Test the exact user request from the logs
       const userRequest =
@@ -1091,7 +1091,7 @@ describe("Context Gathering Node", () => {
         "get contract of employee with email emp_watsica-champlin_yjv2k@zfprmusw.mailosaur.net";
 
       // Step 1: Task Extraction
-      const { extractTasks } = await import("../../tasks/tasks-handling");
+      const { extractTasks } = await import("../../tasks/tasks-handling.js");
       const tasks = await extractTasks(userRequest);
 
       // Verify two tasks are created
