@@ -7,6 +7,8 @@ export const typeDefs = gql`
     multi_agent
     "The dynamic multi-agent graph"
     multi_agent_dynamic
+    "The rita graph"
+    rita
   }
 
   # Enum for the supported evaluators
