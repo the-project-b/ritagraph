@@ -1,7 +1,7 @@
 {
-  "name": "rita-v2",
-  "description": "Rita V2 LangGraph.js example",
-  "version": "0.0.0",
+  "name": "@the-project-b/rita-v2-graphs",
+  "description": "Rita V2 LangGraph.js graphs for evaluation",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "build": "yarn tsc --project tsconfig.json --outDir dist",
