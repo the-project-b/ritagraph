@@ -34,7 +34,7 @@ Respond in JSON format with the following fields:
     .withStructuredOutput(
       z.object({
         decision: z.enum(["ACCEPT", "IMPROVE"]),
-        reflection: z.string().optional(),
+        reflection: z.string(),
       })
     )
     .invoke(chatPrompt);

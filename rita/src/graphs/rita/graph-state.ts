@@ -11,6 +11,7 @@ function AnnotationWithDefault<T>(defaultValue: T) {
 
 export const ConfigurableAnnotation = Annotation.Root({
   userLocale: AnnotationWithDefault<"en" | "de">("de"),
+  backupAccessToken: AnnotationWithDefault<string | undefined>(undefined),
 });
 
 export const GraphState = Annotation.Root({

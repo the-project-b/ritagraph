@@ -1,6 +1,6 @@
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
-import mcpServers from './servers/index.js';
+import mcpServers from "./servers/index.js";
 
 const client = new MultiServerMCPClient({
   // Global tool configuration options
@@ -9,7 +9,7 @@ const client = new MultiServerMCPClient({
   // Whether to prefix tool names with the server name (optional, default: true)
   prefixToolNameWithServerName: false,
   // Optional additional prefix for tool names (optional, default: "mcp")
-  additionalToolNamePrefix: '',
+  additionalToolNamePrefix: "",
 
   mcpServers,
 });
