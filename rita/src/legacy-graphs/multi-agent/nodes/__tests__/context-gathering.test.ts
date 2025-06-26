@@ -14,10 +14,10 @@ import { Command } from "@langchain/langgraph";
 import {
   contextGatheringNode,
   GatheredContext,
-} from "../context-gathering-node";
-import { ExtendedState } from "../../../../states/states";
-import { Task, TaskState } from "../../types";
-import { createTask } from "../../tasks/tasks-handling";
+} from "../context-gathering-node.js";
+import { ExtendedState } from "../../../../states/states.js";
+import { Task, TaskState } from "../../types/index.js";
+import { createTask } from "../../tasks/tasks-handling.js";
 
 // Mock GraphQL client to prevent environment variable requirement
 jest.mock("../../../../utils/graphql-client.ts", () => ({
@@ -54,8 +54,8 @@ jest.mock("../../../../utils/user-service", () => ({
   },
 }));
 
-import { placeholderManager } from "../../../../placeholders/manager";
-import { userService } from "../../../../utils/user-service";
+import { placeholderManager } from "../../../../placeholders/manager.js";
+import { userService } from "../../../../utils/user-service.js";
 
 describe("Context Gathering Node", () => {
   beforeEach(() => {

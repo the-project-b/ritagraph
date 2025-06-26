@@ -1,13 +1,13 @@
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
-import { ExtendedState } from "../../../states/states";
+import { ExtendedState } from "../../../states/states.js";
 import {
   BasePromptConfig,
   DynamicPromptContext,
   PromptResult,
-} from "./base-prompt-loader";
-import { GenericPromptLoader } from "./generic-prompt-loader";
-import { createCustomPromptConfig, getPromptConfig } from "./prompt-configs";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+} from "./base-prompt-loader.js";
+import { GenericPromptLoader } from "./generic-prompt-loader.js";
+import { createCustomPromptConfig, getPromptConfig } from "./prompt-configs.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Maps template keys to their default prompt IDs for fallback behavior

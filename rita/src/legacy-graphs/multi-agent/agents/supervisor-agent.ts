@@ -6,16 +6,16 @@ import { z } from "zod";
 import { Command } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
-import { ExtendedState } from "../../../states/states";
-import { TaskState } from "../types";
-import { AgentType } from "../types/agents";
+import { ExtendedState } from "../../../states/states.js";
+import { TaskState } from "../types/index.js";
+import { AgentType } from "../types/agents.js";
 import {
   extractTasks,
   getTaskProgress,
   extendTaskStateWithNewTasks,
   getNextTask,
   createGetNextTaskTool,
-} from "../tasks/tasks-handling";
+} from "../tasks/tasks-handling.js";
 
 // Define interfaces
 export interface AgentDecision {
@@ -67,7 +67,7 @@ export const logEvent = (
   console.log(JSON.stringify(log));
 };
 
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 // Utility function to update state
 const assign =

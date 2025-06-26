@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { GraphStateType, Node } from "../graph-state";
+import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
 

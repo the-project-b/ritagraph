@@ -1,11 +1,11 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 
 // Import placeholders to ensure they're registered
-import "../../placeholders/index";
+import "../../placeholders/index.js";
 
-import { MergedAnnotation } from "../../states/states";
-import { AgentType } from "./types/agents";
-import { supervisorAgent } from "./agents/supervisor-agent";
+import { MergedAnnotation } from "../../states/states.js";
+import { AgentType } from "./types/agents.js";
+import { supervisorAgent } from "./agents/supervisor-agent.js";
 import {
   queryDiscoveryNode,
   intentMatchingNode,
@@ -18,7 +18,7 @@ import {
   mutationExecutionNode,
   mutationGenerationNode,
   initialPlanNode,
-} from "./nodes";
+} from "./nodes/index.js";
 
 // Tool node is now imported from ./tools/tool-node
 

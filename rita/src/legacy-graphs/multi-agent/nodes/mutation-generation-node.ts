@@ -1,12 +1,12 @@
 import { AIMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
-import { MutationInfo } from "./index";
-import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { ExtendedState } from "../../../states/states.js";
+import { AgentType } from "../types/agents.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { MutationInfo } from "./index.js";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Generates a GraphQL mutation based on intent and type information

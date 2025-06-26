@@ -64,12 +64,12 @@
 
 import { Command } from "@langchain/langgraph";
 import { AIMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
-import { Task, TaskState } from "../types";
-import { getCompletedTasksContext } from "../tasks/tasks-handling";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { ExtendedState } from "../../../states/states.js";
+import { AgentType } from "../types/agents.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { Task, TaskState } from "../types/index.js";
+import { getCompletedTasksContext } from "../tasks/tasks-handling.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Context information structure

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import { ExtendedState } from "../../../../states/states";
-import { Task, TaskState } from "../../types";
+import { ExtendedState } from "../../../../states/states.js";
+import { Task, TaskState } from "../../types/index.js";
 
 // Mock GraphQL client to prevent environment variable requirement
 jest.mock("../../../../utils/graphql-client.ts", () => ({
@@ -52,7 +52,7 @@ import {
   getTaskProgress,
   hasPendingTasks,
   clearCompletedTaskHistory,
-} from "../tasks-handling";
+} from "../tasks-handling.js";
 
 describe("TasksHandling - Core Fixes", () => {
   let mockState: ExtendedState;

@@ -1,10 +1,10 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { MergedAnnotation } from "../states/states";
+import { MergedAnnotation } from "../states/states.js";
 import { Runnable } from "@langchain/core/runnables";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import * as hub from "langchain/hub/node";
 import { SystemMessage } from "@langchain/core/messages";
-import { placeholderManager } from "../placeholders";
+import { placeholderManager } from "../placeholders/index.js";
 
 interface QuestionPromptNodeConfig {
   promptId: string;

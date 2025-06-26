@@ -3,12 +3,12 @@
 
 import { Command } from "@langchain/langgraph";
 import { AIMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
-import { placeholderManager } from "../../../placeholders/manager";
+import { ExtendedState } from "../../../states/states.js";
+import { AgentType } from "../types/agents.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { placeholderManager } from "../../../placeholders/manager.js";
 
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 export interface BuiltInQueryHandler {
   name: string;

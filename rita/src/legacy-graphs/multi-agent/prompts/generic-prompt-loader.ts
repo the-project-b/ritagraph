@@ -1,5 +1,5 @@
-import { BasePromptLoader, DynamicPromptContext, PromptResult } from './base-prompt-loader';
-import { TaskState } from '../types';
+import { BasePromptLoader, DynamicPromptContext, PromptResult } from './base-prompt-loader.js';
+import { TaskState } from '../types/index.js';
 
 export interface PromptLoaderConfig {
   name: string;

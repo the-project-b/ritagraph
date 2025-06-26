@@ -4,9 +4,9 @@ import {
   builtInQueryManager,
   IntentMatch,
   BuiltInQueryHandler,
-} from "../built-in-queries.tool";
-import { ExtendedState } from "../../../../states/states";
-import { TaskState } from "../../types";
+} from "../built-in-queries.js";
+import { ExtendedState } from "../../../../states/states.js";
+import { TaskState } from "../../types/index.js";
 import { Command } from "@langchain/langgraph";
 
 // Mock dependencies
