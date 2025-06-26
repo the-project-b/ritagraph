@@ -1,71 +1,42 @@
-name: Package Rita V2 Graphs
+name: Publish Graph Package
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
     paths:
       - 'rita/**'
-      - 'package.json'
-      - 'tsconfig*.json'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'rita/**'
-      - 'package.json'
-      - 'tsconfig*.json'
+  workflow_dispatch:
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    defaults:
+      run:
+        working-directory: ./rita
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@project-b'
+          scope: '@the-project-b'
 
       - name: Install dependencies
-        run: |
-          cd rita
-          npm ci
-
-      - name: Build package
-        run: |
-          cd rita
-          npm run build
-
-      - name: Update version with timestamp
-        if: github.event_name == 'push'
-        run: |
-          cd rita
-          # Create a version based on git commit and timestamp
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          NEW_VERSION="0.0.0-${TIMESTAMP}.${SHORT_SHA}"
-          npm version $NEW_VERSION --no-git-tag-version
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-      - name: Publish to GitHub Packages
-        if: github.event_name == 'push'
-        run: |
-          cd rita
-          npm publish
+        run: yarn install
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create package info
-        if: github.event_name == 'push'
-        run: |
-          cd rita
-          echo "Package @project-b/rita-v2-graphs@${{ env.NEW_VERSION }} published successfully" >> $GITHUB_STEP_SUMMARY
-          echo "Available graphs:" >> $GITHUB_STEP_SUMMARY
-          echo "- multi-agent" >> $GITHUB_STEP_SUMMARY
-          echo "- multi-agent-dynamic" >> $GITHUB_STEP_SUMMARY 
+      - name: Build package
+        run: yarn build
+
+      - name: Run tests
+        run: yarn test
+
+      - name: Publish to GitHub Packages
+        run: yarn publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
