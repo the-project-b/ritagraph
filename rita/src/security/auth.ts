@@ -1,6 +1,6 @@
 import { Auth, HTTPException } from '@langchain/langgraph-sdk/auth';
 
-export const auth = new Auth();
+export const auth: Auth = new Auth();
 
 auth.authenticate(async (request: any) => {
   // Extract the Authorization header from the request (Headers instance)

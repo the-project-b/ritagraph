@@ -1,5 +1,5 @@
-import { PlaceholderResolver, PlaceholderContext } from "./types";
-import { userService } from "../utils/user-service";
+import { PlaceholderResolver, PlaceholderContext } from "./types.js";
+import { userService } from "../utils/user-service.js";
 
 export const userSummaryResolver: PlaceholderResolver = {
   name: "auto_user_summary",

@@ -1,6 +1,6 @@
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
-import { WorkflowEngineNode } from "../sub-graph";
+import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
 
 export const output: WorkflowEngineNode = async (state) => {

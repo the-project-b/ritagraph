@@ -5,17 +5,17 @@ import {
   MessagesAnnotation,
   END,
 } from "@langchain/langgraph";
-import { GraphState, ConfigurableAnnotation, Node } from "../../graph-state";
+import { GraphState, ConfigurableAnnotation, Node } from "../../graph-state.js";
 
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
-import { plan, planEdgeDecision } from "./nodes/plan";
-import { reflect, reflectionEdggeDecision } from "./nodes/reflect";
-import { output } from "./nodes/output";
+import { plan, planEdgeDecision } from "./nodes/plan.js";
+import { reflect, reflectionEdggeDecision } from "./nodes/reflect.js";
+import { output } from "./nodes/output.js";
 
-import { preWorkflowResponse } from "../communication-nodes/pre-workflow-response";
-import { availableTools } from "./tools";
-import { quickUpdate } from "./nodes/communication-nodes/quick-update";
+import { preWorkflowResponse } from "../communication-nodes/pre-workflow-response.js";
+import { availableTools } from "./tools.js";
+import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 
 export type TaskExecutionLog = {
   taskDescription: string;

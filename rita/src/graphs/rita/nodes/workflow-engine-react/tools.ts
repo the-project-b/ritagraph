@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { PayrollDatabase, employees } from "../../mock-local-db";
-import { searchForInformation } from "../../tools/search-for-information";
+import { PayrollDatabase, employees } from "../../mock-local-db.js";
+import { searchForInformation } from "../../tools/search-for-information.js";
 
 // Tool to get employee data by ID
 export const getEmployeeById = tool(

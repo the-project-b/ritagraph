@@ -4,20 +4,20 @@ export {
   type BasePromptConfig,
   type PromptResult,
   type DynamicPromptContext
-} from './base-prompt-loader';
+} from './base-prompt-loader.js';
 
 // Generic prompt loader and configuration
 export {
   GenericPromptLoader,
   type PromptLoaderConfig
-} from './generic-prompt-loader';
+} from './generic-prompt-loader.js';
 
 // Prompt configurations
 export {
   PROMPT_CONFIGS,
   getPromptConfig,
   createCustomPromptConfig
-} from './prompt-configs';
+} from './prompt-configs.js';
 
 // Factory and convenience functions
 export {
@@ -30,4 +30,4 @@ export {
   loadContextGatheringPrompt,
   loadResultFormattingPrompt,
   loadGenericPrompt
-} from './prompt-factory'; 
+} from './prompt-factory.js'; 

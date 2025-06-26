@@ -2,17 +2,17 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import { ExtendedState } from "../../../states/states";
-import { logEvent } from "../agents/supervisor-agent";
-import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
+import { ExtendedState } from "../../../states/states.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver.js";
 import {
   getCompletedTasksContext,
   updateTaskStateWithSets,
-} from "../tasks/tasks-handling";
-import { Task, TaskState } from "../types";
-import { AgentType } from "../types/agents";
-import { GatheredContext } from "./context-gathering-node";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+} from "../tasks/tasks-handling.js";
+import { Task, TaskState } from "../types/index.js";
+import { AgentType } from "../types/agents.js";
+import { GatheredContext } from "./context-gathering-node.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 // All template-based formatting removed - using LLM generation instead
 

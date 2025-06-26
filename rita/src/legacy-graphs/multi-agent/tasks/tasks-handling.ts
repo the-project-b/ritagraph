@@ -1,16 +1,16 @@
-import { Task, TaskState, DataRequirement, Source, Citation } from "../types";
+import { Task, TaskState, DataRequirement, Source, Citation } from "../types/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../states/states";
-import { executionStateManager } from "../utils/execution-state-manager";
+import { ExtendedState } from "../../../states/states.js";
+import { executionStateManager } from "../utils/execution-state-manager.js";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { logEvent } from "../agents/supervisor-agent";
-import { AgentType } from "../types/agents";
-import { BasePromptConfig } from "../prompts/base-prompt-loader";
-import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { AgentType } from "../types/agents.js";
+import { BasePromptConfig } from "../prompts/base-prompt-loader.js";
+import { loadTemplatePrompt } from "../prompts/configurable-prompt-resolver.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Creates a new data requirement

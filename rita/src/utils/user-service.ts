@@ -1,11 +1,11 @@
-import { graphqlClient } from "./graphql-client";
+import { graphqlClient } from "./graphql-client.js";
 import {
   ME_QUERY,
   MeResponse,
   EMPLOYEES_BY_COMPANY_QUERY,
   EmployeesByCompanyResponse,
   EmployeesByCompanyInput,
-} from "./graphql-queries";
+} from "./graphql-queries.js";
 import { PlaceholderContext } from "../placeholders/types.js";
 
 /**

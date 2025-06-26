@@ -2,15 +2,15 @@
 import { Command } from "@langchain/langgraph";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
-import { Task, TaskState } from "../types";
+import { ExtendedState } from "../../../states/states.js";
+import { AgentType } from "../types/agents.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { Task, TaskState } from "../types/index.js";
 import {
   loadTemplatePrompt,
   isTemplateConfigured,
-} from "../prompts/configurable-prompt-resolver";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+} from "../prompts/configurable-prompt-resolver.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Generate initial plan message using template prompt or LLM fallback

@@ -1,7 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../../states/states";
-import { Task } from "../../types";
+import { ExtendedState } from "../../../../states/states.js";
+import { Task } from "../../types/index.js";
 import { Command } from "@langchain/langgraph";
 import { END } from "@langchain/langgraph";
 

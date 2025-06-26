@@ -1,11 +1,11 @@
-import { placeholderManager } from "./manager";
-import { usernameResolver } from "./username";
-import { companynameResolver } from "./companyname";
-import { userSummaryResolver } from "./user-summary";
-import { timestampResolver, dateResolver, timeResolver } from "./timestamp";
-import { messageCountResolver, lastMessageResolver, conversationSummaryResolver } from "./conversation";
-import { companyIdResolver } from "./companyId";
-import { contractIdsResolver } from "./contractIds";
+import { placeholderManager } from "./manager.js";
+import { usernameResolver } from "./username.js";
+import { companynameResolver } from "./companyname.js";
+import { userSummaryResolver } from "./user-summary.js";
+import { timestampResolver, dateResolver, timeResolver } from "./timestamp.js";
+import { messageCountResolver, lastMessageResolver, conversationSummaryResolver } from "./conversation.js";
+import { companyIdResolver } from "./companyId.js";
+import { contractIdsResolver } from "./contractIds.js";
 
 // Register all placeholder resolvers
 placeholderManager.register(usernameResolver);
@@ -21,7 +21,7 @@ placeholderManager.register(companyIdResolver);
 placeholderManager.register(contractIdsResolver);
 
 // Export the manager and types for use in other parts of the application
-export { placeholderManager } from "./manager";
-export type { PlaceholderResolver, PlaceholderContext, PlaceholderRegistry } from "./types";
+export { placeholderManager } from "./manager.js";
+export type { PlaceholderResolver, PlaceholderContext, PlaceholderRegistry } from "./types.js";
 
 console.log(`Registered ${placeholderManager.getRegisteredPlaceholders().length} placeholders: ${placeholderManager.getRegisteredPlaceholders().join(", ")}`); 

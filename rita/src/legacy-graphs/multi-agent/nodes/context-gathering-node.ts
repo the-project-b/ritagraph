@@ -64,12 +64,12 @@
 
 import { Command } from "@langchain/langgraph";
 import { AIMessage } from "@langchain/core/messages";
-import { ExtendedState } from "../../../states/states";
-import { AgentType } from "../types/agents";
-import { logEvent } from "../agents/supervisor-agent";
-import { Task, TaskState } from "../types";
-import { getCompletedTasksContext } from "../tasks/tasks-handling";
-import { safeCreateMemoryMap } from "../utils/memory-helpers";
+import { ExtendedState } from "../../../states/states.js";
+import { AgentType } from "../types/agents.js";
+import { logEvent } from "../agents/supervisor-agent.js";
+import { Task, TaskState } from "../types/index.js";
+import { getCompletedTasksContext } from "../tasks/tasks-handling.js";
+import { safeCreateMemoryMap } from "../utils/memory-helpers.js";
 
 /**
  * Context information structure
@@ -631,9 +631,9 @@ async function extractUserContext(
   // ENHANCED: Use placeholder system to efficiently gather user context
   try {
     // Import both the manager and ensure placeholders are registered
-    await import("../../../placeholders/index");
+    await import("../../../placeholders/index.js");
     const { placeholderManager } = await import(
-      "../../../placeholders/manager"
+      "../../../placeholders/manager.js"
     );
 
     // Use placeholder system to get all user context data efficiently
@@ -704,7 +704,7 @@ async function extractUserContext(
 
     // Try direct userService calls without fallbacks
     try {
-      const { userService } = await import("../../../utils/user-service");
+      const { userService } = await import("../../../utils/user-service.js");
       const context = { state: state as any, config };
 
       // Get raw values without fallbacks

@@ -3,8 +3,8 @@ import { Runnable } from "@langchain/core/runnables";
 import { SystemMessage } from "@langchain/core/messages";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import * as hub from "langchain/hub/node";
-import { placeholderManager } from "../../../placeholders";
-import { ExtendedState } from "../../../states/states";
+import { placeholderManager } from "../../../placeholders/index.js";
+import { ExtendedState } from "../../../states/states.js";
 
 export interface BasePromptConfig {
   promptId: string;
