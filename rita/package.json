@@ -1,8 +1,21 @@
 {
   "name": "@the-project-b/rita-v2-graphs",
   "description": "Rita V2 LangGraph.js graphs for evaluation",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-project-b/ritagraph.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "yarn tsc --project tsconfig.json --outDir dist",
     "start": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
