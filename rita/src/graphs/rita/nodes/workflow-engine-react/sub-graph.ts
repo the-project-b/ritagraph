@@ -5,7 +5,6 @@ import {
   MessagesAnnotation,
   END,
 } from "@langchain/langgraph";
-import { StructuredToolInterface } from "@langchain/core/tools";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import { GraphState, ConfigurableAnnotation, Node } from "../../graph-state.js";
@@ -36,6 +35,10 @@ export const buildWorkflowEngineReAct = () => {
   const toolsNode: WorkflowEngineNode = async (state, config) => {
     try {
       const authenticatedTools = await fetchAndMapToolsWithAuth(config);
+      console.log(
+        "[AUTHENTICATED TOOLS]",
+        authenticatedTools.map((i) => i.name).join(", ")
+      );
       const toolNode = new ToolNode(authenticatedTools);
       const result = await toolNode.invoke({
         messages: state.taskEngineMessages,
@@ -79,7 +82,7 @@ async function fetchAndMapToolsWithAuth(config) {
 
   return mcpClient.getTools().then((tools) =>
     tools.map((tool) => {
-      console.log("[CALLED TOOL]", tool.name, authUser.token);
+      console.log("[CALLED TOOL]", tool.name);
       return {
         ...tool,
         invoke: (params) =>

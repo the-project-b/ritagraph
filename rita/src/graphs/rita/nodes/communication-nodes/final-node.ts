@@ -9,8 +9,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
  * At the moment just a pass through node
  */
 export const finalNode: Node = async (state, { userLocale }) => {
-  console.log("🔄 Router - state:", state);
-
+  console.log("💬 Final Response - state:");
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
   const finalPrompt = await PromptTemplate.fromTemplate(

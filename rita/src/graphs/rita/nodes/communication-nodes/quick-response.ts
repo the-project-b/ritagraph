@@ -8,7 +8,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
  * At the moment just a pass through node
  */
 export const quickResponse: Node = async ({ messages }, { userLocale }) => {
-  console.log("💬 Direct Response - state:", messages);
+  console.log("💬 Direct Response");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 

@@ -11,7 +11,7 @@ export const preWorkflowResponse: Node = async (
   { messages },
   { userLocale }
 ) => {
-  console.log("💬 Direct Response - state:", messages);
+  console.log("💬 Direct Response - state:");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 

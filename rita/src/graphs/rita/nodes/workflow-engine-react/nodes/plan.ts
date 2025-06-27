@@ -11,11 +11,6 @@ export const plan: WorkflowEngineNode = async (state, config) => {
 
   const tools = await mcpClient.getTools(); // No auth wrapper needed, just load the tools so they know which ones exist
 
-  console.log(
-    "[TOOLS]",
-    tools.map((i) => i.name)
-  );
-
   const lastUserMessage = state.messages
     .filter((i) => i instanceof HumanMessage)
     .slice(-1);
@@ -42,7 +37,7 @@ Format your plan as a numbered list of specific actions.`);
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     ["system", await systemPropmt.format({})],
     ...lastUserMessage,
-    ...state.taskEngineMessages,
+    ...state.taskEngineMessages.slice(-7),
   ]).invoke({});
 
   const response = await llm.bindTools(tools).invoke(chatPrompt);
