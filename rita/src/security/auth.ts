@@ -36,19 +36,88 @@ auth.authenticate(async (request: Request) => {
       message: "Invalid Authorization header format",
     });
   }
+
+  const user = await fetchUserDataFromBackend(token);
+
   // No token validation for now (accept any token)
   return {
     identity: "Projectb BE ololo",
     name: "placeholderForName",
     token, // Pass the token so it is available in config.user.token
     permissions: [], // Required by BaseAuthReturn
+    user: user.data.me,
   };
 });
 
-export function getAuthUser(config: any) {
-  // From authentication config
+type AuthUser = {
+  identity: string;
+  role: string;
+  token: string;
+  permissions: string[];
+  user: {
+    id: string;
+    role: string;
+    firstName: string;
+    lastName: string;
+    preferredLanguage: "EN" | "DE";
+    company: {
+      id: string;
+      name: string;
+    };
+  };
+};
 
+/**
+ * Returns the user object that is fetched from the backend based on the token.
+ * The construction of that user object is defined in auth.ts
+ */
+export function getAuthUser(config: any): AuthUser {
   const authUser = (config as any).configurable.langgraph_auth_user;
 
   return { ...authUser, token: authUser.token || config.backupAccessToken };
+}
+
+async function fetchUserDataFromBackend(token: string) {
+  const query = `query Me {
+  me {
+    ...MeFieldsHr
+    __typename
+  }
+}
+
+fragment MeFieldsHr on OnboardingHrManager {
+  id
+  role
+  firstName
+  lastName
+  preferredLanguage
+  company {
+    id
+    name
+  }
+  __typename
+}
+`;
+
+  const response = await fetch(
+    `${process.env.PROJECTB_GRAPHQL_ENDPOINT}/graphqlapi`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({ query }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `GraphQL request failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const data = await response.json();
+
+  return data;
 }

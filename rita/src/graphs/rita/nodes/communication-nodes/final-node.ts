@@ -8,7 +8,11 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 /**
  * At the moment just a pass through node
  */
-export const finalNode: Node = async (state, { userLocale }) => {
+export const finalNode: Node = async ({
+  workflowEngineResponseDraft,
+  preferredLanguage,
+  messages,
+}) => {
   console.log("💬 Final Response - state:");
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
@@ -23,14 +27,14 @@ Drafted Response: {draftedResponse}
 PreviousMessages: {previousMessages}
   `
   ).format({
-    language: localeToLanguage(userLocale),
-    draftedResponse: state.workflowEngineResponseDraft,
-    previousMessages: getConversationMessages(state.messages, 3),
+    language: localeToLanguage(preferredLanguage),
+    draftedResponse: workflowEngineResponseDraft,
+    previousMessages: getConversationMessages(messages, 3),
   });
 
   const response = await llm.invoke(finalPrompt);
 
   return {
-    messages: [...state.messages, new AIMessage(response.content.toString())],
+    messages: [...messages, new AIMessage(response.content.toString())],
   };
 };
