@@ -3,6 +3,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
 import mcpClient from "../../../../../mcp/client.js";
+import { safelySliceMessages } from "../../../../../utils/message-reducer/safely-slice-messages.js";
 
 export const plan: WorkflowEngineNode = async (state, config) => {
   console.log("🚀 Plan - Planning the task");
@@ -38,7 +39,7 @@ Format your plan as a numbered list of specific actions.`);
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     ["system", await systemPropmt.format({})],
     ...lastUserMessage,
-    ...state.taskEngineMessages.slice(-7),
+    ...state.taskEngineMessages, //todo safely slice last 7 messages
   ]).invoke({});
 
   const response = await llm.bindTools(tools).invoke(chatPrompt);

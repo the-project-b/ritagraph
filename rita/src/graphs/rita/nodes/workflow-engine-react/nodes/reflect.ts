@@ -27,7 +27,7 @@ Respond in JSON format with the following fields:
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     ["system", await systemPrompt.format({})],
     lastUserMessage,
-    ...state.taskEngineMessages.slice(-5),
+    ...state.taskEngineMessages, //todo safely slice last 5 messages
   ]).invoke({});
 
   const response = await llm
