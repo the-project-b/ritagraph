@@ -13,7 +13,7 @@ import { reflect, reflectionEdggeDecision } from "./nodes/reflect.js";
 import { output } from "./nodes/output.js";
 import { preWorkflowResponse } from "../communication-nodes/pre-workflow-response.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
-import mcpClient from "../../../../mcp/client.js";
+import { createMcpClient } from "../../../../mcp/client.js";
 import { getAuthUser } from "../../../../security/auth.js";
 
 export type TaskExecutionLog = {
@@ -34,12 +34,11 @@ export const buildWorkflowEngineReAct = () => {
   // Updated toolsNode to fetch authenticated tools at runtime
   const toolsNode: WorkflowEngineNode = async (state, config) => {
     try {
-      const authenticatedTools = await fetchAndMapToolsWithAuth(config);
-      console.log(
-        "[AUTHENTICATED TOOLS]",
-        authenticatedTools.map((i) => i.name).join(", ")
-      );
-      const toolNode = new ToolNode(authenticatedTools);
+      const authUser = await getAuthUser(config);
+      const mcpClient = createMcpClient(authUser.token);
+      const tools = await mcpClient.getTools();
+
+      const toolNode = new ToolNode(tools);
       const result = await toolNode.invoke({
         messages: state.taskEngineMessages,
       });
@@ -76,24 +75,3 @@ export const buildWorkflowEngineReAct = () => {
     .addEdge("output", END);
   return subGraph.compile();
 };
-
-async function fetchAndMapToolsWithAuth(config) {
-  const authUser = await getAuthUser(config);
-
-  return mcpClient.getTools().then((tools) =>
-    tools.map((tool) => {
-      console.log("[CALLED TOOL]", tool.name);
-      return {
-        ...tool,
-        invoke: (params) =>
-          tool.invoke({
-            ...params,
-            args: {
-              ...params.args,
-              accessToken: authUser.token,
-            },
-          }),
-      };
-    })
-  );
-}
