@@ -1,20 +1,28 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
-import { router, finalNode, workflowEngineReAct, quickResponse } from "./nodes/index.js";
+import {
+  router,
+  finalNode,
+  buildWorkflowEngineReAct,
+  quickResponse,
+} from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
+import { loadSettings } from "./nodes/load-settings.js";
 
 const graph = async () => {
   try {
     console.log("Initializing Dynamic Multi-Agent RITA Graph...");
 
-    // Create the nodes
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
+      // => Nodes
+      .addNode("loadSettings", loadSettings)
       .addNode("router", router)
       .addNode("quickResponse", quickResponse)
-      .addNode("workflowEngine", workflowEngineReAct)
+      .addNode("workflowEngine", buildWorkflowEngineReAct())
       .addNode("finalNode", finalNode)
-
-      .addEdge(START, "router")
+      // => Edges
+      .addEdge(START, "loadSettings")
+      .addEdge("loadSettings", "router")
       .addConditionalEdges("router", routerEdgeDecision, [
         "quickResponse",
         "workflowEngine",

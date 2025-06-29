@@ -1,4 +1,4 @@
-import { graphqlMCP } from './graphql.mcp.server.js';
+import { graphqlMCP } from "./graphql.mcp.server.js";
 
 // Export combined MCP server configurations
 const mcpServers = {

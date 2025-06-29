@@ -7,11 +7,11 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 /**
  * At the moment just a pass through node
  */
-export const preWorkflowResponse: Node = async (
-  { messages },
-  { userLocale }
-) => {
-  console.log("💬 Direct Response - state:", messages);
+export const preWorkflowResponse: Node = async ({
+  messages,
+  preferredLanguage,
+}) => {
+  console.log("💬 Direct Response - state:");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
@@ -23,7 +23,7 @@ Thanks, I will get to work on x, give me a moment.
 
 Speak in {language}.
 `
-  ).format({ language: localeToLanguage(userLocale) });
+  ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
