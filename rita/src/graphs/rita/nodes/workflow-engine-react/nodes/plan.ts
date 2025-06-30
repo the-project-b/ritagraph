@@ -3,7 +3,6 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
 import mcpClient from "../../../../../mcp/client.js";
-import { safelySliceMessages } from "../../../../../utils/message-reducer/safely-slice-messages.js";
 
 export const plan: WorkflowEngineNode = async (state, config) => {
   console.log("🚀 Plan - Planning the task");
