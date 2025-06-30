@@ -59,11 +59,16 @@ export const queryDiscoveryNode = async (state: ExtendedState, config: any) => {
       ((config as any)?.configurable &&
         (config as any).configurable.langgraph_auth_user);
     const authAccessToken = authUser?.token;
-
-    // Use state accessToken if available, otherwise fall back to auth token
+    
+    // Always require an access token so that the MCP tool uses the caller's credentials
     const accessToken = state.accessToken || authAccessToken;
-    const args = accessToken ? { accessToken } : {};
 
+    if (!accessToken) {
+      throw new Error('Missing access token – supply state.accessToken or config.langgraph_auth_user.token');
+    }
+
+    const args = { accessToken };
+    
     // Call MCP to get queries
     const queries = await listQueriesTool.invoke(args);
 
