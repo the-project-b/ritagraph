@@ -27,14 +27,14 @@ Respond in JSON format with the following fields:
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     ["system", await systemPrompt.format({})],
     lastUserMessage,
-    ...state.taskEngineMessages,
+    ...state.taskEngineMessages, //todo safely slice last 5 messages
   ]).invoke({});
 
   const response = await llm
     .withStructuredOutput(
       z.object({
         decision: z.enum(["ACCEPT", "IMPROVE"]),
-        reflection: z.string().optional(),
+        reflection: z.string(),
       })
     )
     .invoke(chatPrompt);

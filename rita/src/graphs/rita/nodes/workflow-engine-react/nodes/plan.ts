@@ -2,49 +2,47 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
-import { availableTools } from "../tools.js";
+import mcpClient from "../../../../../mcp/client.js";
+import { safelySliceMessages } from "../../../../../utils/message-reducer/safely-slice-messages.js";
 
-export const plan: WorkflowEngineNode = async (state) => {
-  console.log("🚀 Task Initiator - Starting task");
+export const plan: WorkflowEngineNode = async (state, config) => {
+  console.log("🚀 Plan - Planning the task");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+
+  const tools = await mcpClient.getTools(); // No auth wrapper needed, just load the tools so they know which ones exist
 
   const lastUserMessage = state.messages
     .filter((i) => i instanceof HumanMessage)
     .slice(-1);
 
-  console.log("lastUserMessage", lastUserMessage);
-
-  console.log("state.taskEngineMessages", state.taskEngineMessages);
-  console.log("Available tools", availableTools);
-
   const systemPropmt = PromptTemplate.fromTemplate(`
-You are Payroll Specialist and a planning agent that calls tools to solve the users request.
-You plan based on previous results and try to solve the users request in the most efficient way.
+You are a Payroll Specialist and a ReAct agent that calls tools to solve the users request.
+You act based on previous results and try to solve the users request in the most efficient way.
 
 Your job is to:
 1. Analyze the user's request carefully
-2. Create a clear, logical plan with specific steps
-3. Each step should use one or more available tools
+2. Check if you have enough information to solve the users request
+3. Define a next step (e.g. tool call) to gain the missing information
 4. Consider dependencies between steps
-5. Make the plan actionable and specific
 
 Guidelines:
 - Break complex requests into smaller, manageable steps
 - Be specific about what tools to use and why
 - Consider what information you need to gather first
-- Plan for potential follow-up actions based on initial results
+- Briefly Outline for potential follow-up actions based on initial results
 - Keep steps focused and clear
+- Try to only do one step at a time
 
 Format your plan as a numbered list of specific actions.`);
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     ["system", await systemPropmt.format({})],
     ...lastUserMessage,
-    ...state.taskEngineMessages,
+    ...state.taskEngineMessages, //todo safely slice last 7 messages
   ]).invoke({});
 
-  const response = await llm.bindTools(availableTools).invoke(chatPrompt);
+  const response = await llm.bindTools(tools).invoke(chatPrompt);
 
   return {
     taskEngineMessages: [response],

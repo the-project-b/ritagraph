@@ -1,13 +1,9 @@
 import {
   AIMessage,
-  BaseMessage,
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import {
-  Annotation,
-  MessagesAnnotation,
-} from "@langchain/langgraph";
+import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
 
 /**
  * Base state annotation that includes message handling and authentication.

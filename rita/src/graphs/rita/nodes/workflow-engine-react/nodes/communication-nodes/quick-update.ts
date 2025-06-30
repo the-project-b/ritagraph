@@ -7,10 +7,11 @@ import { WorkflowEngineNode } from "../../sub-graph.js";
 /**
  * At the moment just a pass through node
  */
-export const quickUpdate: WorkflowEngineNode = async (
-  { messages, taskEngineMessages },
-  { userLocale }
-) => {
+export const quickUpdate: WorkflowEngineNode = async ({
+  messages,
+  taskEngineMessages,
+  preferredLanguage,
+}) => {
   console.log("💬 Quick Update - state:");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
@@ -46,7 +47,7 @@ Speak in {language}.
       .map((i) => i.content.toString())
       .join("\n")
       .slice(-3),
-    language: localeToLanguage(userLocale),
+    language: localeToLanguage(preferredLanguage),
     lastMessage: lastAiMessage?.content.toString() ?? "No message",
   });
 
