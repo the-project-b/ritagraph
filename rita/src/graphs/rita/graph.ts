@@ -1,0 +1,50 @@
+import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
+import {
+  router,
+  finalNode,
+  buildWorkflowEngineReAct,
+  quickResponse,
+} from "./nodes/index.js";
+import { routerEdgeDecision } from "./nodes/router.js";
+import { loadSettings } from "./nodes/load-settings.js";
+
+const graph = async () => {
+  try {
+    console.log("Initializing Dynamic Multi-Agent RITA Graph...");
+
+    const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
+      // => Nodes
+      .addNode("loadSettings", loadSettings)
+      .addNode("router", router)
+      .addNode("quickResponse", quickResponse)
+      .addNode("workflowEngine", buildWorkflowEngineReAct())
+      .addNode("finalNode", finalNode)
+      // => Edges
+      .addEdge(START, "loadSettings")
+      .addEdge("loadSettings", "router")
+      .addConditionalEdges("router", routerEdgeDecision, [
+        "quickResponse",
+        "workflowEngine",
+      ])
+      .addEdge("workflowEngine", "finalNode")
+      .addEdge("finalNode", END);
+
+    // Compile the graph
+    const memory = new MemorySaver();
+    const graph = workflow.compile({
+      checkpointer: memory,
+    });
+
+    graph.name = "Rita";
+
+    return graph;
+  } catch (error) {
+    console.error("Error:", error);
+    process.exit(1);
+  }
+};
+
+// All query logic is now in dedicated nodes under ./nodes/
+
+export { graph };
