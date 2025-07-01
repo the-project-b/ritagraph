@@ -21,6 +21,8 @@ export const GraphState = Annotation.Root({
    * The company id, is the id of the HR manager / the one that the HR manage is currently using (in case he manages multiple companies).
    * Similiar system should work for BPOs however there it could be a range of companies that the BPO is managing at the same time.
    * We need to find a definitive way to handle this.
+   *
+   * NOTE: This field is actually part of the interface for the frontend - change with caution
    */
   selectedCompanyId: Annotation<string | undefined>(),
 

@@ -17,9 +17,18 @@ const client = new MultiServerMCPClient({
 
 export default client;
 
-export const createMcpClient = (accessToken: string) => {
+type CreateMcpClientParams = {
+  accessToken: string;
+  companyId?: string;
+};
+
+export const createMcpClient = ({
+  accessToken,
+  companyId,
+}: CreateMcpClientParams) => {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("x-company-id", companyId ?? "");
 
   return new MultiServerMCPClient({
     // Global tool configuration options
