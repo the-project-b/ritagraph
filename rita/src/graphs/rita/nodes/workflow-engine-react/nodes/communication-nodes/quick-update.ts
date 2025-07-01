@@ -14,7 +14,7 @@ export const quickUpdate: WorkflowEngineNode = async ({
 }) => {
   console.log("💬 Quick Update - state:");
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
   const lastAiMessage = messages.filter((i) => i instanceof AIMessage).at(-1);
   const initialUserMessage = messages

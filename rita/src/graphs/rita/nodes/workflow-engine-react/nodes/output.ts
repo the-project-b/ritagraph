@@ -10,7 +10,7 @@ export const output: WorkflowEngineNode = async (state) => {
     .filter((i) => i instanceof HumanMessage)
     .slice(-2);
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
   const systemPrompt = PromptTemplate.fromTemplate(`
 Extract all the relevant information from the previous thought process and tool calls.

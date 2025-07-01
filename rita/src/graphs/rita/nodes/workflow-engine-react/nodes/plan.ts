@@ -7,7 +7,7 @@ import mcpClient from "../../../../../mcp/client.js";
 export const plan: WorkflowEngineNode = async (state, config) => {
   console.log("🚀 Plan - Planning the task");
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
 
   const tools = await mcpClient.getTools(); // No auth wrapper needed, just load the tools so they know which ones exist
 
