@@ -14,7 +14,7 @@ export const finalNode: Node = async ({
   messages,
 }) => {
   console.log("💬 Final Response - state:");
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.2 });
 
   const finalPrompt = await PromptTemplate.fromTemplate(
     `Respond to the user briefly and well structured using tables or lists.

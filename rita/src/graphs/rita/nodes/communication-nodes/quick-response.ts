@@ -10,7 +10,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 export const quickResponse: Node = async ({ messages, preferredLanguage }) => {
   console.log("💬 Direct Response");
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `You are a Payroll Specialist Assistant.

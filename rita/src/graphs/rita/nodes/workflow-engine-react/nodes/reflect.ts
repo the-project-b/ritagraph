@@ -11,7 +11,7 @@ export const reflect: WorkflowEngineNode = async (state) => {
     .filter((i) => i instanceof HumanMessage)
     .at(-1);
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
   const systemPrompt = PromptTemplate.fromTemplate(`
 Your job is to be a Payroll Specialist and your counterpart has come up with a plan and called some tools
