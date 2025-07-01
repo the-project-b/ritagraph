@@ -35,7 +35,10 @@ export const buildWorkflowEngineReAct = () => {
   const toolsNode: WorkflowEngineNode = async (state, config) => {
     try {
       const authUser = await getAuthUser(config);
-      const mcpClient = createMcpClient(authUser.token);
+      const mcpClient = createMcpClient({
+        accessToken: authUser.token,
+        companyId: state.selectedCompanyId,
+      });
       const tools = await mcpClient.getTools();
 
       const toolNode = new ToolNode(tools);
