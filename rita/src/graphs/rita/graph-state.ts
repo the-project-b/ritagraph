@@ -10,19 +10,21 @@ function AnnotationWithDefault<T>(defaultValue: T) {
 }
 
 export const ConfigurableAnnotation = Annotation.Root({
-  userLocale: AnnotationWithDefault<"en" | "de">("de"),
+  // Used for development purposes, to debug in the graph UI
   backupAccessToken: AnnotationWithDefault<string | undefined>(undefined),
+  backupCompanyId: AnnotationWithDefault<string | undefined>(undefined),
 });
 
 export const GraphState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  taskDescriptions: Annotation<string[] | undefined>({
-    reducer: (existing, updated) => {
-      if (!updated) return existing;
-      return [...existing, ...updated];
-    },
-    default: () => [],
-  }),
+  /**
+   * The company id, is the id of the HR manager / the one that the HR manage is currently using (in case he manages multiple companies).
+   * Similiar system should work for BPOs however there it could be a range of companies that the BPO is managing at the same time.
+   * We need to find a definitive way to handle this.
+   */
+  selectedCompanyId: Annotation<string | undefined>(),
+
+  preferredLanguage: AnnotationWithDefault<"EN" | "DE">("DE"),
   workflowEngineResponseDraft: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
   routingDecision: Annotation<

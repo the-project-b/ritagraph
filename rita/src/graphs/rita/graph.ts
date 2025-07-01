@@ -7,18 +7,22 @@ import {
   quickResponse,
 } from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
+import { loadSettings } from "./nodes/load-settings.js";
 
 const graph = async () => {
   try {
     console.log("Initializing Dynamic Multi-Agent RITA Graph...");
 
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
+      // => Nodes
+      .addNode("loadSettings", loadSettings)
       .addNode("router", router)
       .addNode("quickResponse", quickResponse)
       .addNode("workflowEngine", buildWorkflowEngineReAct())
       .addNode("finalNode", finalNode)
-
-      .addEdge(START, "router")
+      // => Edges
+      .addEdge(START, "loadSettings")
+      .addEdge("loadSettings", "router")
       .addConditionalEdges("router", routerEdgeDecision, [
         "quickResponse",
         "workflowEngine",

@@ -7,7 +7,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 /**
  * At the moment just a pass through node
  */
-export const quickResponse: Node = async ({ messages }, { userLocale }) => {
+export const quickResponse: Node = async ({ messages, preferredLanguage }) => {
   console.log("💬 Direct Response");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
@@ -24,7 +24,7 @@ How can I assist you today?
 
 Speak in {language}.
 `
-  ).format({ language: localeToLanguage(userLocale) });
+  ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],

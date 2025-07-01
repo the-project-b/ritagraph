@@ -1,8 +1,8 @@
 export function localeToLanguage(locale: string) {
   switch (locale) {
-    case "en":
+    case "EN":
       return "English";
-    case "de":
+    case "DE":
       return "German";
     default:
       return "German";

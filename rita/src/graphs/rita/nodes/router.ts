@@ -8,7 +8,7 @@ import z from "zod";
  * Sometimes the user is just greeting or saying something casual, and it feels
  * bad if the agent takes ages to respond to it.
  */
-export const router: Node = async (state) => {
+export const router: Node = async (state, config) => {
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
@@ -26,7 +26,7 @@ export const router: Node = async (state) => {
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
     ...state.messages.slice(-3),
-  ]).format({});
+  ]).invoke({});
 
   const response = await llm
     .withStructuredOutput(

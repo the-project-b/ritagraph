@@ -64,6 +64,7 @@ export const buildWorkflowEngineReAct = () => {
     .addNode("plan", plan)
     .addNode("reflect", reflect)
     .addNode("output", output)
+    // .addNode("tools", toolsNode, { subgraphs: [toolsSubgraph] })
     .addNode("tools", toolsNode)
     .addNode("quickUpdate", quickUpdate)
     .addEdge(START, "preWorkflowResponse")

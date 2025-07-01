@@ -43,6 +43,7 @@ Format your plan as a numbered list of specific actions.`);
   ]).invoke({});
 
   const response = await llm.bindTools(tools).invoke(chatPrompt);
+  // Add the subgraph here or the 'search for information' tool
 
   return {
     taskEngineMessages: [response],
