@@ -39,6 +39,7 @@ async function startServer(): Promise<void> {
   const port = process.env.PORT || 4000;
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
   console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
+  console.log(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
 }
 
 startServer().catch((error) => {

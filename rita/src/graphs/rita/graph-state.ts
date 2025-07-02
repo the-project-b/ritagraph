@@ -4,7 +4,7 @@ import { Annotation, Command } from "@langchain/langgraph";
 import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
-} from "../shared-types/base-annotation";
+} from "../shared-types/base-annotation.js";
 
 export const ConfigurableAnnotation = Annotation.Root({
   // Used for development purposes, to debug in the graph UI
