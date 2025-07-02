@@ -26,7 +26,7 @@ export const router: Node = async (state) => {
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
     ...state.messages.slice(-3),
-  ]).invoke({});
+  ]).invoke({messages: []});
 
   const response = await llm
     .withStructuredOutput(
