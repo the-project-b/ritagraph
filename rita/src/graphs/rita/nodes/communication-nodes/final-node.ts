@@ -6,7 +6,7 @@ import { getConversationMessages } from "../../../../utils/format-helpers/messag
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 
 /**
- * At the moment just a pass through node
+ * This node communicates the results with the user.
  */
 export const finalNode: Node = async ({
   workflowEngineResponseDraft,
@@ -14,11 +14,15 @@ export const finalNode: Node = async ({
   messages,
 }) => {
   console.log("💬 Final Response - state:");
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.2 });
 
   const finalPrompt = await PromptTemplate.fromTemplate(
-    `Respond to the user briefly and well structured using tables or lists.
-Use emojis only for structuring the response. Be concise but friendly.
+    `
+Respond to the user briefly and well structured using tables or lists.
+- Be concise but friendly
+- Use emojis ONLY for structuring the response
+- Depending on the context, begin your message with something like "Found it..."
+- If data is provided informally (no tables or lists), use block quotes to highlight the key information
 
 Speak in {language}.
 

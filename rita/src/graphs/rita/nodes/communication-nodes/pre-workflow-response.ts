@@ -13,7 +13,7 @@ export const preWorkflowResponse: Node = async ({
 }) => {
   console.log("💬 Direct Response - state:");
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `You are a Payroll Specialist Assistant.
