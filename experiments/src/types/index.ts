@@ -1,5 +1,5 @@
 // Graph names supported by this evaluator service
-export type GraphName = 'multi_agent' | 'multi_agent_dynamic' | 'rita';
+export type GraphName = 'rita';
 
 // Re-export context types
 export type { GraphQLContext } from './context.js';

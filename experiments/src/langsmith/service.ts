@@ -1,30 +1,23 @@
-import { Client } from 'langsmith';
-import { evaluate } from 'langsmith/evaluation';
 import {
-  create_multi_agent_rita_graph,
-  create_multi_agent_dynamic_rita_graph,
   rita,
 } from '@the-project-b/rita-v2-graphs';
+import { Client } from 'langsmith';
+import { evaluate } from 'langsmith/evaluation';
 
-import { createEvaluator } from './evaluators.js';
+import type { GraphQLContext } from '../types/context.js';
 import type {
-  GraphName,
-  EvaluatorInput,
-  RunEvaluationInput,
+  DatasetExperiment,
+  ExperimentDetails,
+  Feedback,
   GetDatasetExperimentsInput,
   GetExperimentDetailsInput,
+  GraphName,
   Run,
-  ExperimentDetails,
-  EvaluatorFeedback,
-  FeedbackStats,
-  DatasetExperiment,
-  Feedback,
+  RunEvaluationInput
 } from '../types/index.js';
-import type { GraphQLContext } from '../types/context.js';
+import { createEvaluator } from './evaluators.js';
 
 // Map aliases
-const create_multi_agent_rita_graph_static = create_multi_agent_rita_graph;
-const create_multi_agent_rita_graph_dynamic = create_multi_agent_dynamic_rita_graph;
 const create_rita_graph = rita;
 
 export class LangSmithService {
@@ -51,8 +44,6 @@ export class LangSmithService {
 
     // Map graph names to their factory functions
     const graphFactoryMap: Record<GraphName, () => Promise<any>> = {
-      multi_agent: create_multi_agent_rita_graph_static,
-      multi_agent_dynamic: create_multi_agent_rita_graph_dynamic,
       rita: create_rita_graph,
     };
 
