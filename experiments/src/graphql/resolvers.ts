@@ -3,6 +3,7 @@ import type { GetDatasetExperimentsInput, GetExperimentDetailsInput, RunEvaluati
 import type { GraphQLContext } from '../types/context.js';
 import { GraphQLJSON } from 'graphql-scalars';
 import { requireAuth } from './auth.helpers.js';
+import { EVALUATOR_INFO } from '../langsmith/evaluators.js';
 
 export const resolvers = {
   JSON: GraphQLJSON,
@@ -53,6 +54,13 @@ export const resolvers = {
         },
         runs: transformedRuns,
         totalRuns: result.totalRuns,
+      };
+    },
+    getAvailableEvaluators: () => {
+      // Convert the EVALUATOR_INFO record to an array of evaluator info objects
+      const evaluators = Object.values(EVALUATOR_INFO);
+      return {
+        evaluators,
       };
     },
   },
