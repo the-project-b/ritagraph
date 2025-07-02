@@ -1,7 +1,7 @@
 {
   "name": "@the-project-b/rita-v2-graphs",
   "description": "Rita V2 LangGraph.js graphs for evaluation",
-  "version": "2.1.9",
+  "version": "2.1.10",
   "type": "module",
   "main": "dist/index.js",
   "files": [
