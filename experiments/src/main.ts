@@ -27,15 +27,19 @@ async function startServer(): Promise<void> {
     '/graphql',
     cors(),
     express.json(),
-    authMiddleware,
+    authMiddleware(), // Call the function to get the actual middleware
     expressMiddleware(server, {
-      context: async ({ req }) => ({ token: req.headers.authorization }),
+      context: async ({ req }) => ({ 
+        user: req.user, // Access the verified user data from middleware
+        token: req.headers.authorization 
+      }),
     }),
   );
 
   const port = process.env.PORT || 4000;
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
   console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
+  console.log(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
 }
 
 startServer().catch((error) => {

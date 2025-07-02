@@ -16,7 +16,7 @@ publish:
 		echo "Error: GITHUB_TOKEN not found in .env file"; \
 		exit 1; \
 	fi
-	GITHUB_TOKEN=$(GITHUB_TOKEN) yarn install && yarn build && NODE_AUTH_TOKEN=$(GITHUB_TOKEN) yarn publish
+	GITHUB_TOKEN=$(GITHUB_TOKEN) npm install && npm run build && NODE_AUTH_TOKEN=$(GITHUB_TOKEN) npm publish
 
 # Show available commands
 help:

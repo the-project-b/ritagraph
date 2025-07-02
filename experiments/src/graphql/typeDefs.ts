@@ -301,6 +301,28 @@ export const typeDefs = gql`
     totalRuns: Int!
   }
 
+  # Information about an available evaluator
+  type EvaluatorInfo {
+    "The evaluator type identifier"
+    type: EvaluatorType!
+    "Human-readable name of the evaluator"
+    name: String!
+    "Description of what this evaluator measures"
+    description: String!
+    "The default model used by this evaluator"
+    defaultModel: String!
+    "Whether this evaluator supports custom prompts"
+    supportsCustomPrompt: Boolean!
+    "Whether this evaluator supports reference key specification"
+    supportsReferenceKey: Boolean!
+  }
+
+  # Response type for available evaluators query
+  type AvailableEvaluatorsResponse {
+    "List of available evaluators with their metadata"
+    evaluators: [EvaluatorInfo!]!
+  }
+
   type Query {
     "A simple query to check if the server is running"
     healthCheck: String!
@@ -308,6 +330,10 @@ export const typeDefs = gql`
     getDatasetExperiments(input: GetDatasetExperimentsInput!): DatasetExperimentsResponse!
     "Get detailed information about a single experiment including its runs"
     getExperimentDetails(input: GetExperimentDetailsInput!): ExperimentDetails!
+    "Get a list of available evaluators with their metadata"
+    getAvailableEvaluators: AvailableEvaluatorsResponse!
+    "Get a list of available graph names that can be used for evaluation"
+    getAvailableGraphs: [GraphName!]!
   }
 
   type Mutation {

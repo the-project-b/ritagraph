@@ -8,3 +8,4 @@ src/generated/**
 .langgraph_api
 .DS_Store
 .cursorrules
+*.toml
