@@ -56,6 +56,12 @@ export const resolvers = {
         totalRuns: result.totalRuns,
       };
     },
+    getAvailableGraphs: async (_: unknown, __: unknown, context: GraphQLContext) => {
+      requireAuth(context);
+      
+      const langsmithService = new LangSmithService();
+      return langsmithService.getAvailableGraphs();
+    },
     getAvailableEvaluators: () => {
       // Convert the EVALUATOR_INFO record to an array of evaluator info objects
       const evaluators = Object.values(EVALUATOR_INFO);

@@ -22,9 +22,23 @@ const create_rita_graph = rita;
 
 export class LangSmithService {
   private client: Client;
+  private graphFactoryMap: Record<GraphName, () => Promise<any>>;
 
   constructor() {
     this.client = new Client();
+    
+    // Initialize the graph factory map
+    this.graphFactoryMap = {
+      rita: create_rita_graph,
+    };
+  }
+
+  /**
+   * Gets the list of available graph names
+   * @returns GraphName[] - Array of available graph names
+   */
+  public getAvailableGraphs(): GraphName[] {
+    return Object.keys(this.graphFactoryMap) as GraphName[];
   }
 
   public async runEvaluation(input: RunEvaluationInput, context: GraphQLContext) {
@@ -42,12 +56,8 @@ export class LangSmithService {
       }
     }
 
-    // Map graph names to their factory functions
-    const graphFactoryMap: Record<GraphName, () => Promise<any>> = {
-      rita: create_rita_graph,
-    };
-
-    const graphFactory = graphFactoryMap[graphName];
+    // Use the class property for graph factory map
+    const graphFactory = this.graphFactoryMap[graphName];
     if (!graphFactory) {
       throw new Error(`Graph factory not found for graph: ${graphName}`);
     }

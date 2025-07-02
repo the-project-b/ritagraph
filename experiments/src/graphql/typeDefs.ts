@@ -332,6 +332,8 @@ export const typeDefs = gql`
     getExperimentDetails(input: GetExperimentDetailsInput!): ExperimentDetails!
     "Get a list of available evaluators with their metadata"
     getAvailableEvaluators: AvailableEvaluatorsResponse!
+    "Get a list of available graph names that can be used for evaluation"
+    getAvailableGraphs: [GraphName!]!
   }
 
   type Mutation {
