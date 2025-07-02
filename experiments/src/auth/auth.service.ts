@@ -4,8 +4,33 @@ export class AuthService {
   private readonly graphqlEndpoint: string;
 
   constructor(graphqlEndpoint?: string) {
-    this.graphqlEndpoint = graphqlEndpoint || process.env.PROJECTB_GRAPHQL_ENDPOINT || 'http://localhost:3000';
+    const baseEndpoint = graphqlEndpoint || process.env.PROJECTB_GRAPHQL_ENDPOINT || 'http://localhost:3000';
+    this.graphqlEndpoint = this.ensureGraphQLApiPath(baseEndpoint);
     console.log(`🚀 [AuthService] Initialized with GraphQL endpoint: ${this.graphqlEndpoint}`);
+  }
+
+  /**
+   * Ensures the GraphQL endpoint has the /graphqlapi path properly appended
+   * @param endpoint - The base GraphQL endpoint URL  
+   * @returns string - The endpoint with /graphqlapi path
+   */
+  private ensureGraphQLApiPath(endpoint: string): string {
+    console.log(`🔧 [AuthService] Processing endpoint: ${endpoint}`);
+    
+    // Remove trailing slash if present
+    const cleanEndpoint = endpoint.replace(/\/+$/, '');
+    
+    // Check if already ends with /graphqlapi
+    if (cleanEndpoint.endsWith('/graphqlapi')) {
+      console.log(`✅ [AuthService] Endpoint already has /graphqlapi path`);
+      return cleanEndpoint;
+    }
+    
+    // Add /graphqlapi path
+    const finalEndpoint = `${cleanEndpoint}/graphqlapi`;
+    console.log(`🔧 [AuthService] Added /graphqlapi path: ${finalEndpoint}`);
+    
+    return finalEndpoint;
   }
 
   /**
@@ -131,13 +156,15 @@ export class AuthService {
     const data: UserToCompaniesResponse = await response.json();
     console.log(`📄 [AuthService] UserToCompanies response data:`, JSON.stringify(data, null, 2));
     
-    if (!data.data?.userToCompanies) {
+    if (!data.data?.userToCompanies || !Array.isArray(data.data.userToCompanies) || data.data.userToCompanies.length === 0) {
       console.error(`❌ [AuthService] Invalid user companies response structure`);
       throw new Error('Invalid user companies response');
     }
 
-    console.log(`✅ [AuthService] User companies data retrieved: ${data.data.userToCompanies.companies.length} companies, primary role: ${data.data.userToCompanies.role}`);
-    return data.data.userToCompanies;
+    // Take the first element from the userToCompanies array
+    const userCompaniesData = data.data.userToCompanies[0];
+    console.log(`✅ [AuthService] User companies data retrieved: ${userCompaniesData.companies.length} companies, primary role: ${userCompaniesData.role}`);
+    return userCompaniesData;
   }
 
   /**
@@ -147,7 +174,7 @@ export class AuthService {
    * @returns Promise<Response> - The fetch response
    */
   private async makeGraphQLRequest(query: string, token: string): Promise<Response> {
-    const url = `${this.graphqlEndpoint}/graphqlapi`;
+    const url = `${this.graphqlEndpoint}`;
     const tokenId = token.substring(0, 8) + '...';
     
     console.log(`🌐 [AuthService] Making GraphQL request to: ${url}`);

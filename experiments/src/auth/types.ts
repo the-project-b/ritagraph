@@ -31,7 +31,7 @@ export interface UserToCompaniesResponse {
     userToCompanies: {
       companies: CompanyUser[];
       role: string; // Primary ACL role
-    };
+    }[];
   };
 }
 
