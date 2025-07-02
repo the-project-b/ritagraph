@@ -1,8 +1,8 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { localeToLanguage } from "../../../../../../utils/format-helpers/locale-to-language.js";
-import { WorkflowEngineNode } from "../../sub-graph.js";
+import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
+import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 
 /**
  * At the moment just a pass through node
