@@ -1,15 +1,24 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
-import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
-import mcpClient from "../../../../../mcp/client.js";
+import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
+import { AnnotationRoot } from "@langchain/langgraph";
+import { ToolInterface } from "../../../shared-types/node-types.js";
 
-export const plan: WorkflowEngineNode = async (state, config) => {
-  console.log("🚀 Plan - Planning the task");
+export const plan: (
+  fetchTools: (
+    companyId: string,
+    config: AnnotationRoot<any>
+  ) => Promise<Array<ToolInterface>>
+) => WorkflowEngineNode = (fetchTools) => async (state, config) => {
+  console.log(
+    "🚀 Plan - Chain of thought length [%s]",
+    state.taskEngineMessages.length
+  );
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
 
-  const tools = await mcpClient.getTools(); // No auth wrapper needed, just load the tools so they know which ones exist
+  const tools = await fetchTools(state.selectedCompanyId, config);
 
   const lastUserMessage = state.messages
     .filter((i) => i instanceof HumanMessage)
@@ -48,7 +57,7 @@ Format your plan as a numbered list of specific actions.`);
   };
 };
 
-export function planEdgeDecision(state: typeof WorkflowPlannerState.State) {
+export function planEdgeDecision(state: WorkflowEngineStateType) {
   // Check if we have pending tool calls that need to be executed
   const lastMessage =
     state.taskEngineMessages[state.taskEngineMessages.length - 1];

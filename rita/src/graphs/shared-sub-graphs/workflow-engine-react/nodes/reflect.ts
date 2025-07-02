@@ -2,7 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
-import { WorkflowEngineNode, WorkflowPlannerState } from "../sub-graph.js";
+import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 
 export const reflect: WorkflowEngineNode = async (state) => {
   console.log("🚀 Reflecting on the task");
@@ -50,9 +50,7 @@ Respond in JSON format with the following fields:
   };
 };
 
-export function reflectionEdggeDecision(
-  state: typeof WorkflowPlannerState.State
-) {
+export function reflectionEdggeDecision(state: WorkflowEngineStateType) {
   if (state.decision === "IMPROVE") {
     return "plan";
   }
