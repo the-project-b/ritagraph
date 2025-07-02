@@ -20,6 +20,7 @@ import type {
   DatasetExperiment,
   Feedback,
 } from '../types/index.js';
+import type { GraphQLContext } from '../types/context.js';
 
 // Map aliases
 const create_multi_agent_rita_graph_static = create_multi_agent_rita_graph;
@@ -33,7 +34,7 @@ export class LangSmithService {
     this.client = new Client();
   }
 
-  public async runEvaluation(input: RunEvaluationInput, context: { token?: string }) {
+  public async runEvaluation(input: RunEvaluationInput, context: GraphQLContext) {
     const { graphName, datasetName, evaluators, experimentPrefix, inputKey } = input;
 
     // Dynamically determine the question/input key if not provided

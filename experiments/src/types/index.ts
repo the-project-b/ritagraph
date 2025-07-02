@@ -1,6 +1,9 @@
 // Graph names supported by this evaluator service
 export type GraphName = 'multi_agent' | 'multi_agent_dynamic' | 'rita';
 
+// Re-export context types
+export type { GraphQLContext } from './context.js';
+
 export interface EvaluatorInput {
   type: 'CORRECTNESS';
   customPrompt?: string;

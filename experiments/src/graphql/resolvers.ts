@@ -1,19 +1,25 @@
 import { LangSmithService } from '../langsmith/service.js';
 import type { GetDatasetExperimentsInput, GetExperimentDetailsInput, RunEvaluationInput } from '../types/index.js';
+import type { GraphQLContext } from '../types/context.js';
 import { GraphQLJSON } from 'graphql-scalars';
+import { requireAuth } from './auth.helpers.js';
 
 export const resolvers = {
   JSON: GraphQLJSON,
   Run: {
     // Field resolver for lazy loading feedback
-    feedback: async (parent: any, _: any, context: any) => {
+    feedback: async (parent: any, _: any, context: GraphQLContext) => {
+      requireAuth(context);
+      
       const langsmithService = new LangSmithService();
       return await langsmithService.getFeedbackForRun(parent.id);
     },
   },
   Query: {
     healthCheck: () => 'Server is running!',
-    getDatasetExperiments: async (_: unknown, { input }: { input: GetDatasetExperimentsInput }, context: any) => {
+    getDatasetExperiments: async (_: unknown, { input }: { input: GetDatasetExperimentsInput }, context: GraphQLContext) => {
+      requireAuth(context);
+      
       const langsmithService = new LangSmithService();
       const result = await langsmithService.getDatasetExperiments(input);
       
@@ -28,7 +34,9 @@ export const resolvers = {
         total: result.total,
       };
     },
-    getExperimentDetails: async (_: unknown, { input }: { input: GetExperimentDetailsInput }, context: any) => {
+    getExperimentDetails: async (_: unknown, { input }: { input: GetExperimentDetailsInput }, context: GraphQLContext) => {
+      requireAuth(context);
+      
       const langsmithService = new LangSmithService();
       const result = await langsmithService.getExperimentDetails(input);
       
@@ -49,7 +57,9 @@ export const resolvers = {
     },
   },
   Mutation: {
-    runEvaluation: async (_: unknown, { input }: { input: RunEvaluationInput }, context: any) => {
+    runEvaluation: async (_: unknown, { input }: { input: RunEvaluationInput }, context: GraphQLContext) => {
+      requireAuth(context);
+      
       const langsmithService = new LangSmithService();
       return langsmithService.runEvaluation(input, context);
     },

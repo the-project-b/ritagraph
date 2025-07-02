@@ -27,9 +27,12 @@ async function startServer(): Promise<void> {
     '/graphql',
     cors(),
     express.json(),
-    authMiddleware,
+    authMiddleware(), // Call the function to get the actual middleware
     expressMiddleware(server, {
-      context: async ({ req }) => ({ token: req.headers.authorization }),
+      context: async ({ req }) => ({ 
+        user: req.user, // Access the verified user data from middleware
+        token: req.headers.authorization 
+      }),
     }),
   );
 
