@@ -6,19 +6,12 @@ import {
   StateGraph,
 } from "@langchain/langgraph";
 import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
-import {
-  router,
-  finalMessage,
-  quickResponse,
-  preWorkflowResponse,
-} from "./nodes/index.js";
-import { routerEdgeDecision } from "./nodes/router.js";
-import { loadSettings } from "./nodes/load-settings.js";
+import { finalNode, quickResponse } from "./nodes/index.js";
+import { loadContext } from "./nodes/load-context.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
+import { ToolInterface } from "../shared-types/node-types.js";
 import { createMcpClient } from "../../mcp/client.js";
 import { getAuthUser } from "../../security/auth.js";
-import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
-import { ToolInterface } from "../shared-types/node-types.js";
 
 async function fetchTools(
   companyId: string,
@@ -27,7 +20,7 @@ async function fetchTools(
   const authUser = await getAuthUser(config);
   const mcpClient = createMcpClient({
     accessToken: authUser.token,
-    companyId: companyId,
+    companyId,
   });
   const tools = await mcpClient.getTools();
   return tools;
@@ -39,28 +32,21 @@ const graph = async () => {
 
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
       // => Nodes
-      .addNode("loadSettings", loadSettings)
-      .addNode("router", router)
+      .addNode("loadContext", loadContext)
       .addNode("quickResponse", quickResponse)
       .addNode(
         "workflowEngine",
         buildWorkflowEngineReAct({
           fetchTools,
           configAnnotation: ConfigurableAnnotation,
-          quickUpdateNode: quickUpdate,
-          preWorkflowResponse: preWorkflowResponse,
         })
       )
-      .addNode("finalMessage", finalMessage)
+      .addNode("finalNode", finalNode)
       // => Edges
-      .addEdge(START, "loadSettings")
-      .addEdge("loadSettings", "router")
-      .addConditionalEdges("router", routerEdgeDecision, [
-        "quickResponse",
-        "workflowEngine",
-      ])
-      .addEdge("workflowEngine", "finalMessage")
-      .addEdge("finalMessage", END);
+      .addEdge(START, "loadContext")
+      .addEdge("loadContext", "workflowEngine")
+      .addEdge("workflowEngine", "finalNode")
+      .addEdge("finalNode", END);
 
     // Compile the graph
     const memory = new MemorySaver();

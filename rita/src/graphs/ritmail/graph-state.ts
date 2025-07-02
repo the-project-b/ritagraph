@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { Runnable } from "@langchain/core/runnables";
-import { Annotation, Command } from "@langchain/langgraph";
+import { Annotation } from "@langchain/langgraph";
+import { Node as NodeType } from "../shared-types/node-types.js";
 import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
-} from "../shared-types/base-annotation";
+} from "../shared-types/base-annotation.js";
 
 export const ConfigurableAnnotation = Annotation.Root({
   // Used for development purposes, to debug in the graph UI
@@ -23,12 +24,10 @@ export const GraphState = Annotation.Root({
 
 export type GraphStateType = typeof GraphState.State;
 
-type NodeReturn<State = GraphStateType> = Command | Partial<State> | null;
-
-export type Node<State = GraphStateType> = (
-  state: State,
-  config: typeof ConfigurableAnnotation.State
-) => Promise<NodeReturn<State>> | NodeReturn<State>;
+export type Node<
+  State = GraphStateType,
+  Config = typeof ConfigurableAnnotation.State
+> = NodeType<State, Config>;
 
 export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   name: string;
