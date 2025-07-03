@@ -23,6 +23,7 @@ export const workflowEngineState = Annotation.Root({
   taskEngineMessages: MessagesAnnotation.spec.messages,
   decision: Annotation<"ACCEPT" | "IMPROVE" | undefined>(),
   reflectionStepCount: AnnotationWithDefault<number>(0),
+  workflowEngineResponseDraft: Annotation<string | undefined>(),
 });
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
 
