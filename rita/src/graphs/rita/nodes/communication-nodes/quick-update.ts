@@ -1,9 +1,12 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
-import { workAroundTemplateIssue } from "../../../../utils/format-helpers/work-around-template-issue.js";
 
 /**
  * At the moment just a pass through node
@@ -53,8 +56,8 @@ Speak in {language}.
   });
 
   const prompt = await ChatPromptTemplate.fromMessages([
-    ["system", systemPrompt],
-    ...workAroundTemplateIssue(messages.slice(-2)),
+    new SystemMessage(systemPrompt),
+    ...messages.slice(-2),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);

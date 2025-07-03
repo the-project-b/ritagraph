@@ -2,14 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
-import { workAroundTemplateIssue } from "../../../utils/format-helpers/work-around-template-issue.js";
-import {
-  AIMessage,
-  BaseMessage,
-  HumanMessage,
-  SystemMessage,
-  ToolMessage,
-} from "@langchain/core/messages";
+import { SystemMessage } from "@langchain/core/messages";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -30,22 +23,9 @@ respond in JSON with:
   `
   ).format({});
 
-  /*
-  const prompt = await ChatPromptTemplate.fromMessages([
-    ["system", systemPrompt],
-    ...workAroundTemplateIssue(state.messages.slice(-3)),
-  ]).invoke({});
-  */
-
-  console.log(
-    "🔍 (%s - %s)",
-    state.messages.slice(-3).filter((i) => i instanceof BaseMessage).length,
-    state.messages.slice(-3).length
-  );
-
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-3).filter((i) => i instanceof BaseMessage),
+    ...state.messages.slice(-3),
   ]).invoke({});
 
   console.log(prompt);
