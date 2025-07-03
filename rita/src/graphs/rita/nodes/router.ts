@@ -2,6 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -25,8 +26,11 @@ export const router: Node = async (state) => {
 
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
-    ...state.messages.slice(-3),
-  ]).invoke({messages: []});
+    ...state.messages
+      .filter((i) => i instanceof HumanMessage || i instanceof AIMessage)
+      .slice(-3)
+      .map((i) => i.content.toString()),
+  ]).invoke({});
 
   const response = await llm
     .withStructuredOutput(
