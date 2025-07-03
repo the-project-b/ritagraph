@@ -7,6 +7,7 @@ import {
 } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
+import { onBaseMessages } from "../../../../utils/message-filter.js";
 
 /**
  * At the moment just a pass through node
@@ -57,7 +58,7 @@ Speak in {language}.
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...messages.slice(-2),
+    ...messages.slice(-2).filter(onBaseMessages),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);
