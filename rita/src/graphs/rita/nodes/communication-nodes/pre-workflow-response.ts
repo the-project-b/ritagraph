@@ -3,6 +3,7 @@ import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
+import { workAroundTemplateIssue } from "../../../../utils/format-helpers/work-around-template-issue.js";
 
 /**
  * At the moment just a pass through node
@@ -27,7 +28,7 @@ Speak in {language}.
 
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
-    ...messages.slice(-3),
+    ...workAroundTemplateIssue(messages.slice(-3)),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);
