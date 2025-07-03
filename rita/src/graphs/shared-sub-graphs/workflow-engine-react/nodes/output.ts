@@ -1,5 +1,5 @@
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -12,14 +12,16 @@ export const output: WorkflowEngineNode = async (state) => {
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 
-  const systemPrompt = PromptTemplate.fromTemplate(`
+  const systemPrompt = await PromptTemplate.fromTemplate(
+    `
 Extract all the relevant information from the previous thought process and tool calls.
 Make sure you find and extract all the information that is relevant to the users request.
 Put this into a brief response draft.
-`);
+`
+  ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
-    ["system", await systemPrompt.format({})],
+    new SystemMessage(systemPrompt),
     ...state.taskEngineMessages,
     ...lastUserMessages,
   ]).invoke({});

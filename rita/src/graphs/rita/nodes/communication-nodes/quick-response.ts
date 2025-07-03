@@ -1,8 +1,9 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
-import { AIMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
+import { onBaseMessages } from "../../../../utils/message-filter.js";
 
 /**
  * At the moment just a pass through node
@@ -27,8 +28,8 @@ Speak in {language}.
   ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([
-    ["system", systemPrompt],
-    ...messages.slice(-3),
+    new SystemMessage(systemPrompt),
+    ...messages.slice(-3).filter(onBaseMessages),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);

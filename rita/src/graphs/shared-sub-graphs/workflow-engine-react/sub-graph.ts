@@ -13,18 +13,17 @@ import { reflect, reflectionEdggeDecision } from "./nodes/reflect.js";
 import { output } from "./nodes/output.js";
 import { emptyNode } from "../../../utility-nodes/empty-node.js";
 import { Node, ToolInterface } from "../../shared-types/node-types.js";
-import { BaseGraphAnnotation } from "../../shared-types/base-annotation.js";
-
-export type TaskExecutionLog = {
-  taskDescription: string;
-  result?: string;
-  error?: string;
-};
+import {
+  AnnotationWithDefault,
+  BaseGraphAnnotation,
+} from "../../shared-types/base-annotation.js";
 
 export const workflowEngineState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
   taskEngineMessages: MessagesAnnotation.spec.messages,
   decision: Annotation<"ACCEPT" | "IMPROVE" | undefined>(),
+  reflectionStepCount: AnnotationWithDefault<number>(0),
+  workflowEngineResponseDraft: Annotation<string | undefined>(),
 });
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
 

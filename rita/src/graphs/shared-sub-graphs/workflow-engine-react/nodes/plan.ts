@@ -1,6 +1,10 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
-import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
+import {
+  AIMessageChunk,
+  HumanMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { AnnotationRoot } from "@langchain/langgraph";
 import { ToolInterface } from "../../../shared-types/node-types.js";
@@ -24,7 +28,8 @@ export const plan: (
     .filter((i) => i instanceof HumanMessage)
     .slice(-1);
 
-  const systemPropmt = PromptTemplate.fromTemplate(`
+  const systemPropmt = await PromptTemplate.fromTemplate(
+    `
 You are a Payroll Specialist and a ReAct agent that calls tools to solve the users request.
 You act based on previous results and try to solve the users request in the most efficient way.
 
@@ -42,10 +47,11 @@ Guidelines:
 - Keep steps focused and clear
 - Try to only do one step at a time
 
-Format your plan as a numbered list of specific actions.`);
+Format your plan as a numbered list of specific actions.`
+  ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
-    ["system", await systemPropmt.format({})],
+    new SystemMessage(systemPropmt),
     ...lastUserMessage,
     ...state.taskEngineMessages, //todo safely slice last 7 messages
   ]).invoke({});

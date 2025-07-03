@@ -16,8 +16,6 @@ export const BaseGraphAnnotation = Annotation.Root({
    * We need to find a definitive way to handle this.
    */
   selectedCompanyId: Annotation<string | undefined>(),
-
-  workflowEngineResponseDraft: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
   routingDecision: Annotation<
     "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
