@@ -26,10 +26,13 @@ export const router: Node = async (state) => {
 
   const prompt = await ChatPromptTemplate.fromMessages([
     ["system", systemPrompt],
-    ...state.messages
-      .filter((i) => i instanceof HumanMessage || i instanceof AIMessage)
-      .slice(-3)
-      .map((i) => i.content.toString()),
+    ...state.messages.map(
+      (i) =>
+        [i instanceof HumanMessage ? "user" : "ai", i.content.toString()] as [
+          string,
+          string
+        ]
+    ),
   ]).invoke({});
 
   const response = await llm
