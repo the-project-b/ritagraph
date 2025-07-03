@@ -8,8 +8,18 @@ import {
 } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 
+const MAX_REFLECTION_STEPS = 3;
+
 export const reflect: WorkflowEngineNode = async (state) => {
   console.log("🚀 Reflecting on the task");
+
+  if (state.reflectionStepCount >= MAX_REFLECTION_STEPS) {
+    return {
+      decision: "ACCEPT",
+      taskEngineMessages: [],
+      reflectionStepCount: 0,
+    };
+  }
 
   const lastUserMessage = state.messages
     .filter((i) => i instanceof HumanMessage)
@@ -54,6 +64,7 @@ Respond in JSON format with the following fields:
   return {
     decision: response.decision,
     taskEngineMessages,
+    reflectionStepCount: state.reflectionStepCount + 1,
   };
 };
 
