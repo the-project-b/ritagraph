@@ -2,7 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
-import { SystemMessage } from "@langchain/core/messages";
+import { BaseMessage, SystemMessage } from "@langchain/core/messages";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -25,7 +25,7 @@ respond in JSON with:
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-3),
+    ...state.messages.slice(-3).filter((i) => i instanceof BaseMessage),
   ]).invoke({});
 
   console.log(prompt);
