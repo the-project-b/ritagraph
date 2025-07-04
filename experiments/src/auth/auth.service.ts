@@ -56,9 +56,9 @@ export class AuthService {
       console.log(`✅ [AuthService] ACL data fetched successfully, primary role: ${userCompanies.role}, companies: ${userCompanies.companies.length}`);
 
       // Then, get the user's preferred language
-      console.log(`🔍 [AuthService] Step 3: Fetching user's preferred language...`);
+      console.log(`🔍 [AuthService] Step 3: Fetching user's details...`);
       const me = await this.getMe(token);
-      console.log(`✅ [AuthService] Preferred language fetched successfully: ${me.preferredLanguage}`);
+      console.log(`✅ [AuthService] User details fetched successfully: ${me.preferredLanguage}`);
 
       const verifiedUser = {
         auth0: auth0User,

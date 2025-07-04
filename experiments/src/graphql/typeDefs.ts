@@ -44,6 +44,10 @@ export const typeDefs = gql`
     experimentPrefix: String
     "An optional key to specify the question in the dataset's inputs"
     inputKey: String
+    "The ID of the company to use for the evaluation"
+    selectedCompanyId: String!
+    "The preferred language to use for the evaluation"
+    preferredLanguage: String
   }
 
   # Input type for getting dataset experiments

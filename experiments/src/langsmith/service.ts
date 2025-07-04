@@ -95,6 +95,8 @@ export class LangSmithService {
         token = token.slice(7).trim();
       }
 
+      console.dir(token, { depth: null });
+
 // Config needs user information
 // identity: string;
 // role: string;
