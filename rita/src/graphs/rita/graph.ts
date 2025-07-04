@@ -19,6 +19,7 @@ import { createMcpClient } from "../../mcp/client.js";
 import { getAuthUser } from "../../security/auth.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
+import { version } from "../../../package.json";
 
 async function fetchTools(
   companyId: string,
@@ -68,7 +69,8 @@ const graph = async () => {
       checkpointer: memory,
     });
 
-    graph.name = "Rita";
+    // Add version read from the package.json file
+    graph.name = `Rita (v${version})`;
 
     return graph;
   } catch (error) {

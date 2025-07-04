@@ -1,4 +1,5 @@
-import { Auth0UserResponse, UserToCompaniesResponse, VerifiedUser, AuthError } from './types.js';
+import { ME_QUERY } from '../graphql/queries.js';
+import { Auth0UserResponse, AuthError, Me, UserToCompaniesResponse, VerifiedUser } from './types.js';
 
 export class AuthService {
   private readonly graphqlEndpoint: string;
@@ -54,11 +55,17 @@ export class AuthService {
       const userCompanies = await this.getUserToCompanies(token);
       console.log(`✅ [AuthService] ACL data fetched successfully, primary role: ${userCompanies.role}, companies: ${userCompanies.companies.length}`);
 
+      // Then, get the user's preferred language
+      console.log(`🔍 [AuthService] Step 3: Fetching user's preferred language...`);
+      const me = await this.getMe(token);
+      console.log(`✅ [AuthService] Preferred language fetched successfully: ${me.preferredLanguage}`);
+
       const verifiedUser = {
         auth0: auth0User,
         aclRole: userCompanies.role,
         companies: userCompanies.companies,
         token,
+        me,
       };
       
       console.log(`🎉 [AuthService] Token verification completed successfully for user: ${auth0User.id}`);
@@ -95,6 +102,7 @@ export class AuthService {
     console.log(`📡 [AuthService] Auth0 GraphQL response status: ${response.status}`);
     
     if (!response.ok) {
+      console.dir(response, { depth: null });
       const errorText = await response.text();
       console.error(`❌ [AuthService] Auth0 GraphQL request failed:`, errorText);
       throw new Error(`Auth0 verification failed: ${response.status} ${response.statusText}`);
@@ -167,6 +175,33 @@ export class AuthService {
     return userCompaniesData;
   }
 
+  private async getMe(token: string): Promise<Me> {
+    console.log(`📡 [AuthService] Making userPreferredLanguage GraphQL request to ${this.graphqlEndpoint}`);
+    
+    const query = ME_QUERY;
+
+    const response = await this.makeGraphQLRequest(query, token);
+    
+    console.log(`📡 [AuthService] UserPreferredLanguage GraphQL response status: ${response.status}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ [AuthService] UserPreferredLanguage GraphQL request failed:`, errorText);
+      throw new Error(`Preferred language fetch failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: {data: {me: Me}} = await response.json();
+    console.log(`📄 [AuthService] UserPreferredLanguage response data:`, JSON.stringify(data, null, 2));
+
+    if (!data.data.me) {
+      console.error(`❌ [AuthService] Invalid user information response structure`);
+      throw new Error('Invalid user preferred language response');
+    }
+
+    console.log(`✅ [AuthService] User information data retrieved: ${data.data.me}`);
+    return data.data.me;
+  }
+
   /**
    * Makes a GraphQL request to the backend
    * @param query - The GraphQL query string
@@ -179,19 +214,23 @@ export class AuthService {
     
     console.log(`🌐 [AuthService] Making GraphQL request to: ${url}`);
     console.log(`🌐 [AuthService] Using token: ${tokenId}`);
-    console.log(`🌐 [AuthService] Query:`, query.trim());
+    console.log(`🌐 [AuthService] Query:`, query.toString().trim());
     
     const requestStart = Date.now();
+    const request = {
+      method: 'POST',
+      headers: {
+        'Authorization': `${token}`,
+        'Cookie': `accessToken=${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: query.toString() }),
+    };
+
+    console.dir(request, { depth: null });
     
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-      });
+      const response = await fetch(url, request);
       
       const requestTime = Date.now() - requestStart;
       console.log(`⚡ [AuthService] GraphQL request completed in ${requestTime}ms`);

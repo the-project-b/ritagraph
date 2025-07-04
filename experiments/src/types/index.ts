@@ -14,6 +14,8 @@ export interface EvaluatorInput {
 export interface RunEvaluationInput {
   graphName: GraphName;
   datasetName: string;
+  selectedCompanyId: string;
+  preferredLanguage?: string; // Fall back to user-configured preferredLanguage if not provided
   evaluators: EvaluatorInput[];
   experimentPrefix?: string;
   inputKey?: string;
