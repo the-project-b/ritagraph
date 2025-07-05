@@ -1,6 +1,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
+  AIMessage,
   AIMessageChunk,
   HumanMessage,
   SystemMessage,
@@ -42,12 +43,14 @@ Your job is to:
 Guidelines:
 - Break complex requests into smaller, manageable steps
 - Be specific about what tools to use and why
-- Consider what information you need to gather first
-- Briefly Outline for potential follow-up actions based on initial results
+- Consider in what order you need to gather information
 - Keep steps focused and clear
 - Try to only do one step at a time
 
-Format your plan as a numbered list of specific actions.`
+Format your thoguhts like this:
+
+Based on [...] I think we should do [...] in oder to [...].
+`
   ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
@@ -68,7 +71,8 @@ export function planEdgeDecision(state: WorkflowEngineStateType) {
   const lastMessage =
     state.taskEngineMessages[state.taskEngineMessages.length - 1];
   const hasPendingToolCalls =
-    lastMessage instanceof AIMessageChunk &&
+    (lastMessage instanceof AIMessageChunk ||
+      lastMessage instanceof AIMessage) &&
     lastMessage.tool_calls &&
     lastMessage.tool_calls.length > 0;
 
