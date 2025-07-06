@@ -134,4 +134,16 @@ export interface DatasetExperiment {
   feedbackStats?: FeedbackStats;
   testRunNumber?: number;
   metadata?: Record<string, any>;
+}
+
+export interface CompanyInfo {
+  companyId: string;
+  companyName: string;
+  companyAvatarUrl?: string;
+  role: string;
+  managingCompany: boolean;
+}
+
+export interface AvailableCompaniesResponse {
+  companies: CompanyInfo[];
 } 
