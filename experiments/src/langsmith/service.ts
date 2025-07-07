@@ -16,6 +16,7 @@ import type {
   RunEvaluationInput
 } from '../types/index.js';
 import { createEvaluator } from './evaluators.js';
+import { GraphQLErrors } from '../graphql/errors.js';
 
 // Map aliases
 const create_rita_graph = rita;
@@ -42,7 +43,27 @@ export class LangSmithService {
   }
 
   public async runEvaluation(input: RunEvaluationInput, context: GraphQLContext) {
-    const { graphName, datasetName, evaluators, experimentPrefix, inputKey } = input;
+    const { graphName, datasetName, evaluators, experimentPrefix, inputKey, selectedCompanyId, preferredLanguage } = input;
+    let selectedPreferredLanguage = preferredLanguage;
+
+    // New needs:
+    // User information: preferredLanguage
+    // Context information: selectedCompanyId
+
+    // selectedCompanyId should be provided always
+    // preferredLanguage can be provided, if not provided, use the user's preferredLanguage
+
+    // if the context.user is not provided, throw an error
+    if (!context.user) {
+      throw GraphQLErrors.UNAUTHENTICATED;
+    }
+
+    // if the context.user is provided, use the preferredLanguage from the context.user
+    // if the preferredLanguage is not provided, use the preferredLanguage from the context.user
+
+    if (!selectedPreferredLanguage) {
+      selectedPreferredLanguage = context.user.me.preferredLanguage;
+    }
 
     // Dynamically determine the question/input key if not provided
     let questionKey = inputKey;
@@ -61,7 +82,6 @@ export class LangSmithService {
     if (!graphFactory) {
       throw new Error(`Graph factory not found for graph: ${graphName}`);
     }
-
     // Target function for evaluation
     const target = async (inputs: Record<string, any>) => {
       const graphInput = {
@@ -75,14 +95,43 @@ export class LangSmithService {
         token = token.slice(7).trim();
       }
 
+      console.dir(token, { depth: null });
+
+// Config needs user information
+// identity: string;
+// role: string;
+// token: string;
+// permissions: string[];
+// user: {
+//   id: string;
+//   role: string;
+//   firstName: string;
+//   lastName: string;
+//   preferredLanguage: "EN" | "DE";
+//   company: {
+//     id: string;
+//     name: string;
+//   };
+// };
+
       const config = {
         configurable: {
           thread_id: `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           langgraph_auth_user: {
             token,
+            user: {
+              firstName: context.user.me.firstName,
+              lastName: context.user.me.lastName,
+              preferredLanguage: context.user.me.preferredLanguage,
+              company: {
+                id: selectedCompanyId,
+              },
+            }
           },
         },
       };
+
+      console.dir(graphInput, { depth: null });
 
       const result: any = await graph.invoke(graphInput, config);
 

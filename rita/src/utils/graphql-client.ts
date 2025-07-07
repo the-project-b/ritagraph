@@ -52,7 +52,7 @@ export class ProjectBGraphQLClient {
     }
 
     const headers = {
-      Cookie: `accessToken=${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
     };
 
     try {

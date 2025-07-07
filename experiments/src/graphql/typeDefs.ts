@@ -44,6 +44,10 @@ export const typeDefs = gql`
     experimentPrefix: String
     "An optional key to specify the question in the dataset's inputs"
     inputKey: String
+    "The ID of the company to use for the evaluation"
+    selectedCompanyId: String!
+    "The preferred language to use for the evaluation"
+    preferredLanguage: String
   }
 
   # Input type for getting dataset experiments
@@ -323,6 +327,24 @@ export const typeDefs = gql`
     evaluators: [EvaluatorInfo!]!
   }
 
+  # Information about an available company
+  type CompanyInfo {
+    "The unique identifier of the company"
+    companyId: String!
+    "The display name of the company"
+    companyName: String!
+    "The avatar URL for the company"
+    companyAvatarUrl: String
+    "The user's role in this company"
+    role: String!
+  }
+
+  # Response type for available companies query
+  type AvailableCompaniesResponse {
+    "List of companies the authenticated user has access to"
+    companies: [CompanyInfo!]!
+  }
+
   type Query {
     "A simple query to check if the server is running"
     healthCheck: String!
@@ -334,6 +356,8 @@ export const typeDefs = gql`
     getAvailableEvaluators: AvailableEvaluatorsResponse!
     "Get a list of available graph names that can be used for evaluation"
     getAvailableGraphs: [GraphName!]!
+    "Get a list of companies the authenticated user has access to"
+    getAvailableCompanies: AvailableCompaniesResponse!
   }
 
   type Mutation {

@@ -1,5 +1,5 @@
 import { LangSmithService } from '../langsmith/service.js';
-import type { GetDatasetExperimentsInput, GetExperimentDetailsInput, RunEvaluationInput } from '../types/index.js';
+import type { GetDatasetExperimentsInput, GetExperimentDetailsInput, RunEvaluationInput, CompanyInfo } from '../types/index.js';
 import type { GraphQLContext } from '../types/context.js';
 import { GraphQLJSON } from 'graphql-scalars';
 import { requireAuth } from './auth.helpers.js';
@@ -67,6 +67,21 @@ export const resolvers = {
       const evaluators = Object.values(EVALUATOR_INFO);
       return {
         evaluators,
+      };
+    },
+    getAvailableCompanies: async (_: unknown, __: unknown, context: GraphQLContext) => {
+      const user = requireAuth(context);
+      
+      // Transform the user's companies to match the GraphQL schema
+      const companies = user.companies.map(company => ({
+        companyId: company.companyId,
+        companyName: company.companyName,
+        companyAvatarUrl: company.companyAvatarUrl,
+        role: company.role,
+      }));
+      
+      return {
+        companies,
       };
     },
   },

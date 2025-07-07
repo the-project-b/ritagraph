@@ -24,7 +24,7 @@ export const plan: (
   const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
 
   const tools = await fetchTools(state.selectedCompanyId, config);
-
+  
   const lastUserMessage = state.messages
     .filter((i) => i instanceof HumanMessage)
     .slice(-1);
@@ -66,6 +66,23 @@ Based on [...] I think we should do [...] in oder to [...].
   };
 };
 
+// export function planEdgeDecision(state: WorkflowEngineStateType) {
+//   // Check if we have pending tool calls that need to be executed
+//   const lastMessage =
+//     state.taskEngineMessages[state.taskEngineMessages.length - 1];
+//   const hasPendingToolCalls =
+//     lastMessage instanceof AIMessageChunk &&
+//     lastMessage.tool_calls &&
+//     lastMessage.tool_calls.length > 0;
+
+//   // If we have pending tool calls, go to tools
+//   if (hasPendingToolCalls) {
+//     return "tools";
+//   }
+
+//   return "reflect";
+// }
+
 export function planEdgeDecision(state: WorkflowEngineStateType) {
   // Check if we have pending tool calls that need to be executed
   const lastMessage =
@@ -75,11 +92,9 @@ export function planEdgeDecision(state: WorkflowEngineStateType) {
       lastMessage instanceof AIMessage) &&
     lastMessage.tool_calls &&
     lastMessage.tool_calls.length > 0;
-
   // If we have pending tool calls, go to tools
   if (hasPendingToolCalls) {
     return "tools";
   }
-
   return "reflect";
 }

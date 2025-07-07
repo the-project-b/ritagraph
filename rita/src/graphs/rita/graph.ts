@@ -68,7 +68,8 @@ const graph = async () => {
       checkpointer: memory,
     });
 
-    graph.name = "Rita";
+    // Add version read from the package.json file
+    graph.name = `Rita`;
 
     return graph;
   } catch (error) {

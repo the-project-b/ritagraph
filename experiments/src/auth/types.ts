@@ -35,11 +35,19 @@ export interface UserToCompaniesResponse {
   };
 }
 
+export interface Me {
+  preferredLanguage: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 export interface VerifiedUser {
   auth0: Auth0User;
   aclRole: string;
   companies: CompanyUser[];
   token: string;
+  me: Me;
 }
 
 /**

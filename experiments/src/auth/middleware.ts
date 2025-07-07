@@ -43,7 +43,8 @@ export function authMiddleware(authService?: AuthService) {
           name: c.companyName,
           role: c.role,
           managing: c.managingCompany
-        }))
+        })),
+        me: verifiedUser.me
       });
       
       // Attach user data to request

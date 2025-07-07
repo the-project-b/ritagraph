@@ -14,6 +14,8 @@ export interface EvaluatorInput {
 export interface RunEvaluationInput {
   graphName: GraphName;
   datasetName: string;
+  selectedCompanyId: string;
+  preferredLanguage?: string; // Fall back to user-configured preferredLanguage if not provided
   evaluators: EvaluatorInput[];
   experimentPrefix?: string;
   inputKey?: string;
@@ -132,4 +134,16 @@ export interface DatasetExperiment {
   feedbackStats?: FeedbackStats;
   testRunNumber?: number;
   metadata?: Record<string, any>;
+}
+
+export interface CompanyInfo {
+  companyId: string;
+  companyName: string;
+  companyAvatarUrl?: string;
+  role: string;
+  managingCompany: boolean;
+}
+
+export interface AvailableCompaniesResponse {
+  companies: CompanyInfo[];
 } 
