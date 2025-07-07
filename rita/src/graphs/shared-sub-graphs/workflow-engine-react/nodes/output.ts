@@ -14,8 +14,11 @@ export const output: WorkflowEngineNode = async (state) => {
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
-Extract all the relevant information from the previous thought process and tool calls.
-Make sure you find and extract all the information that is relevant to the users request.
+Drafting guidelines:
+- Extract all the relevant information from the previous thought process and tool calls.
+- Make sure you find and extract all the information that is relevant to the users request.
+- If tool calls provide data in tables try to keep the table structure.
+
 Put this into a brief response draft.
 `
   ).format({});
