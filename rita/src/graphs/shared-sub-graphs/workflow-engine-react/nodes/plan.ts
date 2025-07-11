@@ -80,6 +80,10 @@ Based on [...] I think we should do [...] in oder to [...].
   };
 
 export function planEdgeDecision(state: WorkflowEngineStateType) {
+  if (state.taskEngineLoopCounter > MAX_TASK_ENGINE_LOOP_COUNTER) {
+    return "abortOutput";
+  }
+
   // Check if we have pending tool calls that need to be executed
   const lastMessage =
     state.taskEngineMessages[state.taskEngineMessages.length - 1];
