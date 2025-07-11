@@ -19,6 +19,8 @@ export const finalMessage: Node = async ({
   const systemPrompt = await PromptTemplate.fromTemplate(
     `Respond to the user briefly and well structured using tables or lists.
 Use emojis only for structuring the response. Be concise but friendly.
+Try to use tables to make the response more compact and readable.
+You are the final response to the user so do not say "I will get back to you" or "I will send you an email" or anything like that.
 
 Speak in {language}.
 

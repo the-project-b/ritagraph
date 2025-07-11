@@ -17,12 +17,14 @@ import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
 } from "../../shared-types/base-annotation.js";
+import { abortOutput } from "./nodes/abort-output.js";
 
 export const workflowEngineState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
   taskEngineMessages: MessagesAnnotation.spec.messages,
   decision: Annotation<"ACCEPT" | "IMPROVE" | undefined>(),
   reflectionStepCount: AnnotationWithDefault<number>(0),
+  taskEngineLoopCounter: AnnotationWithDefault<number>(0),
   workflowEngineResponseDraft: Annotation<string | undefined>(),
 });
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
@@ -75,6 +77,7 @@ export function buildWorkflowEngineReAct({
     .addNode("plan", plan(fetchTools))
     .addNode("reflect", reflect)
     .addNode("output", output)
+    .addNode("abortOutput", abortOutput)
     .addNode("tools", toolsNode)
     .addNode("quickUpdate", quickUpdateNode ?? emptyNode)
     .addEdge(START, "preWorkflowResponse")
@@ -82,7 +85,12 @@ export function buildWorkflowEngineReAct({
     .addEdge("tools", "plan")
     .addEdge("reflect", "quickUpdate")
     .addConditionalEdges("plan", planEdgeDecision, ["tools", "reflect"])
-    .addConditionalEdges("reflect", reflectionEdggeDecision, ["plan", "output"])
+    .addConditionalEdges("reflect", reflectionEdggeDecision, [
+      "plan",
+      "output",
+      "abortOutput",
+    ])
+    .addEdge("abortOutput", END)
     .addEdge("output", END);
   return subGraph.compile();
 }
