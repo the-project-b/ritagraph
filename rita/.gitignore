@@ -3,3 +3,5 @@
 .langgraph_api
 
 .DS_Store
+
+src/generated

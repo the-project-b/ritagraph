@@ -3,7 +3,13 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
 
-export const output: WorkflowEngineNode = async ({
+/**
+ * The idea of this node is to be a special case of the output node.
+ * Sometimes the planning agent might already have found most of the required information
+ * but still tries to find the right remaining 1%. In this case we abort at some point to prevent
+ * recursion limits.
+ */
+export const abortOutput: WorkflowEngineNode = async ({
   messages,
   taskEngineMessages,
 }) => {
@@ -17,16 +23,20 @@ export const output: WorkflowEngineNode = async ({
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
+The previous agent has ran its maximum number of loops.
 Extract all the relevant information from the previous thought process and tool calls.
 Make sure you find and extract all the information that is relevant to the users request.
+In case the agent has not found parts or all of the required information, explain what is missing 
+and that you could not retrieve it.
+
 Put this into a brief response draft.
 `
   ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...lastUserMessages,
     ...taskEngineMessages,
+    ...lastUserMessages,
   ]).invoke({});
 
   const response = await llm.invoke(chatPrompt);

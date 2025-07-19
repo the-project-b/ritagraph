@@ -29,17 +29,23 @@ export const reflect: WorkflowEngineNode = async (state) => {
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
-Your job is to be a Payroll Specialist and your counterpart has come up with a plan and called some tools
-Check if the information collected is enough to solve the users request.
-Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.
-If not reflect on what information is missing or what is required to solve the users request.
-If the agent says its unable to find or provide the information then ACCEPT.
+You are part of Payroll Specialist Assistant.
+Your counterpart is using tools to solve the users request.
+
+You are checking if the counterpart has come up with enough information or is missing the point.
+
+Guidelines:
+- Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.
+- If not reflect on what information is missing or what is required to solve the users request.
+- If the counter-part says its unable to find or provide the information then ACCEPT.
+
+You have been called IMPROVE for {reflectionStepCount} times.
 
 Respond in JSON format with the following fields:
 - decision: ACCEPT or IMPROVE
-- reflection: The reflection on the task if decision is IMPROVE
+- reflection: The suggestion for the counter-part if decision is IMPROVE
 `
-  ).format({});
+  ).format({ reflectionStepCount: state.reflectionStepCount });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
