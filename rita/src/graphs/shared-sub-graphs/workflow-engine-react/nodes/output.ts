@@ -25,8 +25,8 @@ Put this into a brief response draft.
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...taskEngineMessages,
     ...lastUserMessages,
+    ...taskEngineMessages,
   ]).invoke({});
 
   const response = await llm.invoke(chatPrompt);

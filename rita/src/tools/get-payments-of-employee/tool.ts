@@ -9,7 +9,7 @@ import { createGraphQLClient } from "../../utils/graphql/client";
 import { GetEmployeeByIdQuery } from "../../generated/graphql";
 import { ToolContext } from "../tool-context";
 
-const getPaymentsOfEmployee = (ctx: ToolContext) =>
+export const getPaymentsOfEmployee = (ctx: ToolContext) =>
   tool(
     async ({ employeeId }) => {
       console.log(
@@ -57,5 +57,3 @@ These are the payments for ${employee.employee?.firstName} ${employee.employee?.
       }),
     }
   );
-
-export { getPaymentsOfEmployee };

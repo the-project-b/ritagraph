@@ -18,6 +18,14 @@ query getPayments($data: PaymentsListInput!) {
   }
 }
 
+query getPaymentsByContractId($data: ) {
+  payments(data: $data) {
+    id
+    amount
+    frequency
+  }
+}
+
 query getEmployeeById($data: GetEmployeeInput!) {
   employee(data: $data) {
     id

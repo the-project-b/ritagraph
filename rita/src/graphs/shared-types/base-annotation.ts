@@ -7,6 +7,17 @@ export function AnnotationWithDefault<T>(defaultValue: T) {
   });
 }
 
+export type Mutation = {
+  id: string;
+  // E.g.: "Change salary for x from 1000 -> 1500"
+  description: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  statusQuoQuery: string;
+  mutationQuery: string;
+  variables: Record<string, any>;
+};
+
 export const BaseGraphAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
   preferredLanguage: AnnotationWithDefault<"EN" | "DE">("DE"),
@@ -18,6 +29,10 @@ export const BaseGraphAnnotation = Annotation.Root({
   selectedCompanyId: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
   routingDecision: Annotation<
-    "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
+    | "CASUAL_RESPONSE_WITHOUT_DATA"
+    | "WORKFLOW_ENGINE"
+    | "APPROVE_MUTATIONS"
+    | undefined
   >(),
+  mutations: AnnotationWithDefault<Array<Mutation>>([]),
 });

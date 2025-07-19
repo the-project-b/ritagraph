@@ -11,6 +11,16 @@ import { onBaseMessages } from "../../../utils/message-filter.js";
  * bad if the agent takes ages to respond to it.
  */
 export const router: Node = async (state) => {
+  // First lets check if we need to enter a different entry point
+  const amountOfPendingMutations = state.mutations.filter(
+    (mutation) => mutation.status === "pending"
+  ).length;
+
+  if (amountOfPendingMutations > 0) {
+    console.log("🔨 Pending mutations found, routing to approveMutations");
+    return { routingDecision: "APPROVE_MUTATIONS" };
+  }
+
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
@@ -21,6 +31,9 @@ Add your reasoning to the response.
 respond in JSON with:
 - CASUAL_RESPONSE_WITHOUT_DATA when the user is not requesting anything and is just greeting or saying goodbye
 - WORKFLOW_ENGINE for anything else that requires a real answer or context or a tool call
+
+Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
+If the user is approving of something you should use the WORKFLOW_ENGINE.
   `
   ).format({});
 
@@ -50,6 +63,10 @@ export function routerEdgeDecision(state: GraphStateType) {
 
   if (state.routingDecision === "WORKFLOW_ENGINE") {
     return "workflowEngine";
+  }
+
+  if (state.routingDecision === "APPROVE_MUTATIONS") {
+    return "approveMutations";
   }
 
   return "workflowEngine";

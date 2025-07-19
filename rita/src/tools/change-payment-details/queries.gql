@@ -1,0 +1,20 @@
+query getPaymentsByContractId($data: PaymentsListInput!) {
+  payments(data: $data) {
+    id
+    userFirstName
+    userLastName
+  }
+}
+
+query getEmployeeById($data: GetEmployeeInput!) {
+  employee(data: $data) {
+    id
+    firstName
+    lastName
+    employeeContract {
+      id
+      contractStart
+      contractEnd
+    }
+  }
+}

@@ -19,24 +19,33 @@ import { createMcpClient } from "../../mcp/client.js";
 import { getAuthUser } from "../../security/auth.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
-import { getPaymentsOfEmployee } from "../../tools/index.js";
+import {
+  changePaymentDetails,
+  getPaymentsOfEmployee,
+  listPendingMutations,
+} from "../../tools/index.js";
+import { approveMutations } from "../../tools/approve-mutations/tool.js";
 
 async function fetchTools(
   companyId: string,
   config: AnnotationRoot<any>
 ): Promise<Array<ToolInterface>> {
-  const authUser = await getAuthUser(config);
+  const authUser = getAuthUser(config);
   const mcpClient = createMcpClient({
     accessToken: authUser.token,
     companyId: companyId,
   });
   const mcpTools = await mcpClient.getTools();
+  const toolContext = {
+    accessToken: authUser.token,
+    selectedCompanyId: companyId,
+  };
+
   return [
     ...mcpTools,
-    getPaymentsOfEmployee({
-      accessToken: authUser.token,
-      selectedCompanyId: companyId,
-    }),
+    getPaymentsOfEmployee(toolContext),
+    changePaymentDetails(toolContext),
+    listPendingMutations(),
   ];
 }
 
@@ -56,8 +65,12 @@ const graph = async () => {
           configAnnotation: ConfigurableAnnotation,
           quickUpdateNode: quickUpdate,
           preWorkflowResponse: preWorkflowResponse,
-        })
+        }),
+        {
+          ends: ["finalMessage"],
+        }
       )
+      .addNode("approveMutations", approveMutations)
       .addNode("finalMessage", finalMessage)
       // => Edges
       .addEdge(START, "loadSettings")
@@ -65,7 +78,9 @@ const graph = async () => {
       .addConditionalEdges("router", routerEdgeDecision, [
         "quickResponse",
         "workflowEngine",
+        "approveMutations",
       ])
+      .addEdge("approveMutations", END)
       .addEdge("workflowEngine", "finalMessage")
       .addEdge("finalMessage", END);
 
