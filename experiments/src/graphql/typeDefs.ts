@@ -114,6 +114,22 @@ export const typeDefs = gql`
     results: [RunResult!]
   }
 
+  # Input type for deleting all runs in an experiment
+  input DeleteExperimentRunsInput {
+    "The ID of the experiment/session to delete runs from"
+    experimentId: String!
+  }
+
+  # Result of deleting experiment runs
+  type DeleteExperimentRunsResult {
+    "Whether the deletion was successful"
+    success: Boolean!
+    "A message describing the result"
+    message: String!
+    "The number of runs that were deleted (if available)"
+    deletedCount: Int
+  }
+
   # Response type for dataset experiments query
   type DatasetExperimentsResponse {
     "List of experiments for the dataset."
@@ -363,5 +379,7 @@ export const typeDefs = gql`
   type Mutation {
     "Runs an evaluation on a specified graph against a dataset"
     runEvaluation(input: RunEvaluationInput!): EvaluationResult!
+    "Deletes all runs associated with a specific experiment/session"
+    deleteExperimentRuns(input: DeleteExperimentRunsInput!): DeleteExperimentRunsResult!
   }
 `; 

@@ -13,7 +13,9 @@ import type {
   GetExperimentDetailsInput,
   GraphName,
   Run,
-  RunEvaluationInput
+  RunEvaluationInput,
+  DeleteExperimentRunsInput,
+  DeleteExperimentRunsResult
 } from '../types/index.js';
 import { createEvaluator } from './evaluators.js';
 import { GraphQLErrors } from '../graphql/errors.js';
@@ -831,6 +833,171 @@ export class LangSmithService {
     } catch (error) {
       console.error('❌ [DEBUG] Error getting feedback for run:', error);
       throw error;
+    }
+  }
+
+  public async deleteExperimentRuns(input: DeleteExperimentRunsInput): Promise<DeleteExperimentRunsResult> {
+    const { experimentId } = input;
+    
+    console.log('🗑️ [DEBUG] Starting deleteExperimentRuns');
+    console.log('🗑️ [DEBUG] Experiment ID:', experimentId);
+    console.log('⚠️ [WARNING] LangSmith does not support permanent run deletion via API');
+    console.log('⚠️ [WARNING] This will attempt to remove runs but they may remain visible in dashboard');
+
+    // Build the API URL
+    let baseUrl = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
+    if (baseUrl.includes('eu.api.smith.langchain.com')) {
+      baseUrl = 'https://eu.api.smith.langchain.com';
+    }
+    baseUrl = baseUrl.replace(/\/api\/v1\/?$/, '');
+
+    const apiKey = process.env.LANGSMITH_API_KEY;
+    if (!apiKey) {
+      throw new Error('LANGSMITH_API_KEY environment variable is required');
+    }
+
+    try {
+      // First, let's get information about the experiment to confirm it exists
+      const sessionUrl = `${baseUrl}/api/v1/sessions/${experimentId}`;
+      console.log('📡 [DEBUG] Checking if experiment exists:', sessionUrl);
+
+      const checkResponse = await fetch(sessionUrl, {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!checkResponse.ok) {
+        if (checkResponse.status === 404) {
+          return {
+            success: false,
+            message: `Experiment with ID ${experimentId} not found`,
+          };
+        }
+        throw new Error(`Failed to check experiment: ${checkResponse.status} ${checkResponse.statusText}`);
+      }
+
+      const experimentData = await checkResponse.json();
+      console.log('✅ [DEBUG] Found experiment:', experimentData.name);
+      console.log('📊 [DEBUG] Run count:', experimentData.run_count);
+
+      // Get all runs in the experiment - handle cursor-based pagination
+      let allTraceIds: string[] = [];
+      const limit = 100; // API maximum
+      let cursor: string | null = null;
+      let pageCount = 0;
+
+      do {
+        const runsQueryUrl = `${baseUrl}/api/v1/runs/query`;
+        console.log(`📡 [DEBUG] Getting runs for experiment (page ${pageCount + 1}):`, runsQueryUrl);
+
+        const requestBody: any = {
+          session: [experimentId],
+          limit: limit,
+          is_root: true,  // Only get root runs (no parent runs)
+        };
+
+        // Add cursor for pagination if we have one
+        if (cursor) {
+          requestBody.cursor = cursor;
+        }
+
+        const runsQueryResponse = await fetch(runsQueryUrl, {
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!runsQueryResponse.ok) {
+          const errorText = await runsQueryResponse.text();
+          console.error('❌ [DEBUG] Runs query API error:', runsQueryResponse.status, runsQueryResponse.statusText, errorText);
+          throw new Error(`Failed to query runs: ${runsQueryResponse.status} ${runsQueryResponse.statusText}`);
+        }
+
+        const runsData = await runsQueryResponse.json();
+        const batchTraceIds = runsData.runs?.map((run: any) => run.id) || [];
+        
+        allTraceIds.push(...batchTraceIds);
+        console.log(`📊 [DEBUG] Found ${batchTraceIds.length} runs in this batch (total so far: ${allTraceIds.length})`);
+
+        // Get the next cursor for pagination
+        cursor = runsData.cursors?.next || null;
+        pageCount++;
+
+        // Safety break - avoid infinite loop
+        if (pageCount > 100) {
+          console.warn('⚠️ [DEBUG] Breaking pagination loop at 100 pages for safety');
+          break;
+        }
+      } while (cursor);
+      
+      console.log('📊 [DEBUG] Total runs found to delete:', allTraceIds.length);
+
+      if (allTraceIds.length === 0) {
+        return {
+          success: true,
+          message: `No runs found for experiment "${experimentData.name}" - it may already be empty`,
+          deletedCount: 0,
+        };
+      }
+
+      // Delete runs in batches (API might have limits on trace_ids array size)
+      const deleteUrl = `${baseUrl}/api/v1/runs/delete`;
+      const batchSize = 100; // Delete in batches
+      let totalDeleted = 0;
+
+      for (let i = 0; i < allTraceIds.length; i += batchSize) {
+        const batchTraceIds = allTraceIds.slice(i, i + batchSize);
+        console.log(`🗑️ [DEBUG] Deleting batch ${Math.floor(i / batchSize) + 1} (${batchTraceIds.length} runs)`);
+
+        const deleteResponse = await fetch(deleteUrl, {
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            session_id: experimentId,
+            trace_ids: batchTraceIds,
+          }),
+        });
+
+        if (!deleteResponse.ok) {
+          const errorText = await deleteResponse.text();
+          console.error('❌ [DEBUG] Delete API error:', deleteResponse.status, deleteResponse.statusText, errorText);
+          throw new Error(`Failed to delete runs batch: ${deleteResponse.status} ${deleteResponse.statusText}`);
+        }
+
+        totalDeleted += batchTraceIds.length;
+        console.log(`✅ [DEBUG] Successfully deleted batch (${totalDeleted}/${allTraceIds.length} total)`);
+
+        // Add a small delay between batches to be nice to the API
+        if (i + batchSize < allTraceIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log('✅ [DEBUG] Successfully deleted all runs for experiment:', experimentId);
+
+      return {
+        success: true,
+        message: `Attempted to delete ${totalDeleted} runs for experiment "${experimentData.name}". Note: LangSmith may not permanently delete runs and they may remain visible in the dashboard. For true deletion, contact LangSmith support.`,
+        deletedCount: totalDeleted,
+      };
+
+    } catch (error) {
+      console.error('❌ [DEBUG] Error deleting experiment runs:', error);
+      return {
+        success: false,
+        message: `Failed to delete experiment runs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
     }
   }
 } 

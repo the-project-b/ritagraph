@@ -1,5 +1,10 @@
 import { LangSmithService } from '../langsmith/service.js';
-import type { GetDatasetExperimentsInput, GetExperimentDetailsInput, RunEvaluationInput, CompanyInfo } from '../types/index.js';
+import type { 
+  GetDatasetExperimentsInput, 
+  GetExperimentDetailsInput, 
+  RunEvaluationInput, 
+  DeleteExperimentRunsInput 
+} from '../types/index.js';
 import type { GraphQLContext } from '../types/context.js';
 import { GraphQLJSON } from 'graphql-scalars';
 import { requireAuth } from './auth.helpers.js';
@@ -91,6 +96,12 @@ export const resolvers = {
       
       const langsmithService = new LangSmithService();
       return langsmithService.runEvaluation(input, context);
+    },
+    deleteExperimentRuns: async (_: unknown, { input }: { input: DeleteExperimentRunsInput }, context: GraphQLContext) => {
+      requireAuth(context);
+      
+      const langsmithService = new LangSmithService();
+      return langsmithService.deleteExperimentRuns(input);
     },
   },
 };
