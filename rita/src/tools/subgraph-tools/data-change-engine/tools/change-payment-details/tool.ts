@@ -3,27 +3,33 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { createGraphQLClient } from "../../utils/graphql/client";
-import { ToolContext } from "../tool-context";
-import { Mutation } from "../../graphs/shared-types/base-annotation";
+import { createGraphQLClient } from "../../../../../utils/graphql/client";
+import { ToolFactoryToolDefintion } from "../../../../tool-factory";
+import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
-import { Command, getCurrentTaskInput } from "@langchain/langgraph";
-import { ToolMessage } from "@langchain/core/messages";
-import { PaymentFrequency } from "../../generated/graphql";
+import { PaymentFrequency } from "../../../../../generated/graphql";
+import { ExtendedToolContext } from "../../tool";
+import {
+  getPayment,
+  placeHolderQuery,
+  updatePayment,
+} from "./queries-defintions";
 
 function prefixedLog(...message: Array<any>) {
   console.log(`[TOOL > change_payment_details]`, ...message);
 }
 
-export const changePaymentDetails = (ctx: ToolContext) =>
+export const changePaymentDetails: ToolFactoryToolDefintion<
+  ExtendedToolContext
+> = (ctx) =>
   tool(
-    async (
-      { employeeId, contractId, newAmount, newFrequency },
-      { toolCall }
-    ) => {
+    async ({ employeeId, contractId, newAmount, newFrequency }) => {
       console.log("[TOOL > change_payment_details]");
 
-      const client = createGraphQLClient(ctx.accessToken);
+      const { selectedCompanyId, accessToken } = ctx;
+      const { addDataChangeProposal } = ctx.extendedContext;
+
+      const client = createGraphQLClient(accessToken);
 
       // 1) Get how many contracts the employee has
 
@@ -33,7 +39,7 @@ export const changePaymentDetails = (ctx: ToolContext) =>
         const employee = await client.getEmployeeById({
           data: {
             employeeId: employeeId,
-            employeeCompanyId: ctx.selectedCompanyId,
+            employeeCompanyId: selectedCompanyId,
           },
         });
 
@@ -72,11 +78,19 @@ export const changePaymentDetails = (ctx: ToolContext) =>
       const payments = await client.getPaymentsByContractId({
         data: {
           contractIds: [contractId!],
-          companyId: ctx.selectedCompanyId,
+          companyId: selectedCompanyId,
         },
       });
 
       prefixedLog("payments", payments);
+
+      const baseDataChangeProps = {
+        id: uuid(),
+        relatedUserId: employeeId,
+        description: `Change payment details for ${employeeId}`,
+        status: "pending" as "approved" | "pending" | "rejected",
+        createdAt: new Date().toISOString(),
+      };
 
       if (payments.payments.length === 0) {
         return {
@@ -84,60 +98,58 @@ export const changePaymentDetails = (ctx: ToolContext) =>
         };
       }
 
-      const mutations: Array<Mutation> = [];
+      const newProposals: Array<DataChangeProposal> = [];
       const payment = payments.payments[0];
 
       prefixedLog("payment", payment);
 
       if (newAmount) {
-        const mutation: Mutation = {
-          id: uuid(),
+        const mutation: DataChangeProposal = {
+          ...baseDataChangeProps,
           description: `Change amount of payment ${payment.userFirstName} ${payment.userLastName} to ${newAmount}`,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-          statusQuoQuery: "...",
-          mutationQuery: "...",
-          variables: {
-            id: payment.id,
-            newAmount: newAmount,
-          },
+          statusQuoQuery: getPayment(payment.id, "payment.properties.amount"),
+          mutationQuery: updatePayment(
+            {
+              id: payment.id,
+              properties: {
+                amount: newAmount,
+                monthlyHours: payment.properties.monthlyHours,
+              },
+            },
+            "payment.properties.amount"
+          ),
+          changedField: "Salary",
+          newValue: newAmount.toFixed(2).toString(),
         };
-        mutations.push(mutation);
+        newProposals.push(mutation);
       }
 
       if (newFrequency) {
-        const mutation: Mutation = {
-          id: uuid(),
+        const mutation: DataChangeProposal = {
+          ...baseDataChangeProps,
           description: `Change frequency of payment ${payment.userFirstName} ${payment.userLastName} to ${newFrequency}`,
-          status: "pending",
-          createdAt: new Date().toISOString(),
-          statusQuoQuery: "...",
-          mutationQuery: "...",
-          variables: {
-            id: payment.id,
-            newFrequency: newFrequency,
-          },
+          statusQuoQuery: getPayment(payment.id, "payment.frequency"),
+          mutationQuery: placeHolderQuery,
+          changedField: "Salary Frequency",
+          newValue: newFrequency.toString(),
         };
 
-        mutations.push(mutation);
+        newProposals.push(mutation);
       }
 
-      const existingMutations = (getCurrentTaskInput() as any).mutations ?? [];
+      newProposals.forEach((proposal) => addDataChangeProposal(proposal));
 
-      prefixedLog("mutations", mutations);
+      prefixedLog("dataChangeProposals", newProposals);
 
-      return new Command({
-        update: {
-          mutations: [...existingMutations, ...mutations],
-          // Why not use taskEngineMessages? Well our tool node maps the messages to the taskEngineMessages (this way tools are more universal)
-          messages: [
-            new ToolMessage({
-              content: `Scheduled a mutation to change the payment details for ${payment.userFirstName} ${payment.userLastName}. You can confirm the scheduled by listing the mutations`,
-              tool_call_id: toolCall.id,
-            }),
-          ],
-        },
-      });
+      return {
+        instructions: `
+These are the pending data change proposals. You can use them to approve the based on the confirmation of the user.
+`,
+        dataChangeProposals: newProposals.map((proposal) => ({
+          id: proposal.id,
+          description: proposal.description,
+        })),
+      };
     },
     {
       name: "change_payment_details",

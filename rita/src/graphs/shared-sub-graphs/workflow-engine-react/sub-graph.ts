@@ -17,7 +17,6 @@ import { Node, ToolInterface } from "../../shared-types/node-types.js";
 import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
-  Mutation,
 } from "../../shared-types/base-annotation.js";
 import { abortOutput } from "./nodes/abort-output.js";
 import { BaseMessage, isAIMessage } from "@langchain/core/messages";

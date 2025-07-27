@@ -11,3 +11,5 @@ export function createGraphQLClient(accessToken: string) {
 
   return sdk;
 }
+
+export type GraphQLClientType = ReturnType<typeof createGraphQLClient>;

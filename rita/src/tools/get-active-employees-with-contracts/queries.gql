@@ -1,0 +1,13 @@
+query getActiveEmployeesWithContracts($data: EmployeeContractStatusInput!) {
+  employeesByCompany(data: $data) {
+    id
+    firstName
+    lastName
+    role
+    employeeContract {
+      id
+      contractStart
+      contractEnd
+    }
+  }
+}

@@ -11,16 +11,6 @@ import { onBaseMessages } from "../../../utils/message-filter.js";
  * bad if the agent takes ages to respond to it.
  */
 export const router: Node = async (state) => {
-  // First lets check if we need to enter a different entry point
-  const amountOfPendingMutations = state.mutations.filter(
-    (mutation) => mutation.status === "pending"
-  ).length;
-
-  if (amountOfPendingMutations > 0) {
-    console.log("🔨 Pending mutations found, routing to approveMutations");
-    return { routingDecision: "APPROVE_MUTATIONS" };
-  }
-
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
@@ -63,10 +53,6 @@ export function routerEdgeDecision(state: GraphStateType) {
 
   if (state.routingDecision === "WORKFLOW_ENGINE") {
     return "workflowEngine";
-  }
-
-  if (state.routingDecision === "APPROVE_MUTATIONS") {
-    return "approveMutations";
   }
 
   return "workflowEngine";

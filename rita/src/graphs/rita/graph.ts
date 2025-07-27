@@ -20,11 +20,11 @@ import { getAuthUser } from "../../security/auth.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
-  changePaymentDetails,
   getPaymentsOfEmployee,
-  listPendingMutations,
+  mutationEngine,
+  getActiveEmployeesWithContracts,
 } from "../../tools/index.js";
-import { approveMutations } from "../../tools/approve-mutations/tool.js";
+import { toolFactory } from "../../tools/tool-factory.js";
 
 async function fetchTools(
   companyId: string,
@@ -41,12 +41,16 @@ async function fetchTools(
     selectedCompanyId: companyId,
   };
 
-  return [
-    ...mcpTools,
-    getPaymentsOfEmployee(toolContext),
-    changePaymentDetails(toolContext),
-    listPendingMutations(),
-  ];
+  const tools = toolFactory<undefined>({
+    toolDefintions: [
+      getPaymentsOfEmployee,
+      //mutationEngine,
+      getActiveEmployeesWithContracts,
+    ],
+    ctx: toolContext,
+  });
+
+  return [...mcpTools, ...tools];
 }
 
 const graph = async () => {
@@ -70,7 +74,6 @@ const graph = async () => {
           ends: ["finalMessage"],
         }
       )
-      .addNode("approveMutations", approveMutations)
       .addNode("finalMessage", finalMessage)
       // => Edges
       .addEdge(START, "loadSettings")
@@ -78,9 +81,7 @@ const graph = async () => {
       .addConditionalEdges("router", routerEdgeDecision, [
         "quickResponse",
         "workflowEngine",
-        "approveMutations",
       ])
-      .addEdge("approveMutations", END)
       .addEdge("workflowEngine", "finalMessage")
       .addEdge("finalMessage", END);
 

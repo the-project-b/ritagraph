@@ -1,13 +1,11 @@
 /**
  * This is just some bogus tool to test tool interactions and human approval flows
- *
  */
-
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../utils/graphql/client";
 import { GetEmployeeByIdQuery } from "../../generated/graphql";
-import { ToolContext } from "../tool-context";
+import { ToolContext } from "../tool-factory";
 
 export const getPaymentsOfEmployee = (ctx: ToolContext) =>
   tool(

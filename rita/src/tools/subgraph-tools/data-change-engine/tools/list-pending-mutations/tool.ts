@@ -1,20 +1,19 @@
 /**
  * This is just some bogus tool to test tool interactions and human approval flows
- *
  */
 
-import { getCurrentTaskInput } from "@langchain/langgraph";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { ToolFactoryToolDefintion } from "../../../../tool-factory";
+import { ExtendedToolContext } from "../../tool";
 
-export const listPendingMutations = () =>
+export const listDataChangeProposals: ToolFactoryToolDefintion<
+  ExtendedToolContext
+> = (ctx) =>
   tool(
     async () => {
       console.log("[TOOL > list_pending_mutations]");
-
-      const currentTaskInput = getCurrentTaskInput();
-
-      const mutations = (currentTaskInput as any).mutations;
+      const mutations = ctx.extendedContext.listDataChangeProposals();
 
       if (!mutations) {
         return {
@@ -32,9 +31,9 @@ These are the pending mutation ids with their description. You can use them to a
       };
     },
     {
-      name: "list_pending_mutations",
+      name: "list_data_change_proposals",
       description:
-        "All mutations have to be approved by the user. This tool will list all pending mutations, which then can be approved by using their id and the corresponding tool call",
+        "All data change proposals have to be approved by the user. This tool will list all pending data change proposals, which then can be approved by using their id and the corresponding tool call",
       schema: z.object({}),
     }
   );

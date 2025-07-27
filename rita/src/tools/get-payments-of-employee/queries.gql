@@ -2,6 +2,7 @@ query getPayments($data: PaymentsListInput!) {
   payments(data: $data) {
     userEmail
     userLastName
+    userFirstName
     typeName
     typeTranslationKey
     frequency
@@ -18,11 +19,25 @@ query getPayments($data: PaymentsListInput!) {
   }
 }
 
-query getPaymentsByContractId($data: ) {
+query getPaymentsByContractId($data: PaymentsListInput!) {
   payments(data: $data) {
     id
-    amount
+    userEmail
+    userFirstName
+    userLastName
+    typeName
+    typeTranslationKey
     frequency
+    paymentType {
+      compensationBaseTypeId
+      name
+      translationKey
+    }
+    properties {
+      amount
+      title
+      monthlyHours
+    }
   }
 }
 
