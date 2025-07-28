@@ -146,4 +146,14 @@ export interface CompanyInfo {
 
 export interface AvailableCompaniesResponse {
   companies: CompanyInfo[];
+}
+
+export interface DeleteExperimentRunsInput {
+  experimentId: string;
+}
+
+export interface DeleteExperimentRunsResult {
+  success: boolean;
+  message: string;
+  deletedCount?: number;
 } 
