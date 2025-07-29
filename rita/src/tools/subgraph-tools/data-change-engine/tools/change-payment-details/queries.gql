@@ -10,3 +10,14 @@ query getEmployeeById($data: GetEmployeeInput!) {
     }
   }
 }
+
+mutation createRitaThreadItem($input: CreateRitaThreadItemInput!) {
+  createRitaThreadItem(input: $input) {
+    createdAt
+    data
+    id
+    ownerId
+    ritaThreadId
+    updatedAt
+  }
+}

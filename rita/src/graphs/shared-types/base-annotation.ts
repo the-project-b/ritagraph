@@ -21,6 +21,7 @@ export type DataChangeProposal = {
 
   // Bound to change
   changedField: string;
+  previousValueAtApproval?: string;
   newValue: string;
 };
 

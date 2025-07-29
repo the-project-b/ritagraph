@@ -23,7 +23,7 @@
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "langgraph:dev": "npx @langchain/langgraph-cli dev",
+    "langgraph:dev": "npx @langchain/langgraph-cli@0.0.51 dev",
     "langgraph:dev:tunnel": "npx @langchain/langgraph-cli dev --tunnel",
     "test": "jest",
     "codegen:graphql": "graphql-codegen"

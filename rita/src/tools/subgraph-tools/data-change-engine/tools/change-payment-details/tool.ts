@@ -7,13 +7,18 @@ import { createGraphQLClient } from "../../../../../utils/graphql/client";
 import { ToolFactoryToolDefintion } from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
-import { PaymentFrequency } from "../../../../../generated/graphql";
+import {
+  CreateThreadItemMutation,
+  PaymentFrequency,
+  RitaThreadItemType,
+} from "../../../../../generated/graphql";
 import { ExtendedToolContext } from "../../tool";
 import {
   getPayment,
   placeHolderQuery,
   updatePayment,
 } from "./queries-defintions";
+import { Result } from "../../../../../utils/types/result";
 
 function prefixedLog(...message: Array<any>) {
   console.log(`[TOOL > change_payment_details]`, ...message);
@@ -23,11 +28,12 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
   ExtendedToolContext
 > = (ctx) =>
   tool(
-    async ({ employeeId, contractId, newAmount, newFrequency }) => {
+    async ({ employeeId, contractId, newAmount, newFrequency }, config) => {
       console.log("[TOOL > change_payment_details]");
 
       const { selectedCompanyId, accessToken } = ctx;
       const { addDataChangeProposal } = ctx.extendedContext;
+      const { thread_id } = config.configurable;
 
       const client = createGraphQLClient(accessToken);
 
@@ -104,7 +110,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
       prefixedLog("payment", payment);
 
       if (newAmount) {
-        const mutation: DataChangeProposal = {
+        const dataChangeProposal: DataChangeProposal = {
           ...baseDataChangeProps,
           description: `Change amount of payment ${payment.userFirstName} ${payment.userLastName} to ${newAmount}`,
           statusQuoQuery: getPayment(payment.id, "payment.properties.amount"),
@@ -121,11 +127,11 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
           changedField: "Salary",
           newValue: newAmount.toFixed(2).toString(),
         };
-        newProposals.push(mutation);
+        newProposals.push(dataChangeProposal);
       }
 
       if (newFrequency) {
-        const mutation: DataChangeProposal = {
+        const dataChangeProposal: DataChangeProposal = {
           ...baseDataChangeProps,
           description: `Change frequency of payment ${payment.userFirstName} ${payment.userLastName} to ${newFrequency}`,
           statusQuoQuery: getPayment(payment.id, "payment.frequency"),
@@ -134,10 +140,35 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
           newValue: newFrequency.toString(),
         };
 
-        newProposals.push(mutation);
+        newProposals.push(dataChangeProposal);
       }
 
-      newProposals.forEach((proposal) => addDataChangeProposal(proposal));
+      const newProposalDbUpdateResults = await Promise.all(
+        newProposals.map((proposal) =>
+          createThreadItemForProposal(proposal, thread_id, accessToken)
+        )
+      );
+
+      // TODO: Remove this once we have a way to handle failed thread items
+      if (newProposalDbUpdateResults.some(Result.isFailure)) {
+        const failedThreadItems = newProposalDbUpdateResults.filter(
+          Result.isFailure
+        );
+        const issues = failedThreadItems
+          .map((item) => Result.unwrapFailure(item))
+          .join("\n");
+
+        console.error(
+          "Failed to create thread items for the data change proposals.",
+          issues
+        );
+
+        return {
+          error: "Failed to create thread items for the data change proposals.",
+        };
+      }
+
+      //newProposals.forEach((proposal) => addDataChangeProposal(proposal));
 
       prefixedLog("dataChangeProposals", newProposals);
 
@@ -174,3 +205,27 @@ These are the pending data change proposals. You can use them to approve the bas
       }),
     }
   );
+
+async function createThreadItemForProposal(
+  proposal: DataChangeProposal,
+  threadId: string,
+  accessToken: string
+): Promise<Result<CreateThreadItemMutation>> {
+  try {
+    const client = createGraphQLClient(accessToken);
+    const threadItem = await client.createRitaThreadItem({
+      input: {
+        ritaThreadId: threadId,
+        type: RitaThreadItemType.DataChangeProposal,
+        data: {
+          type: "DATA_CHANGE_PROPOSAL",
+          data: proposal,
+        },
+      },
+    });
+
+    return Result.success(threadItem);
+  } catch (error) {
+    return Result.failure(error as Error);
+  }
+}

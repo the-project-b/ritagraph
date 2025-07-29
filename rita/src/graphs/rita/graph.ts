@@ -44,7 +44,7 @@ async function fetchTools(
   const tools = toolFactory<undefined>({
     toolDefintions: [
       getPaymentsOfEmployee,
-      //mutationEngine,
+      mutationEngine,
       getActiveEmployeesWithContracts,
     ],
     ctx: toolContext,

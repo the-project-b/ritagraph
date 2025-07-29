@@ -14,7 +14,7 @@ export const finalMessage: Node = async ({
   messages,
   mutations,
 }) => {
-  console.log("💬 Final Response - state:");
+  console.log("💬 Final Response");
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
   const systemPrompt = await PromptTemplate.fromTemplate(

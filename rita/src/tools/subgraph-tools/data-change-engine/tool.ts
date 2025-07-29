@@ -68,16 +68,11 @@ You get a vague request from the user and you have to resolve it using your tool
 
       const agent = buildDataChangeEngineGraph({ tools });
 
-      const response = await agent.invoke(
-        {
-          messages: await messagePrompt.formatMessages({
-            usersRequest,
-          }),
-        },
-        {
-          runId: config.toolCall.id,
-        }
-      );
+      const response = await agent.invoke({
+        messages: await messagePrompt.formatMessages({
+          usersRequest,
+        }),
+      });
 
       return new Command({
         update: {
