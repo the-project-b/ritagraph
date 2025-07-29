@@ -3,18 +3,19 @@ import type {
   GetDatasetExperimentsInput, 
   GetExperimentDetailsInput, 
   RunEvaluationInput, 
-  DeleteExperimentRunsInput 
+  DeleteExperimentRunsInput,
+  GraphQLContext
 } from '../types/index.js';
-import type { GraphQLContext } from '../types/context.js';
 import { GraphQLJSON } from 'graphql-scalars';
 import { requireAuth } from './auth.helpers.js';
-import { EVALUATOR_INFO } from '../langsmith/evaluators.js';
+import { EVALUATOR_INFO } from '../evaluators/core/factory.js';
+import type { Resolvers, RunParent } from './types.js';
 
-export const resolvers = {
+export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
   JSON: GraphQLJSON,
   Run: {
     // Field resolver for lazy loading feedback
-    feedback: async (parent: any, _: any, context: GraphQLContext) => {
+    feedback: async (parent: RunParent, _args, context: GraphQLContext) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();
@@ -23,7 +24,7 @@ export const resolvers = {
   },
   Query: {
     healthCheck: () => 'Server is running!',
-    getDatasetExperiments: async (_: unknown, { input }: { input: GetDatasetExperimentsInput }, context: GraphQLContext) => {
+    getDatasetExperiments: async (_parent, { input }, context) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();
@@ -40,7 +41,7 @@ export const resolvers = {
         total: result.total,
       };
     },
-    getExperimentDetails: async (_: unknown, { input }: { input: GetExperimentDetailsInput }, context: GraphQLContext) => {
+    getExperimentDetails: async (_parent, { input }, context) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();
@@ -61,7 +62,7 @@ export const resolvers = {
         totalRuns: result.totalRuns,
       };
     },
-    getAvailableGraphs: async (_: unknown, __: unknown, context: GraphQLContext) => {
+    getAvailableGraphs: async (_parent, _args, context) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();
@@ -74,7 +75,7 @@ export const resolvers = {
         evaluators,
       };
     },
-    getAvailableCompanies: async (_: unknown, __: unknown, context: GraphQLContext) => {
+    getAvailableCompanies: async (_parent, _args, context) => {
       const user = requireAuth(context);
       
       // Transform the user's companies to match the GraphQL schema
@@ -83,6 +84,7 @@ export const resolvers = {
         companyName: company.companyName,
         companyAvatarUrl: company.companyAvatarUrl,
         role: company.role,
+        managingCompany: company.managingCompany,
       }));
       
       return {
@@ -91,13 +93,13 @@ export const resolvers = {
     },
   },
   Mutation: {
-    runEvaluation: async (_: unknown, { input }: { input: RunEvaluationInput }, context: GraphQLContext) => {
+    runEvaluation: async (_parent, { input }, context) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();
       return langsmithService.runEvaluation(input, context);
     },
-    deleteExperimentRuns: async (_: unknown, { input }: { input: DeleteExperimentRunsInput }, context: GraphQLContext) => {
+    deleteExperimentRuns: async (_parent, { input }, context) => {
       requireAuth(context);
       
       const langsmithService = new LangSmithService();

@@ -4,10 +4,13 @@ export type GraphName = 'rita';
 // Re-export context types
 export type { GraphQLContext } from './context.js';
 
+// Import evaluator types
+import type { ModelIdentifier } from '../evaluators/core/types';
+
 export interface EvaluatorInput {
-  type: 'CORRECTNESS';
+  type: string;
   customPrompt?: string;
-  model?: string;
+  model?: ModelIdentifier;
   referenceKey?: string;
 }
 
@@ -110,7 +113,7 @@ export interface EvaluatorFeedback {
 }
 
 export interface FeedbackStats {
-  correctness?: EvaluatorFeedback;
+  expected_output?: EvaluatorFeedback;
   // Add other evaluators as needed in the future
   [key: string]: EvaluatorFeedback | undefined;
 }

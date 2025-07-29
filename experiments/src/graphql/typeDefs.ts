@@ -14,16 +14,13 @@ export const typeDefs = gql`
     rita
   }
 
-  # Enum for the supported evaluators
-  enum EvaluatorType {
-    "Measures if the output is factually correct based on a reference answer"
-    CORRECTNESS
-  }
+  # Evaluator types are dynamically registered
+  # Use getAvailableEvaluators query to see all available types
 
   # Input type for specifying an evaluator and its configuration
   input EvaluatorInput {
-    "The type of evaluator to run"
-    type: EvaluatorType!
+    "The type of evaluator to run (e.g., 'EXPECTED_OUTPUT')"
+    type: String!
     "An optional custom prompt to override the evaluator's default"
     customPrompt: String
     "An optional model name to override the evaluator's default (e.g., 'openai:gpt-4')"
@@ -154,8 +151,8 @@ export const typeDefs = gql`
 
   # Represents all feedback statistics for an experiment
   type FeedbackStats {
-    "Correctness evaluator feedback"
-    correctness: EvaluatorFeedback
+    "Expected output evaluator feedback"
+    expected_output: EvaluatorFeedback
     # Add other evaluators as needed in the future
   }
 
@@ -324,7 +321,7 @@ export const typeDefs = gql`
   # Information about an available evaluator
   type EvaluatorInfo {
     "The evaluator type identifier"
-    type: EvaluatorType!
+    type: String!
     "Human-readable name of the evaluator"
     name: String!
     "Description of what this evaluator measures"

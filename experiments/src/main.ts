@@ -9,6 +9,7 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers } from './graphql/resolvers.js';
 import { authMiddleware } from './auth/middleware.js';
+import { EvaluatorRegistry } from './evaluators/core/registry.js';
 
 async function startServer(): Promise<void> {
   const app = express();
@@ -16,7 +17,7 @@ async function startServer(): Promise<void> {
 
   const server = new ApolloServer({
     typeDefs,
-    resolvers,
+    resolvers: resolvers as any, // Type assertion to work around Apollo's loose typing
     plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
     introspection: process.env.NODE_ENV !== 'production',
   });
@@ -40,6 +41,14 @@ async function startServer(): Promise<void> {
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
   console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
   console.log(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
+  
+  // List registered evaluators
+  console.log(`\n📊 Registered Evaluators:`);
+  const evaluators = EvaluatorRegistry.getAll();
+  evaluators.forEach((evaluator) => {
+    console.log(`  - ${evaluator.config.type}: ${evaluator.config.description}`);
+  });
+  console.log(`  Total: ${evaluators.length} evaluator(s) registered\n`);
 }
 
 startServer().catch((error) => {

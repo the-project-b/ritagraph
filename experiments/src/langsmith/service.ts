@@ -17,7 +17,7 @@ import type {
   DeleteExperimentRunsInput,
   DeleteExperimentRunsResult
 } from '../types/index.js';
-import { createEvaluator } from './evaluators.js';
+import { createEvaluator } from '../evaluators/core/factory.js';
 import { GraphQLErrors } from '../graphql/errors.js';
 
 // Map aliases
