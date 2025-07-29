@@ -1,6 +1,6 @@
 import { Auth, HTTPException } from "@langchain/langgraph-sdk/auth";
 import { createDecipheriv, createHash } from 'crypto';
-import { ViewAsValue, AuthUser } from "./types.js";
+import { ViewAsValue, AuthUser } from "@ritagraph/types";
 
 export const auth: Auth = new Auth();
 

@@ -19,9 +19,9 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
-    "dev": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
-    "langgraph:dev": "npx @langchain/langgraph-cli dev",
-    "langgraph:dev:tunnel": "npx @langchain/langgraph-cli dev --tunnel",
+    "dev": "@langchain/langgraph-cli dev",
+    "langgraph:dev": "@langchain/langgraph-cli dev",
+    "langgraph:dev:tunnel": "@langchain/langgraph-cli dev --tunnel",
     "test": "jest",
     "clean": "rm -rf dist"
   },
@@ -36,6 +36,8 @@
     "@langchain/mcp-adapters": "^0.5.2",
     "@langchain/openai": "^0.5.15",
     "@modelcontextprotocol/sdk": "^1.13.0",
+    "@ritagraph/graphql-client": "*",
+    "@ritagraph/types": "*",
     "langsmith": "^0.3.33",
     "zod": "^3.25.28"
   },

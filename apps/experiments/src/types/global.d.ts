@@ -1,4 +1,4 @@
-import { VerifiedUser } from '../auth/types.js';
+import { VerifiedUser } from '@ritagraph/types';
 
 declare global {
   namespace Express {

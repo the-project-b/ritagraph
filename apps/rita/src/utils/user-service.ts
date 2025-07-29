@@ -1,11 +1,11 @@
-import { graphqlClient } from "./graphql-client.js";
 import {
+  graphqlClient,
   ME_QUERY,
   MeResponse,
   EMPLOYEES_BY_COMPANY_QUERY,
   EmployeesByCompanyResponse,
   EmployeesByCompanyInput,
-} from "./graphql-queries.js";
+} from "@ritagraph/graphql-client";
 import { PlaceholderContext } from "../placeholders/types.js";
 
 /**

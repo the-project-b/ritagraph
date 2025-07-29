@@ -1,5 +1,5 @@
-import { ME_QUERY } from '../graphql/queries.js';
-import { Auth0UserResponse, AuthError, Me, UserToCompaniesResponse, VerifiedUser } from './types.js';
+import { ME_QUERY } from '@ritagraph/graphql-client';
+import { Auth0UserResponse, AuthError, Me, UserToCompaniesResponse, VerifiedUser } from '@ritagraph/types';
 
 export class AuthService {
   private readonly graphqlEndpoint: string;

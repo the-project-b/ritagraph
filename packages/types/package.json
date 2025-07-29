@@ -1,0 +1,25 @@
+{
+  "name": "@ritagraph/types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for RitaGraph applications",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@tsconfig/recommended": "^1.0.2",
+    "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

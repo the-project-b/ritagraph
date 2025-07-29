@@ -1,4 +1,4 @@
-import { VerifiedUser } from '../auth/types.js';
+import { VerifiedUser } from '@ritagraph/types';
 import { AuthUtils } from '../auth/auth.utils.js';
 import { GraphQLErrors } from './errors.js';
 import type { GraphQLContext } from '../types/context.js';
