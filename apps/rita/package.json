@@ -19,13 +19,11 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
-    "lint": "eslint src",
-    "lint:fix": "npm run lint -- --fix",
-    "format": "prettier --write \"**/*.ts\"",
-    "format:check": "prettier --check \"**/*.ts\"",
+    "dev": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
     "langgraph:dev": "npx @langchain/langgraph-cli dev",
     "langgraph:dev:tunnel": "npx @langchain/langgraph-cli dev --tunnel",
-    "test": "jest"
+    "test": "jest",
+    "clean": "rm -rf dist"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",
   "license": "MIT",
