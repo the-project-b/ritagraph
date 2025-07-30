@@ -1,0 +1,10 @@
+query getThreadItemsByLanggraphThreadId($langgraphId: String!) {
+  threadByLanggraphId(langgraphId: $langgraphId) {
+    threadItems {
+      data
+      id
+      createdAt
+      updatedAt
+    }
+  }
+}

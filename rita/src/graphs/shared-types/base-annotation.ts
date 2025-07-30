@@ -1,4 +1,5 @@
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
+import { QueryDefinition } from "../../utils/types/query-defintion";
 
 export function AnnotationWithDefault<T>(defaultValue: T) {
   return Annotation<T>({
@@ -6,6 +7,23 @@ export function AnnotationWithDefault<T>(defaultValue: T) {
     default: () => defaultValue,
   });
 }
+
+export type DataChangeProposal = {
+  createdAt: string;
+  // E.g.: "Change salary for x from 1000 -> 1500"
+  description: string;
+  id: string;
+
+  statusQuoQuery: QueryDefinition;
+  mutationQuery: QueryDefinition;
+  relatedUserId?: string;
+  status: "approved" | "pending" | "rejected";
+
+  // Bound to change
+  changedField: string;
+  previousValueAtApproval?: string;
+  newValue: string;
+};
 
 export const BaseGraphAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,

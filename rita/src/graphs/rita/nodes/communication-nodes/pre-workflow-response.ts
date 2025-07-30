@@ -12,7 +12,7 @@ export const preWorkflowResponse: Node = async ({
   messages,
   preferredLanguage,
 }) => {
-  console.log("💬 Direct Response - state:");
+  console.log("💬 Direct Response");
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
 

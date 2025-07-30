@@ -19,18 +19,38 @@ import { createMcpClient } from "../../mcp/client.js";
 import { getAuthUser } from "../../security/auth.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
+import {
+  getPaymentsOfEmployee,
+  mutationEngine,
+  getActiveEmployeesWithContracts,
+} from "../../tools/index.js";
+import { toolFactory } from "../../tools/tool-factory.js";
 
 async function fetchTools(
   companyId: string,
   config: AnnotationRoot<any>
 ): Promise<Array<ToolInterface>> {
-  const authUser = await getAuthUser(config);
+  const authUser = getAuthUser(config);
   const mcpClient = createMcpClient({
     accessToken: authUser.token,
     companyId: companyId,
   });
-  const tools = await mcpClient.getTools();
-  return tools;
+  const mcpTools = await mcpClient.getTools();
+  const toolContext = {
+    accessToken: authUser.token,
+    selectedCompanyId: companyId,
+  };
+
+  const tools = toolFactory<undefined>({
+    toolDefintions: [
+      getPaymentsOfEmployee,
+      mutationEngine,
+      getActiveEmployeesWithContracts,
+    ],
+    ctx: toolContext,
+  });
+
+  return [...mcpTools, ...tools];
 }
 
 const graph = async () => {
@@ -49,7 +69,10 @@ const graph = async () => {
           configAnnotation: ConfigurableAnnotation,
           quickUpdateNode: quickUpdate,
           preWorkflowResponse: preWorkflowResponse,
-        })
+        }),
+        {
+          ends: ["finalMessage"],
+        }
       )
       .addNode("finalMessage", finalMessage)
       // => Edges

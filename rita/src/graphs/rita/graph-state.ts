@@ -16,9 +16,6 @@ export const GraphState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
   workflowEngineResponseDraft: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
-  routingDecision: Annotation<
-    "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
-  >(),
 });
 
 export type GraphStateType = typeof GraphState.State;

@@ -21,6 +21,9 @@ Add your reasoning to the response.
 respond in JSON with:
 - CASUAL_RESPONSE_WITHOUT_DATA when the user is not requesting anything and is just greeting or saying goodbye
 - WORKFLOW_ENGINE for anything else that requires a real answer or context or a tool call
+
+Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
+If the user is approving of something you should use the WORKFLOW_ENGINE.
   `
   ).format({});
 

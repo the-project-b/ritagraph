@@ -10,80 +10,89 @@ import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { AnnotationRoot } from "@langchain/langgraph";
 import { ToolInterface } from "../../../shared-types/node-types.js";
 
+const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
+
 export const plan: (
   fetchTools: (
     companyId: string,
     config: AnnotationRoot<any>
   ) => Promise<Array<ToolInterface>>
-) => WorkflowEngineNode = (fetchTools) => async (state, config) => {
-  console.log(
-    "🚀 Plan - Chain of thought length [%s]",
-    state.taskEngineMessages.length
-  );
+) => WorkflowEngineNode =
+  (fetchTools) =>
+  async (
+    { messages, taskEngineMessages, taskEngineLoopCounter, selectedCompanyId },
+    config
+  ) => {
+    console.log(
+      "🚀 Plan - Chain of thought length [%s]",
+      taskEngineMessages.length
+    );
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
+    // Check if the taskEngineLoopCounter is greater than max and then return early (to prevent additonal tool calls)
+    if (taskEngineLoopCounter > MAX_TASK_ENGINE_LOOP_COUNTER) {
+      return {};
+    }
 
-  const tools = await fetchTools(state.selectedCompanyId, config);
-  
-  const lastUserMessage = state.messages
-    .filter((i) => i instanceof HumanMessage)
-    .slice(-1);
+    const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
 
-  const systemPropmt = await PromptTemplate.fromTemplate(
-    `
-You are a Payroll Specialist and a ReAct agent that calls tools to solve the users request.
-You act based on previous results and try to solve the users request in the most efficient way.
+    const tools = await fetchTools(selectedCompanyId, config);
 
-Your job is to:
-1. Analyze the user's request carefully
-2. Check if you have enough information to solve the users request
-3. Define a next step (e.g. tool call) to gain the missing information
-4. Consider dependencies between steps
+    const lastUserMessage = messages
+      .filter((i) => i instanceof HumanMessage)
+      .slice(-1);
 
-Guidelines:
-- Break complex requests into smaller, manageable steps
-- Be specific about what tools to use and why
-- Consider in what order you need to gather information
-- Keep steps focused and clear
-- Try to only do one step at a time
+    const systemPropmt = await PromptTemplate.fromTemplate(
+      `
+You are a Payroll Specialist and a ReAct agent that solves user requests by interacting with tools.
 
-Format your thoguhts like this:
+Responsibilities
 
-Based on [...] I think we should do [...] in oder to [...].
+1. Understand the user's request
+   - Carefully analyze the query.
+   - Identify whether additional information is needed.
+
+2. Plan your actions
+   - Break the task into clear, manageable steps.
+   - Be specific about what to do next and which tool to use.
+   - Consider dependencies between steps (e.g., information needed for later actions).
+
+3. Act step-by-step
+   - Perform only one action at a time.
+   - After each action, reassess whether you now have enough information to proceed.
+
+4. Use tools deliberately
+   - Choose tools based on the current step.
+   - Only call a tool if it's clearly required for that step.
+
+Format Your Thoughts
+
+Always format your reasoning like this:
+
+Thought: Based on [observation], I think we should [action] in order to [goal].
+
+Then, take the next action (e.g., call a tool or or finalize the response).
 `
-  ).format({});
+    ).format({});
 
-  const chatPrompt = await ChatPromptTemplate.fromMessages([
-    new SystemMessage(systemPropmt),
-    ...lastUserMessage,
-    ...state.taskEngineMessages, //todo safely slice last 7 messages
-  ]).invoke({});
+    const chatPrompt = await ChatPromptTemplate.fromMessages([
+      new SystemMessage(systemPropmt),
+      ...lastUserMessage,
+      ...taskEngineMessages, //todo safely slice last 7 messages
+    ]).invoke({});
 
-  const response = await llm.bindTools(tools).invoke(chatPrompt);
+    const response = await llm.bindTools(tools).invoke(chatPrompt);
 
-  return {
-    taskEngineMessages: [response],
+    return {
+      taskEngineMessages: [response],
+      taskEngineLoopCounter: taskEngineLoopCounter + 1,
+    };
   };
-};
-
-// export function planEdgeDecision(state: WorkflowEngineStateType) {
-//   // Check if we have pending tool calls that need to be executed
-//   const lastMessage =
-//     state.taskEngineMessages[state.taskEngineMessages.length - 1];
-//   const hasPendingToolCalls =
-//     lastMessage instanceof AIMessageChunk &&
-//     lastMessage.tool_calls &&
-//     lastMessage.tool_calls.length > 0;
-
-//   // If we have pending tool calls, go to tools
-//   if (hasPendingToolCalls) {
-//     return "tools";
-//   }
-
-//   return "reflect";
-// }
 
 export function planEdgeDecision(state: WorkflowEngineStateType) {
+  if (state.taskEngineLoopCounter > MAX_TASK_ENGINE_LOOP_COUNTER) {
+    return "abortOutput";
+  }
+
   // Check if we have pending tool calls that need to be executed
   const lastMessage =
     state.taskEngineMessages[state.taskEngineMessages.length - 1];
