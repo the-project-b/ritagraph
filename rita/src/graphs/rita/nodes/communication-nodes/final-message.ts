@@ -12,7 +12,6 @@ export const finalMessage: Node = async ({
   workflowEngineResponseDraft,
   preferredLanguage,
   messages,
-  mutations,
 }) => {
   console.log("💬 Final Response");
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
@@ -56,12 +55,6 @@ Drafted Response: {draftedResponse}
   const response = await llm.invoke(prompt);
 
   return {
-    mutations: [],
-    messages: [
-      ...messages,
-      new AIMessage(response.content.toString(), {
-        mutations,
-      }),
-    ],
+    messages: [...messages, new AIMessage(response.content.toString())],
   };
 };

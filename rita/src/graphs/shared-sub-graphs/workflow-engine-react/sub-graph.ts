@@ -87,12 +87,10 @@ export function buildWorkflowEngineReAct({
 
         console.log("🚀 [TOOLS NODE] ~ updates:", {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
-          mutation: updates.map((update) => update.mutations).flat(),
         });
 
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
-          mutations: [...updates.map((update) => update.mutations).flat()],
         };
       }
 

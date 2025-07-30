@@ -1,6 +1,3 @@
-/**
- * This is just some bogus tool to test tool interactions and human approval flows
- */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
@@ -8,9 +5,8 @@ import { ToolFactoryToolDefintion } from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
 import {
-  CreateThreadItemMutation,
+  CreateRitaThreadItemMutation,
   PaymentFrequency,
-  RitaThreadItemType,
 } from "../../../../../generated/graphql";
 import { ExtendedToolContext } from "../../tool";
 import {
@@ -32,7 +28,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
       console.log("[TOOL > change_payment_details]");
 
       const { selectedCompanyId, accessToken } = ctx;
-      const { addDataChangeProposal } = ctx.extendedContext;
       const { thread_id } = config.configurable;
 
       const client = createGraphQLClient(accessToken);
@@ -210,16 +205,15 @@ async function createThreadItemForProposal(
   proposal: DataChangeProposal,
   threadId: string,
   accessToken: string
-): Promise<Result<CreateThreadItemMutation>> {
+): Promise<Result<CreateRitaThreadItemMutation>> {
   try {
     const client = createGraphQLClient(accessToken);
     const threadItem = await client.createRitaThreadItem({
       input: {
         ritaThreadId: threadId,
-        type: RitaThreadItemType.DataChangeProposal,
         data: {
           type: "DATA_CHANGE_PROPOSAL",
-          data: proposal,
+          proposal,
         },
       },
     });

@@ -1,7 +1,3 @@
-/**
- * This is just some bogus tool to test tool interactions and human approval flows
- *
- */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {

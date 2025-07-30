@@ -1,7 +1,3 @@
-/**
- * This is just some bogus tool to test tool interactions and human approval flows
- *
- */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -14,14 +10,12 @@ import { buildDataChangeEngineGraph } from "./sub-graph";
 import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
 import { getActiveEmployeesWithContracts } from "../../get-active-employees-with-contracts/tool";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
-import { Command, getCurrentTaskInput } from "@langchain/langgraph";
-import { DataChangeProposal } from "../../../graphs/shared-types/base-annotation";
+import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
-import { listDataChangeProposals as listDataChangeProposalsTool } from "./tools/list-pending-mutations/tool";
+import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
 
 export type ExtendedToolContext = {
-  addDataChangeProposal: (mutation: DataChangeProposal) => void;
-  listDataChangeProposals: () => Array<DataChangeProposal>;
+  // empty for now
 };
 
 /**
@@ -42,27 +36,16 @@ You get a vague request from the user and you have to resolve it using your tool
         new HumanMessage(usersRequest),
       ]);
 
-      const existingProposals =
-        (getCurrentTaskInput(config) as any).mutations ?? [];
-
-      const addDataChangeProposal = (proposal: DataChangeProposal): void => {
-        existingProposals.push(proposal);
-      };
-
-      const listDataChangeProposals = (): Array<DataChangeProposal> => {
-        return existingProposals;
-      };
-
       const tools = toolFactory<ExtendedToolContext>({
         toolDefintions: [
           getActiveEmployeesWithContracts,
           getPaymentsOfEmployee,
-          listDataChangeProposalsTool,
+          getCurrentDataChangeProposals,
           changePaymentDetails,
         ],
         ctx: {
           ...toolContext,
-          extendedContext: { addDataChangeProposal, listDataChangeProposals },
+          extendedContext: {},
         },
       });
 
@@ -76,7 +59,6 @@ You get a vague request from the user and you have to resolve it using your tool
 
       return new Command({
         update: {
-          mutations: [...existingProposals],
           messages: [
             new ToolMessage({
               content: response.messages[response.messages.length - 1].content,
@@ -89,7 +71,7 @@ You get a vague request from the user and you have to resolve it using your tool
     {
       name: "data_change_engine",
       description:
-        "Takes a description of the data change and resolves it into a list of mutations that can be approved by the user",
+        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user",
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to change"),
       }),
