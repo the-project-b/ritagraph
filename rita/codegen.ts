@@ -1,5 +1,8 @@
 // codegen.ts
 import type { CodegenConfig } from "@graphql-codegen/cli";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const config: CodegenConfig = {
   schema: `${process.env.PROJECTB_GRAPHQL_ENDPOINT}/schema`,
