@@ -1,0 +1,134 @@
+query getEmployeeByIdWithExtensiveInfo($data: GetEmployeeInput!) {
+  employee(data: $data) {
+    id
+    email
+    role
+    firstName
+    lastName
+    status
+    missingFieldsBPO {
+      ...EmployeePossibleMissingDataFields
+      __typename
+    }
+    missingFieldsHR {
+      ...EmployeePossibleMissingDataFields
+      __typename
+    }
+    missingFieldsEmployee {
+      ...EmployeePossibleMissingDataFields
+      __typename
+    }
+    employeeContract {
+      ...EmployeeContractFields
+      indicators {
+        hasUnvalidatedChanges
+        isBpoConfirmed
+        __typename
+      }
+      __typename
+    }
+    employeePersonalData {
+      ...EmployeePersonalDataFields
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment EmployeeDataStatusesFields on EmployeeContractDataStatuses {
+  bpoCompletedAt
+  hrCompletedAt
+  employeeCompletedAt
+  contractId
+  id
+  __typename
+}
+
+fragment EmployeePossibleMissingDataFields on EmployeePossibleMissingDataFields {
+  contractMissingFields
+  personalDataMissingFields
+  userMissingFields
+  __typename
+}
+
+fragment EmployeeContractFields on EmployeeContract {
+  id
+  userId
+  contractStart
+  contractEnd
+  trialPeriod
+  trialPeriodEnd
+  contractVacationDays
+  remainingVacationDays
+  contractWorkingTimes {
+    MONDAY
+    TUESDAY
+    WEDNESDAY
+    THURSDAY
+    FRIDAY
+    SATURDAY
+    SUNDAY
+    __typename
+  }
+  contractType
+  apprenticeshipStart
+  apprenticeshipEnd
+  apprenticeshipType
+  internshipType
+  jobTitle
+  bgs
+  pgs
+  personalNumberPayroll
+  personalNumber
+  employmentType
+  isStateDifferent
+  statePlaceOfWorkId
+  resolvedStatePlaceOfWorkId {
+    code
+    id
+    label
+    labelEN
+    __typename
+  }
+  additionalPayments
+  paymentType
+  taxClass
+  __typename
+}
+
+fragment EmployeePersonalDataFields on EmployeePersonalData {
+  birthName
+  birthday
+  nationality
+  city
+  country
+  stateId
+  socialId
+  taxId
+  noTaxId
+  healthInsurance
+  lastHealthInsurance
+  insuranceStatus
+  voluntaryInsuranceType
+  privateInsuranceToHealth
+  privateInsuranceToCare
+  pensionStatus
+  companyPensionScheme
+  bic
+  iban
+  educationLevel
+  professionalEducation
+  disability
+  disabilityDegree
+  numberOfKids
+  kids {
+    id
+    birthDate
+    firstName
+    lastName
+    __typename
+  }
+  parentalStatus
+  taxDenomination
+  __typename
+}

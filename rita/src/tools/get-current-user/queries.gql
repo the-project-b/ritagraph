@@ -1,0 +1,19 @@
+query getCurrentUser {
+  me {
+    ...MeFieldsHr
+    __typename
+  }
+}
+
+fragment MeFieldsHr on OnboardingHrManager {
+  id
+  role
+  firstName
+  lastName
+  preferredLanguage
+  company {
+    id
+    name
+  }
+  __typename
+}

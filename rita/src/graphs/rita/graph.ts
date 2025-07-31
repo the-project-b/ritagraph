@@ -22,7 +22,9 @@ import { ToolInterface } from "../shared-types/node-types.js";
 import {
   getPaymentsOfEmployee,
   mutationEngine,
-  getActiveEmployeesWithContracts,
+  findEmployee,
+  getEmployeeById,
+  getCurrentUser,
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
 
@@ -45,12 +47,21 @@ async function fetchTools(
     toolDefintions: [
       getPaymentsOfEmployee,
       mutationEngine,
-      getActiveEmployeesWithContracts,
+      //getActiveEmployeesWithContracts,
+      findEmployee,
+      getEmployeeById,
+      getCurrentUser,
     ],
     ctx: toolContext,
   });
 
-  return [...mcpTools, ...tools];
+  const toolsToExclude = ["find-employee-by-name", "get-current-user"];
+
+  const filteredMcpTools = mcpTools.filter(
+    (tool) => !toolsToExclude.includes(tool.name)
+  );
+
+  return [...tools, ...filteredMcpTools];
 }
 
 const graph = async () => {
