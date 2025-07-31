@@ -1,18 +1,22 @@
+import { GraphQLJSON } from 'graphql-scalars';
+import { EVALUATOR_INFO } from '../evaluators/core/factory.js';
 import { LangSmithService } from '../langsmith/service.js';
-import type { 
-  GetDatasetExperimentsInput, 
-  GetExperimentDetailsInput, 
-  RunEvaluationInput, 
-  DeleteExperimentRunsInput,
+import { EvaluationJobManager } from '../services/evaluation-job-manager.js';
+import type {
   GraphQLContext
 } from '../types/index.js';
-import { GraphQLJSON } from 'graphql-scalars';
 import { requireAuth } from './auth.helpers.js';
-import { EVALUATOR_INFO } from '../evaluators/core/factory.js';
-import type { Resolvers, RunParent } from './types.js';
+import { filterFeedbackStats } from './dynamic-schema.js';
+import type { Resolvers, RunParent, GetAllJobsResolver } from './types.js';
 
 export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
   JSON: GraphQLJSON,
+  FeedbackStats: {
+    // Field resolver for the allStats field with optional filtering
+    allStats: (parent, args) => {
+      return filterFeedbackStats(parent, args.evaluators);
+    },
+  },
   Run: {
     // Field resolver for lazy loading feedback
     feedback: async (parent: RunParent, _args, context: GraphQLContext) => {
@@ -91,6 +95,37 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
         companies,
       };
     },
+    getEvaluationJobStatus: async (_parent, { input }, context) => {
+      requireAuth(context);
+      
+      const jobManager = EvaluationJobManager.getInstance();
+      const jobDetails = jobManager.getJobDetails(input.jobId);
+      
+      if (!jobDetails) {
+        throw new Error(`Evaluation job with ID ${input.jobId} not found`);
+      }
+      
+      return jobDetails;
+    },
+    listLangSmithPrompts: async (_parent, { input }, context) => {
+      requireAuth(context);
+      
+      const langsmithService = new LangSmithService();
+      const prompts = await langsmithService.listPrompts(
+        input?.query, 
+        input?.isPublic || false
+      );
+      
+      return {
+        prompts,
+      };
+    },
+    getAllJobs: async (_parent, _args, context) => {
+      requireAuth(context);
+      
+      const jobManager = EvaluationJobManager.getInstance();
+      return jobManager.getAllJobs();
+    },
   },
   Mutation: {
     runEvaluation: async (_parent, { input }, context) => {
@@ -98,6 +133,12 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
       
       const langsmithService = new LangSmithService();
       return langsmithService.runEvaluation(input, context);
+    },
+    runEvaluationAsync: async (_parent, { input }, context) => {
+      requireAuth(context);
+      
+      const jobManager = EvaluationJobManager.getInstance();
+      return jobManager.startEvaluationJob(input, context);
     },
     deleteExperimentRuns: async (_parent, { input }, context) => {
       requireAuth(context);

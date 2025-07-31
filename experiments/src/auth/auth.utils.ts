@@ -72,13 +72,7 @@ export class AuthUtils {
    * @returns boolean
    */
   static hasAccessToCompany(user: VerifiedUser, companyId: string): boolean {
-    const hasAccess = user.companies.some(company => company.companyId === companyId);
-    const userCompanies = user.companies.map(c => c.companyId);
-    
-    console.log(`🔍 [AuthUtils] Company access check for user ${user.auth0.id} to company ${companyId}: ${hasAccess}`);
-    console.log(`🏢 [AuthUtils] User companies: [${userCompanies.join(', ')}]`);
-    
-    return hasAccess;
+    return user.companies.some(company => company.companyId === companyId);
   }
 
   /**
@@ -151,11 +145,7 @@ export class AuthUtils {
   static isAdmin(user: VerifiedUser): boolean {
     const hasAuth0Admin = this.hasAuth0Role(user, 'admin');
     const hasACLAdmin = this.hasACLRole(user, 'ADMIN');
-    const isAdmin = hasAuth0Admin || hasACLAdmin;
-    
-    console.log(`🔍 [AuthUtils] Admin check for user ${user.auth0.id}: Auth0=${hasAuth0Admin}, ACL=${hasACLAdmin}, Result=${isAdmin}`);
-    
-    return isAdmin;
+    return hasAuth0Admin || hasACLAdmin;
   }
 
   /**

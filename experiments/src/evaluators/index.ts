@@ -12,3 +12,4 @@ export type { EvaluatorFunction } from './core/factory';
 
 // Implementation exports
 export * from './implementations/expected-output.evaluator';
+export * from './implementations/language-verification.evaluator';
