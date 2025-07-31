@@ -60,9 +60,23 @@ export function createEvaluator(
   
   // Return a strongly typed evaluator function
   return async (params: EvaluatorParams): Promise<EvaluatorResult> => {
-    // Validate required parameters
-    if (!params.inputs || !params.outputs) {
-      throw new Error('Evaluator params must include both inputs and outputs');
+    // Validate required parameters - allow evaluation of failed runs
+    if (!params.inputs) {
+      throw new Error('Evaluator params must include inputs');
+    }
+    
+    // If outputs is missing (e.g., run failed), return a default evaluation
+    if (!params.outputs) {
+      console.warn(`[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`);
+      return {
+        key: type.toLowerCase(),
+        score: 0,
+        comment: 'Run failed - no outputs available for evaluation',
+        metadata: { 
+          reason: 'missing_outputs',
+          evaluator_type: type 
+        },
+      };
     }
     
     return evaluator.evaluate(params, options);

@@ -10,14 +10,10 @@ import type { GraphQLContext } from '../types/context.js';
  * @throws GraphQLError - If user is not authenticated
  */
 export function requireAuth(context: GraphQLContext): VerifiedUser {
-  console.log(`🔐 [AuthHelper] Checking authentication in resolver`);
-  
   if (!context.user) {
-    console.log(`❌ [AuthHelper] Authentication required but user not found in context`);
     throw GraphQLErrors.UNAUTHENTICATED;
   }
   
-  console.log(`✅ [AuthHelper] User authenticated: ${context.user.auth0.id}`);
   return context.user;
 }
 
@@ -28,16 +24,12 @@ export function requireAuth(context: GraphQLContext): VerifiedUser {
  * @throws GraphQLError - If user is not authenticated or not an admin
  */
 export function requireAdmin(context: GraphQLContext): VerifiedUser {
-  console.log(`🔐 [AuthHelper] Checking admin privileges`);
   const user = requireAuth(context);
   
   if (!AuthUtils.isAdmin(user)) {
-    console.log(`❌ [AuthHelper] Admin privileges required but user ${user.auth0.id} is not admin`);
-    console.log(`👤 [AuthHelper] User roles - Auth0: ${user.auth0.roles.join(', ')}, ACL: ${user.aclRole}`);
     throw GraphQLErrors.UNAUTHORIZED;
   }
   
-  console.log(`✅ [AuthHelper] Admin privileges confirmed for user: ${user.auth0.id}`);
   return user;
 }
 
@@ -99,16 +91,12 @@ export function requireACLRole(context: GraphQLContext, roles: string[]): Verifi
  * @throws GraphQLError - If user is not authenticated or doesn't have company access
  */
 export function requireCompanyAccess(context: GraphQLContext, companyId: string): VerifiedUser {
-  console.log(`🔐 [AuthHelper] Checking company access for company: ${companyId}`);
   const user = requireAuth(context);
   
   if (!AuthUtils.hasAccessToCompany(user, companyId)) {
-    console.log(`❌ [AuthHelper] Company access denied for user ${user.auth0.id} to company ${companyId}`);
-    console.log(`🏢 [AuthHelper] User has access to companies: ${user.companies.map(c => c.companyId).join(', ')}`);
     throw GraphQLErrors.UNAUTHORIZED;
   }
   
-  console.log(`✅ [AuthHelper] Company access confirmed for user ${user.auth0.id} to company ${companyId}`);
   return user;
 }
 

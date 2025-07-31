@@ -7,7 +7,11 @@ import type {
   GetExperimentDetailsInput,
   RunEvaluationInput,
   DeleteExperimentRunsInput,
-  CompanyInfo
+  CompanyInfo,
+  AsyncEvaluationResult,
+  GetEvaluationJobStatusInput,
+  EvaluationJobDetails,
+  EvaluationResult
 } from '../types/index';
 import type { GraphQLContext } from '../types/context';
 
@@ -97,7 +101,33 @@ export type GetAvailableCompaniesResolver = QueryResolver<
 
 export type RunEvaluationResolver = MutationResolver<
   { input: RunEvaluationInput },
-  { url: string; experimentName: string; results: any[] } // TODO: Type results better
+  EvaluationResult
+>;
+
+export type RunEvaluationAsyncResolver = MutationResolver<
+  { input: RunEvaluationInput },
+  AsyncEvaluationResult
+>;
+
+export type GetEvaluationJobStatusResolver = QueryResolver<
+  { input: GetEvaluationJobStatusInput },
+  EvaluationJobDetails
+>;
+
+export type ListLangSmithPromptsResolver = QueryResolver<
+  { input?: { query?: string; isPublic?: boolean } },
+  { prompts: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    isPublic: boolean;
+    numCommits: number;
+    numLikes: number;
+    updatedAt: string;
+    owner: string;
+    fullName: string;
+    tags?: string[];
+  }> }
 >;
 
 export type DeleteExperimentRunsResolver = MutationResolver<
@@ -105,8 +135,23 @@ export type DeleteExperimentRunsResolver = MutationResolver<
   { success: boolean; message: string; deletedCount?: number }
 >;
 
+export type GetAllJobsResolver = QueryResolver<
+  Record<string, never>,
+  Array<{ jobId: string; status: string; experimentName: string; createdAt: string }>
+>;
+
+// FeedbackStats resolver types
+export type FeedbackStatsAllStatsResolver = FieldResolver<
+  any,
+  { evaluators?: string[] },
+  Record<string, any>
+>;
+
 // Resolver map type
 export interface Resolvers {
+  FeedbackStats: {
+    allStats: FeedbackStatsAllStatsResolver;
+  };
   Run: {
     feedback: RunFeedbackResolver;
   };
@@ -117,9 +162,13 @@ export interface Resolvers {
     getAvailableEvaluators: GetAvailableEvaluatorsResolver;
     getAvailableGraphs: GetAvailableGraphsResolver;
     getAvailableCompanies: GetAvailableCompaniesResolver;
+    getEvaluationJobStatus: GetEvaluationJobStatusResolver;
+    listLangSmithPrompts: ListLangSmithPromptsResolver;
+    getAllJobs: GetAllJobsResolver;
   };
   Mutation: {
     runEvaluation: RunEvaluationResolver;
+    runEvaluationAsync: RunEvaluationAsyncResolver;
     deleteExperimentRuns: DeleteExperimentRunsResolver;
   };
 }

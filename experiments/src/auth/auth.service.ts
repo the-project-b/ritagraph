@@ -7,7 +7,6 @@ export class AuthService {
   constructor(graphqlEndpoint?: string) {
     const baseEndpoint = graphqlEndpoint || process.env.PROJECTB_GRAPHQL_ENDPOINT || 'http://localhost:3000';
     this.graphqlEndpoint = this.ensureGraphQLApiPath(baseEndpoint);
-    console.log(`🚀 [AuthService] Initialized with GraphQL endpoint: ${this.graphqlEndpoint}`);
   }
 
   /**
@@ -16,22 +15,16 @@ export class AuthService {
    * @returns string - The endpoint with /graphqlapi path
    */
   private ensureGraphQLApiPath(endpoint: string): string {
-    console.log(`🔧 [AuthService] Processing endpoint: ${endpoint}`);
-    
     // Remove trailing slash if present
     const cleanEndpoint = endpoint.replace(/\/+$/, '');
     
     // Check if already ends with /graphqlapi
     if (cleanEndpoint.endsWith('/graphqlapi')) {
-      console.log(`✅ [AuthService] Endpoint already has /graphqlapi path`);
       return cleanEndpoint;
     }
     
     // Add /graphqlapi path
-    const finalEndpoint = `${cleanEndpoint}/graphqlapi`;
-    console.log(`🔧 [AuthService] Added /graphqlapi path: ${finalEndpoint}`);
-    
-    return finalEndpoint;
+    return `${cleanEndpoint}/graphqlapi`;
   }
 
   /**
@@ -41,24 +34,15 @@ export class AuthService {
    * @throws AuthError - If token is invalid or requests fail
    */
   async verifyToken(token: string): Promise<VerifiedUser> {
-    const tokenId = token.substring(0, 8) + '...';
-    console.log(`🔍 [AuthService] Starting token verification for token: ${tokenId}`);
-    
     try {
       // First, verify the token and get Auth0 user data
-      console.log(`🔍 [AuthService] Step 1: Verifying Auth0 token...`);
       const auth0User = await this.getAuth0User(token);
-      console.log(`✅ [AuthService] Auth0 verification successful for user: ${auth0User.id}`);
       
       // Then, get ACL roles and company associations
-      console.log(`🔍 [AuthService] Step 2: Fetching ACL roles and company data...`);
       const userCompanies = await this.getUserToCompanies(token);
-      console.log(`✅ [AuthService] ACL data fetched successfully, primary role: ${userCompanies.role}, companies: ${userCompanies.companies.length}`);
 
       // Then, get the user's preferred language
-      console.log(`🔍 [AuthService] Step 3: Fetching user's details...`);
       const me = await this.getMe(token);
-      console.log(`✅ [AuthService] User details fetched successfully: ${me.preferredLanguage}`);
 
       const verifiedUser = {
         auth0: auth0User,
@@ -68,10 +52,9 @@ export class AuthService {
         me,
       };
       
-      console.log(`🎉 [AuthService] Token verification completed successfully for user: ${auth0User.id}`);
       return verifiedUser;
     } catch (error) {
-      console.error(`❌ [AuthService] Token verification failed for token: ${tokenId}`, error);
+      console.error('[AuthService] Token verification failed', error instanceof Error ? error.message : 'Unknown error');
       if (error instanceof Error) {
         throw new AuthError(`Token verification failed: ${error.message}`, 401);
       }
@@ -85,8 +68,6 @@ export class AuthService {
    * @returns Promise<Auth0User> - The Auth0 user data
    */
   private async getAuth0User(token: string) {
-    console.log(`📡 [AuthService] Making authUser GraphQL request to ${this.graphqlEndpoint}`);
-    
     const query = `
       query GetAuthUser {
         authUser {
@@ -99,24 +80,19 @@ export class AuthService {
 
     const response = await this.makeGraphQLRequest(query, token);
     
-    console.log(`📡 [AuthService] Auth0 GraphQL response status: ${response.status}`);
-    
     if (!response.ok) {
-      console.dir(response, { depth: null });
-      const errorText = await response.text();
-      console.error(`❌ [AuthService] Auth0 GraphQL request failed:`, errorText);
+      await response.text(); // Consume response body
+      console.error(`[AuthService] Auth0 GraphQL request failed: ${response.status} ${response.statusText}`);
       throw new Error(`Auth0 verification failed: ${response.status} ${response.statusText}`);
     }
 
     const data: Auth0UserResponse = await response.json();
-    console.log(`📄 [AuthService] Auth0 response data:`, JSON.stringify(data, null, 2));
     
     if (!data.data?.authUser) {
-      console.error(`❌ [AuthService] Invalid Auth0 user response structure`);
+      console.error('[AuthService] Invalid Auth0 user response structure');
       throw new Error('Invalid Auth0 user response');
     }
 
-    console.log(`✅ [AuthService] Auth0 user data retrieved for: ${data.data.authUser.id}`);
     return data.data.authUser;
   }
 
@@ -126,8 +102,6 @@ export class AuthService {
    * @returns Promise<{ role: string; companies: CompanyUser[] }> - User's ACL data
    */
   private async getUserToCompanies(token: string) {
-    console.log(`📡 [AuthService] Making userToCompanies GraphQL request to ${this.graphqlEndpoint}`);
-    
     const query = `
       query GetUserToCompanies {
         userToCompanies {
@@ -153,52 +127,42 @@ export class AuthService {
 
     const response = await this.makeGraphQLRequest(query, token);
     
-    console.log(`📡 [AuthService] UserToCompanies GraphQL response status: ${response.status}`);
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [AuthService] UserToCompanies GraphQL request failed:`, errorText);
+      await response.text(); // Consume response body
+      console.error(`[AuthService] UserToCompanies GraphQL request failed: ${response.status} ${response.statusText}`);
       throw new Error(`ACL data fetch failed: ${response.status} ${response.statusText}`);
     }
 
     const data: UserToCompaniesResponse = await response.json();
-    console.log(`📄 [AuthService] UserToCompanies response data:`, JSON.stringify(data, null, 2));
     
     if (!data.data?.userToCompanies || !Array.isArray(data.data.userToCompanies) || data.data.userToCompanies.length === 0) {
-      console.error(`❌ [AuthService] Invalid user companies response structure`);
+      console.error('[AuthService] Invalid user companies response structure');
       throw new Error('Invalid user companies response');
     }
 
     // Take the first element from the userToCompanies array
     const userCompaniesData = data.data.userToCompanies[0];
-    console.log(`✅ [AuthService] User companies data retrieved: ${userCompaniesData.companies.length} companies, primary role: ${userCompaniesData.role}`);
     return userCompaniesData;
   }
 
   private async getMe(token: string): Promise<Me> {
-    console.log(`📡 [AuthService] Making userPreferredLanguage GraphQL request to ${this.graphqlEndpoint}`);
-    
     const query = ME_QUERY;
 
     const response = await this.makeGraphQLRequest(query, token);
     
-    console.log(`📡 [AuthService] UserPreferredLanguage GraphQL response status: ${response.status}`);
-    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [AuthService] UserPreferredLanguage GraphQL request failed:`, errorText);
-      throw new Error(`Preferred language fetch failed: ${response.status} ${response.statusText}`);
+      await response.text(); // Consume response body
+      console.error(`[AuthService] User details GraphQL request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`User details fetch failed: ${response.status} ${response.statusText}`);
     }
 
     const data: {data: {me: Me}} = await response.json();
-    console.log(`📄 [AuthService] UserPreferredLanguage response data:`, JSON.stringify(data, null, 2));
 
     if (!data.data.me) {
-      console.error(`❌ [AuthService] Invalid user information response structure`);
-      throw new Error('Invalid user preferred language response');
+      console.error('[AuthService] Invalid user information response structure');
+      throw new Error('Invalid user information response');
     }
 
-    console.log(`✅ [AuthService] User information data retrieved: ${data.data.me}`);
     return data.data.me;
   }
 
@@ -210,13 +174,7 @@ export class AuthService {
    */
   private async makeGraphQLRequest(query: string, token: string): Promise<Response> {
     const url = `${this.graphqlEndpoint}`;
-    const tokenId = token.substring(0, 8) + '...';
     
-    console.log(`🌐 [AuthService] Making GraphQL request to: ${url}`);
-    console.log(`🌐 [AuthService] Using token: ${tokenId}`);
-    console.log(`🌐 [AuthService] Query:`, query.toString().trim());
-    
-    const requestStart = Date.now();
     const request = {
       method: 'POST',
       headers: {
@@ -226,19 +184,12 @@ export class AuthService {
       },
       body: JSON.stringify({ query: query.toString() }),
     };
-
-    console.dir(request, { depth: null });
     
     try {
       const response = await fetch(url, request);
-      
-      const requestTime = Date.now() - requestStart;
-      console.log(`⚡ [AuthService] GraphQL request completed in ${requestTime}ms`);
-      
       return response;
     } catch (error) {
-      const requestTime = Date.now() - requestStart;
-      console.error(`💥 [AuthService] GraphQL request failed after ${requestTime}ms:`, error);
+      console.error('[AuthService] GraphQL request failed:', error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }
@@ -249,23 +200,15 @@ export class AuthService {
    * @returns string | null - The extracted token or null if invalid
    */
   static extractBearerToken(authHeader: string | undefined): string | null {
-    console.log(`🔍 [AuthService] Extracting bearer token from header:`, authHeader ? `${authHeader.substring(0, 20)}...` : 'undefined');
-    
     if (!authHeader || typeof authHeader !== 'string') {
-      console.log(`❌ [AuthService] Invalid auth header: ${typeof authHeader}`);
       return null;
     }
 
     if (!authHeader.toLowerCase().startsWith('bearer ')) {
-      console.log(`❌ [AuthService] Auth header doesn't start with 'Bearer '`);
       return null;
     }
 
     const token = authHeader.slice(7).trim();
-    const isValid = token.length > 0;
-    
-    console.log(`${isValid ? '✅' : '❌'} [AuthService] Token extraction ${isValid ? 'successful' : 'failed'}, length: ${token.length}`);
-    
-    return isValid ? token : null;
+    return token.length > 0 ? token : null;
   }
 } 

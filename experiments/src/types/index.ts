@@ -10,6 +10,7 @@ import type { ModelIdentifier } from '../evaluators/core/types';
 export interface EvaluatorInput {
   type: string;
   customPrompt?: string;
+  langsmithPromptName?: string;
   model?: ModelIdentifier;
   referenceKey?: string;
 }
@@ -21,7 +22,7 @@ export interface RunEvaluationInput {
   preferredLanguage?: string; // Fall back to user-configured preferredLanguage if not provided
   evaluators: EvaluatorInput[];
   experimentPrefix?: string;
-  inputKey?: string;
+  maxConcurrency?: number; // Max concurrent dataset examples within experiment (default: 10)
 }
 
 export interface GetDatasetExperimentsInput {
@@ -114,8 +115,10 @@ export interface EvaluatorFeedback {
 
 export interface FeedbackStats {
   expected_output?: EvaluatorFeedback;
+  language_verification?: EvaluatorFeedback;
+  allStats?: Record<string, any>; // All feedback stats as flexible JSON, can be filtered
   // Add other evaluators as needed in the future
-  [key: string]: EvaluatorFeedback | undefined;
+  [key: string]: EvaluatorFeedback | Record<string, any> | undefined;
 }
 
 export interface DatasetExperiment {
@@ -159,4 +162,74 @@ export interface DeleteExperimentRunsResult {
   success: boolean;
   message: string;
   deletedCount?: number;
-} 
+}
+
+// Async evaluation types
+export enum EvaluationJobStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED'
+}
+
+export interface AsyncEvaluationResult {
+  jobId: string;
+  status: EvaluationJobStatus;
+  experimentName: string;
+  experimentId?: string;
+  message: string;
+  url?: string;
+  createdAt: string;
+}
+
+export interface GetEvaluationJobStatusInput {
+  jobId: string;
+}
+
+export interface EvaluationJobDetails {
+  jobId: string;
+  status: EvaluationJobStatus;
+  experimentName: string;
+  experimentId?: string;
+  message: string;
+  url?: string;
+  createdAt: string;
+  updatedAt: string;
+  progress?: number;
+  processedExamples?: number;
+  totalExamples?: number;
+  errorMessage?: string;
+  results?: EvaluationResult;
+  usedPrompts?: Record<string, UsedPromptInfo>; // Maps evaluator type to prompt information
+}
+
+export interface EvaluationResult {
+  url: string;
+  experimentName: string;
+  experimentId: string;
+  results: RunResult[];
+}
+
+export interface RunResult {
+  id: string;
+  inputs: string;
+  outputs?: string;
+  startTime: string;
+  endTime: string;
+  latency: number;
+  totalTokens: number;
+  scores: Score[];
+}
+
+export interface Score {
+  key: string;
+  score: string;
+  comment?: string;
+}
+
+export interface UsedPromptInfo {
+  type: 'default' | 'custom' | 'langsmith';
+  content: string;
+  source?: string; // For LangSmith prompts, this would be the prompt name
+}

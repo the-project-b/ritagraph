@@ -1,5 +1,6 @@
-import { Evaluator, EvaluatorMap } from './types';
-import { expectedOutputEvaluator } from '../implementations/expected-output.evaluator';
+import { Evaluator, EvaluatorMap } from './types.js';
+import { expectedOutputEvaluator } from '../implementations/expected-output.evaluator.js';
+import { languageVerificationEvaluator } from '../implementations/language-verification.evaluator.js';
 
 export class EvaluatorRegistry {
   private static readonly evaluators = new Map<string, Evaluator>();
@@ -7,6 +8,7 @@ export class EvaluatorRegistry {
   static {
     // Register all evaluators
     this.register(expectedOutputEvaluator);
+    this.register(languageVerificationEvaluator);
   }
   
   /**

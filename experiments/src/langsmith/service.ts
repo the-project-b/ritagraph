@@ -20,6 +20,31 @@ import type {
 import { createEvaluator } from '../evaluators/core/factory.js';
 import { GraphQLErrors } from '../graphql/errors.js';
 
+// Define types for prompt information
+export interface PromptInfo {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  numCommits: number;
+  numLikes: number;
+  updatedAt: string;
+  owner: string;
+  fullName: string;
+  tags?: string[];
+}
+
+export interface PromptWithContent {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  owner: string;
+  fullName: string;
+  promptData: any; // The actual prompt template/data
+  metadata?: Record<string, any>;
+}
+
 // Map aliases
 const create_rita_graph = rita;
 
@@ -45,76 +70,32 @@ export class LangSmithService {
   }
 
   public async runEvaluation(input: RunEvaluationInput, context: GraphQLContext) {
-    const { graphName, datasetName, evaluators, experimentPrefix, inputKey, selectedCompanyId, preferredLanguage } = input;
-    let selectedPreferredLanguage = preferredLanguage;
+    const { graphName, datasetName, evaluators, experimentPrefix, selectedCompanyId, maxConcurrency } = input;
 
-    // New needs:
-    // User information: preferredLanguage
-    // Context information: selectedCompanyId
-
-    // selectedCompanyId should be provided always
-    // preferredLanguage can be provided, if not provided, use the user's preferredLanguage
-
-    // if the context.user is not provided, throw an error
     if (!context.user) {
       throw GraphQLErrors.UNAUTHENTICATED;
     }
 
-    // if the context.user is provided, use the preferredLanguage from the context.user
-    // if the preferredLanguage is not provided, use the preferredLanguage from the context.user
-
-    if (!selectedPreferredLanguage) {
-      selectedPreferredLanguage = context.user.me.preferredLanguage;
-    }
-
-    // Dynamically determine the question/input key if not provided
-    let questionKey = inputKey;
-    if (!questionKey) {
-      const dataset: any = await this.client.readDataset({ datasetName });
-      questionKey = dataset.inputs_schema_definition?.required?.[0];
-      if (!questionKey) {
-        throw new Error(
-          `Could not dynamically determine the input key for dataset "${datasetName}". Please ensure it has input keys defined in LangSmith or provide an 'inputKey' in the request.`,
-        );
-      }
-    }
-
-    // Use the class property for graph factory map
     const graphFactory = this.graphFactoryMap[graphName];
     if (!graphFactory) {
       throw new Error(`Graph factory not found for graph: ${graphName}`);
     }
-    // Target function for evaluation
     const target = async (inputs: Record<string, any>) => {
+      const question = inputs.question;
+      
+      const examplePreferredLanguage = inputs.preferredLanguage;
+      
       const graphInput = {
-        messages: [{ role: 'user', content: inputs[questionKey!] }],
+        messages: [{ role: 'user', content: question }],
+        ...(examplePreferredLanguage && { preferredLanguage: examplePreferredLanguage }),
       };
       const graph = await graphFactory();
 
-      // Extract bearer token (if provided)
       let token = context.token || '';
       if (token.toLowerCase().startsWith('bearer ')) {
         token = token.slice(7).trim();
       }
 
-      console.dir(token, { depth: null });
-
-// Config needs user information
-// identity: string;
-// role: string;
-// token: string;
-// permissions: string[];
-// user: {
-//   id: string;
-//   role: string;
-//   firstName: string;
-//   lastName: string;
-//   preferredLanguage: "EN" | "DE";
-//   company: {
-//     id: string;
-//     name: string;
-//   };
-// };
 
       const config = {
         configurable: {
@@ -124,7 +105,7 @@ export class LangSmithService {
             user: {
               firstName: context.user.me.firstName,
               lastName: context.user.me.lastName,
-              preferredLanguage: context.user.me.preferredLanguage,
+              preferredLanguage: examplePreferredLanguage || context.user.me.preferredLanguage,
               company: {
                 id: selectedCompanyId,
               },
@@ -133,7 +114,6 @@ export class LangSmithService {
         },
       };
 
-      console.dir(graphInput, { depth: null });
 
       const result: any = await graph.invoke(graphInput, config);
 
@@ -143,29 +123,46 @@ export class LangSmithService {
       const answer = lastMessage?.content;
 
       if (typeof answer !== 'string') {
-        console.warn(
-          'Graph did not return a final message with string content. Returning empty answer. Full result:',
-          JSON.stringify(result, null, 2),
-        );
-        return { answer: '' };
+        console.warn('Graph did not return a final message with string content');
+        return { 
+          answer: '',
+        };
       }
-      return { answer };
+      
+      return { 
+        answer,
+      };
     };
 
-    // Prepare evaluators
+    // Prepare evaluators, potentially fetching prompts from LangSmith
+    const evaluatorPromises = evaluators.map(async (evaluatorInput) => {
+      let promptToUse = evaluatorInput.customPrompt;
+      
+      if (evaluatorInput.langsmithPromptName && !evaluatorInput.customPrompt) {
+        try {
+          const promptData = await this.pullPrompt(evaluatorInput.langsmithPromptName);
+          promptToUse = this.convertPromptToText(promptData.promptData);
+        } catch (error) {
+          console.error(`Failed to fetch prompt ${evaluatorInput.langsmithPromptName}:`, error);
+          throw new Error(`Failed to fetch LangSmith prompt "${evaluatorInput.langsmithPromptName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      return createEvaluator(
+        evaluatorInput.type,
+        promptToUse,
+        evaluatorInput.model,
+        evaluatorInput.referenceKey,
+      );
+    });
+    
     const evaluationConfig = {
-      evaluators: evaluators.map((evaluatorInput) =>
-        createEvaluator(
-          evaluatorInput.type,
-          evaluatorInput.customPrompt,
-          evaluatorInput.model,
-          evaluatorInput.referenceKey,
-        ),
-      ),
+      evaluators: await Promise.all(evaluatorPromises),
       experimentPrefix: experimentPrefix || `eval-${graphName}`,
+      // Set concurrency for concurrent processing of dataset examples
+      maxConcurrency: maxConcurrency || 10, // Increased default for better concurrency
     };
 
-    // Execute evaluation
     const experimentResults: any = await evaluate(target as any, {
       data: datasetName,
       ...evaluationConfig,
@@ -200,7 +197,6 @@ export class LangSmithService {
       });
     }
 
-    // Build LangSmith experiment URL
     const manager = experimentResults?.manager;
     const client = manager?.client;
     const experiment = manager?._experiment;
@@ -216,13 +212,14 @@ export class LangSmithService {
       url = `${webUrl}/o/${tenantId}/datasets/${datasetId}/compare?selectedSessions=${experimentId}`;
     }
     if (!url) {
-      console.warn('Could not construct the full LangSmith results URL from the experiment object. Providing a fallback.');
+      console.warn('Could not construct LangSmith results URL, providing fallback');
       url = webUrl ? `${webUrl}/projects` : 'URL not available';
     }
 
     return {
       url,
       experimentName,
+      experimentId: experimentId || 'unknown',
       results,
     };
   }
@@ -233,31 +230,18 @@ export class LangSmithService {
   }> {
     const { datasetId, offset = 0, limit = 10, sortBy = 'start_time', sortByDesc = true } = input;
 
-    console.log('🔍 [DEBUG] Starting getDatasetExperiments');
-    console.log('🔍 [DEBUG] Input parameters:', JSON.stringify(input, null, 2));
-    console.log('🔍 [DEBUG] Environment variables:');
-    console.log('   LANGSMITH_ENDPOINT:', process.env.LANGSMITH_ENDPOINT);
-    console.log('   LANGSMITH_API_KEY present:', !!process.env.LANGSMITH_API_KEY);
 
     // Build the URL with query parameters
     // Use environment variable for API URL, defaulting to US region
     let baseUrl = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
-    
-    console.log('🔍 [DEBUG] Initial baseUrl:', baseUrl);
     
     // Handle EU region URL format - ensure we use the correct base URL
     if (baseUrl.includes('eu.api.smith.langchain.com')) {
       baseUrl = 'https://eu.api.smith.langchain.com';
     }
     
-    console.log('🔍 [DEBUG] After EU check baseUrl:', baseUrl);
-    
-    // Remove /api/v1 suffix if present since we'll add it
     baseUrl = baseUrl.replace(/\/api\/v1\/?$/, '');
     
-    console.log('🔍 [DEBUG] After cleanup baseUrl:', baseUrl);
-    
-    // Use the documented /api/v1/sessions endpoint
     const url = new URL('/api/v1/sessions', baseUrl);
     url.searchParams.set('reference_dataset', datasetId);
     url.searchParams.set('offset', offset.toString());
@@ -266,18 +250,11 @@ export class LangSmithService {
     url.searchParams.set('sort_by_desc', sortByDesc.toString());
     url.searchParams.set('use_approx_stats', 'false');
 
-    // Get API key from environment variable
     const apiKey = process.env.LANGSMITH_API_KEY;
     if (!apiKey) {
       throw new Error('LANGSMITH_API_KEY environment variable is required');
     }
 
-    console.log('🔍 [DEBUG] Final request details:');
-    console.log('   URL:', url.toString());
-    console.log('   API Key present:', !!apiKey);
-    console.log('   API Key length:', apiKey.length);
-    console.log('   API Key prefix:', apiKey.substring(0, 8) + '...');
-    console.log('   Dataset ID:', datasetId);
 
     const headers = {
       'x-api-key': apiKey,
@@ -285,76 +262,43 @@ export class LangSmithService {
       'Content-Type': 'application/json',
     };
 
-    console.log('🔍 [DEBUG] Request headers:', headers);
 
     try {
-      console.log('🔍 [DEBUG] Making fetch request...');
       
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers,
       });
 
-      console.log('📡 [DEBUG] Response received:');
-      console.log('   Status:', response.status);
-      console.log('   Status Text:', response.statusText);
-      console.log('   OK:', response.ok);
-      console.log('   Headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ [DEBUG] Response error details:');
-        console.error('   Status:', response.status);
-        console.error('   Status Text:', response.statusText);
-        console.error('   Error body:', errorText);
-        
-        // Try to parse as JSON for more details
-        try {
-          const errorJson = JSON.parse(errorText);
-          console.error('   Parsed error:', JSON.stringify(errorJson, null, 2));
-        } catch {
-          console.error('   Raw error text:', errorText);
-        }
+        console.error(`Failed to fetch experiments: ${response.status} ${response.statusText}`);
         
         throw new Error(`Failed to fetch experiments: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      // Check if response is streaming (Server-Sent Events)
       const contentType = response.headers.get('content-type');
-      console.log('📄 [DEBUG] Content-Type:', contentType);
       
       if (contentType?.includes('text/event-stream')) {
-        console.log('🌊 [DEBUG] Processing as streaming response');
         return await this.parseStreamingResponse(response);
       } else {
-        console.log('📋 [DEBUG] Processing as JSON response');
-        // Handle regular JSON response
         const responseText = await response.text();
-        console.log('📄 [DEBUG] Raw response text:', responseText.substring(0, 500) + '...');
         
         try {
           const data = JSON.parse(responseText);
-          console.log('📄 [DEBUG] Parsed response data:', JSON.stringify(data, null, 2));
           
-          // Extract total from pagination header
           const totalFromHeader = response.headers.get('x-pagination-total');
           const total = totalFromHeader ? parseInt(totalFromHeader, 10) : 0;
-          console.log('📊 [DEBUG] Total from header:', total);
           
           return this.transformSessionsResponse(data, total);
         } catch (parseError) {
-          console.error('❌ [DEBUG] Failed to parse JSON response:', parseError);
-          console.error('📄 [DEBUG] Full response text:', responseText);
+          console.error('Failed to parse JSON response:', parseError);
           throw new Error(`Failed to parse response as JSON: ${parseError}`);
         }
       }
     } catch (error) {
-      console.error('💥 [DEBUG] Error in getDatasetExperiments:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('🌐 [DEBUG] Network error - check if the endpoint is reachable');
-        console.error('🌐 [DEBUG] Trying to reach:', url.toString());
-      }
+      console.error('Error in getDatasetExperiments:', error);
       
       throw new Error(`Failed to fetch experiments: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -375,62 +319,49 @@ export class LangSmithService {
     let total = 0;
     let eventCount = 0;
 
-    console.log('🌊 Starting to parse streaming response...');
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          console.log('✅ Streaming response complete');
           break;
         }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             eventCount++;
             try {
-              const jsonData = line.slice(6); // Remove 'data: ' prefix
-              console.log(`📦 Event ${eventCount}:`, jsonData);
+              const jsonData = line.slice(6);
               
               const parsedData = JSON.parse(jsonData);
               
               if (parsedData.patch && Array.isArray(parsedData.patch)) {
-                console.log(`🔧 Processing ${parsedData.patch.length} patches`);
-                
                 for (const patch of parsedData.patch) {
-                  console.log('🔧 Patch:', JSON.stringify(patch, null, 2));
-                  
                   if (patch.op === 'add' && patch.path === '' && patch.value?.rows) {
-                    // Initial data with experiments
-                    console.log(`📊 Found ${patch.value.rows.length} initial experiments`);
                     experiments = this.transformRows(patch.value.rows);
                     total = patch.value.total || 0;
-                    console.log(`📈 Total experiments: ${total}`);
                   } else if (patch.op === 'add' && patch.path.startsWith('/rows/')) {
-                    // Updates to existing experiments
-                    console.log('🔄 Applying row update:', patch.path);
                     this.applyRowUpdate(experiments, patch);
                   }
                 }
               }
             } catch (parseError) {
-              console.warn('⚠️ Failed to parse SSE data:', parseError);
-              console.warn('📄 Raw data:', line);
+              console.warn('Failed to parse SSE data:', parseError);
             }
-          } else if (line.startsWith('event: ')) {
-            console.log('🎯 Event type:', line.slice(7));
           }
         }
       }
+    } catch (error) {
+      console.error('Error parsing streaming response:', error);
+      throw error;
     } finally {
       reader.releaseLock();
     }
 
-    console.log(`🎉 Streaming parsing complete: ${experiments.length} experiments, total: ${total}`);
     return { experiments, total };
   }
 
@@ -438,13 +369,8 @@ export class LangSmithService {
     experiments: DatasetExperiment[];
     total: number;
   } {
-    console.log('🔄 [DEBUG] Transforming sessions response');
-    console.log('🔄 [DEBUG] Data type:', Array.isArray(data) ? 'array' : typeof data);
-    console.log('🔄 [DEBUG] Data length/keys:', Array.isArray(data) ? data.length : Object.keys(data || {}));
-    
     // Handle direct array response (current API format)
     if (Array.isArray(data)) {
-      console.log('🔄 [DEBUG] Processing direct array of experiments');
       return {
         experiments: this.transformRows(data),
         total,
@@ -453,21 +379,18 @@ export class LangSmithService {
     
     // Handle object with rows property (alternative format)
     if (data && data.rows && Array.isArray(data.rows)) {
-      console.log('🔄 [DEBUG] Processing rows object format');
       return {
         experiments: this.transformRows(data.rows),
         total,
       };
     }
     
-    console.log('⚠️ [DEBUG] Unknown response format, returning empty');
+    console.warn('Unknown response format, returning empty');
     return { experiments: [], total: 0 };
   }
 
   private transformRows(rows: any[]): DatasetExperiment[] {
-    console.log('🔄 [DEBUG] Transforming', rows.length, 'experiments');
-    
-    return rows.map((row, index) => {
+    return rows.map((row) => {
       return {
         id: row.id,
         name: row.name,
@@ -501,11 +424,17 @@ export class LangSmithService {
         for (const [key, value] of Object.entries(parsed)) {
           if (value && typeof value === 'object') {
             const valueObj = value as any;
-            transformed[key] = {
+            const transformedValue = {
               ...valueObj,
               // Stringify the values field to match GraphQL String type
               values: valueObj.values ? JSON.stringify(valueObj.values) : undefined,
             };
+            transformed[key] = transformedValue;
+            
+            // Legacy mapping: map expected_output to correctness for backward compatibility
+            if (key === 'expected_output') {
+              transformed['correctness'] = transformedValue;
+            }
           }
         }
         
@@ -518,11 +447,17 @@ export class LangSmithService {
         for (const [key, value] of Object.entries(feedbackStatsRaw)) {
           if (value && typeof value === 'object') {
             const valueObj = value as any;
-            transformed[key] = {
+            const transformedValue = {
               ...valueObj,
               // Stringify the values field to match GraphQL String type
               values: valueObj.values ? JSON.stringify(valueObj.values) : undefined,
             };
+            transformed[key] = transformedValue;
+            
+            // Legacy mapping: map expected_output to correctness for backward compatibility
+            if (key === 'expected_output') {
+              transformed['correctness'] = transformedValue;
+            }
           }
         }
         
@@ -531,7 +466,7 @@ export class LangSmithService {
       
       return feedbackStatsRaw;
     } catch (error) {
-      console.error('❌ [DEBUG] Failed to parse feedback stats:', error);
+      console.error('Failed to parse feedback stats:', error);
       return undefined;
     }
   }
@@ -595,7 +530,6 @@ export class LangSmithService {
   public async getExperimentDetails(input: GetExperimentDetailsInput): Promise<ExperimentDetails> {
     const { experimentId, offset = 0, limit = 50 } = input;
 
-    console.log('🔍 [DEBUG] Getting experiment details for:', experimentId);
 
     // Build the API URL
     let baseUrl = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
@@ -612,7 +546,6 @@ export class LangSmithService {
     try {
       // 1. Get the experiment/session details
       const sessionUrl = `${baseUrl}/api/v1/sessions/${experimentId}`;
-      console.log('📡 [DEBUG] Fetching experiment details from:', sessionUrl);
 
       const sessionResponse = await fetch(sessionUrl, {
         method: 'GET',
@@ -628,7 +561,6 @@ export class LangSmithService {
       }
 
       const sessionData = await sessionResponse.json();
-      console.log('✅ [DEBUG] Got experiment details');
 
       // Transform session data to experiment format
       const experiment: DatasetExperiment = {
@@ -661,8 +593,6 @@ export class LangSmithService {
       }
 
       const runsUrl = `${baseUrl}/api/v1/datasets/${datasetId}/runs`;
-      console.log('📡 [DEBUG] Fetching runs from:', runsUrl);
-      console.log('📡 [DEBUG] Using dataset ID:', datasetId);
 
       const requestPayload = {
         session_ids: [experimentId],
@@ -672,7 +602,6 @@ export class LangSmithService {
         filters: {}
       };
 
-      console.log('📤 [DEBUG] Request payload:', JSON.stringify(requestPayload, null, 2));
 
       const runsResponse = await fetch(runsUrl, {
         method: 'POST',
@@ -686,12 +615,11 @@ export class LangSmithService {
 
       if (!runsResponse.ok) {
         const errorText = await runsResponse.text();
-        console.error('❌ [DEBUG] Runs API error:', runsResponse.status, runsResponse.statusText, errorText);
+        console.error('Runs API error:', runsResponse.status, runsResponse.statusText);
         throw new Error(`Failed to fetch runs: ${runsResponse.status} ${runsResponse.statusText}`);
       }
 
       const runsData = await runsResponse.json();
-      console.log(`✅ [DEBUG] Got runs response:`, JSON.stringify(runsData, null, 2));
 
       // The response format from your example shows it's an array of objects, each with a 'runs' array
       let allRuns: any[] = [];
@@ -711,7 +639,6 @@ export class LangSmithService {
         totalRunsCount = runsData.total_count || allRuns.length;
       }
 
-      console.log(`✅ [DEBUG] Processed ${allRuns.length} runs`);
 
       const runs = allRuns.map((run: any): Run => {
         // Calculate latency if not provided
@@ -762,13 +689,12 @@ export class LangSmithService {
       };
 
     } catch (error) {
-      console.error('❌ [DEBUG] Error getting experiment details:', error);
+      console.error('Error getting experiment details:', error);
       throw error;
     }
   }
 
   public async getFeedbackForRun(runId: string): Promise<Feedback[]> {
-    console.log('🔍 [DEBUG] Getting feedback for run:', runId);
 
     // Build the API URL
     let baseUrl = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
@@ -784,7 +710,6 @@ export class LangSmithService {
 
     try {
       const feedbackUrl = `${baseUrl}/feedback?run=${runId}`;
-      console.log('📡 [DEBUG] Fetching feedback from:', feedbackUrl);
 
       const response = await fetch(feedbackUrl, {
         method: 'GET',
@@ -797,12 +722,11 @@ export class LangSmithService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ [DEBUG] Feedback API error:', response.status, response.statusText, errorText);
+        console.error('Feedback API error:', response.status, response.statusText);
         throw new Error(`Failed to fetch feedback: ${response.status} ${response.statusText}`);
       }
 
       const feedbackData = await response.json();
-      console.log(`✅ [DEBUG] Got ${feedbackData.length || 0} feedback entries`);
 
       // Transform the feedback data to match our interface
       const feedback: Feedback[] = (feedbackData || []).map((item: any): Feedback => ({
@@ -831,7 +755,7 @@ export class LangSmithService {
 
       return feedback;
     } catch (error) {
-      console.error('❌ [DEBUG] Error getting feedback for run:', error);
+      console.error('Error getting feedback for run:', error);
       throw error;
     }
   }
@@ -839,10 +763,7 @@ export class LangSmithService {
   public async deleteExperimentRuns(input: DeleteExperimentRunsInput): Promise<DeleteExperimentRunsResult> {
     const { experimentId } = input;
     
-    console.log('🗑️ [DEBUG] Starting deleteExperimentRuns');
-    console.log('🗑️ [DEBUG] Experiment ID:', experimentId);
-    console.log('⚠️ [WARNING] LangSmith does not support permanent run deletion via API');
-    console.log('⚠️ [WARNING] This will attempt to remove runs but they may remain visible in dashboard');
+    console.warn('LangSmith does not support permanent run deletion via API');
 
     // Build the API URL
     let baseUrl = process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com';
@@ -859,7 +780,6 @@ export class LangSmithService {
     try {
       // First, let's get information about the experiment to confirm it exists
       const sessionUrl = `${baseUrl}/api/v1/sessions/${experimentId}`;
-      console.log('📡 [DEBUG] Checking if experiment exists:', sessionUrl);
 
       const checkResponse = await fetch(sessionUrl, {
         method: 'GET',
@@ -880,8 +800,6 @@ export class LangSmithService {
       }
 
       const experimentData = await checkResponse.json();
-      console.log('✅ [DEBUG] Found experiment:', experimentData.name);
-      console.log('📊 [DEBUG] Run count:', experimentData.run_count);
 
       // Get all runs in the experiment - handle cursor-based pagination
       let allTraceIds: string[] = [];
@@ -891,7 +809,6 @@ export class LangSmithService {
 
       do {
         const runsQueryUrl = `${baseUrl}/api/v1/runs/query`;
-        console.log(`📡 [DEBUG] Getting runs for experiment (page ${pageCount + 1}):`, runsQueryUrl);
 
         const requestBody: any = {
           session: [experimentId],
@@ -916,7 +833,7 @@ export class LangSmithService {
 
         if (!runsQueryResponse.ok) {
           const errorText = await runsQueryResponse.text();
-          console.error('❌ [DEBUG] Runs query API error:', runsQueryResponse.status, runsQueryResponse.statusText, errorText);
+          console.error('Runs query API error:', runsQueryResponse.status, runsQueryResponse.statusText);
           throw new Error(`Failed to query runs: ${runsQueryResponse.status} ${runsQueryResponse.statusText}`);
         }
 
@@ -924,7 +841,6 @@ export class LangSmithService {
         const batchTraceIds = runsData.runs?.map((run: any) => run.id) || [];
         
         allTraceIds.push(...batchTraceIds);
-        console.log(`📊 [DEBUG] Found ${batchTraceIds.length} runs in this batch (total so far: ${allTraceIds.length})`);
 
         // Get the next cursor for pagination
         cursor = runsData.cursors?.next || null;
@@ -932,12 +848,11 @@ export class LangSmithService {
 
         // Safety break - avoid infinite loop
         if (pageCount > 100) {
-          console.warn('⚠️ [DEBUG] Breaking pagination loop at 100 pages for safety');
+          console.warn('Breaking pagination loop at 100 pages for safety');
           break;
         }
       } while (cursor);
       
-      console.log('📊 [DEBUG] Total runs found to delete:', allTraceIds.length);
 
       if (allTraceIds.length === 0) {
         return {
@@ -954,7 +869,6 @@ export class LangSmithService {
 
       for (let i = 0; i < allTraceIds.length; i += batchSize) {
         const batchTraceIds = allTraceIds.slice(i, i + batchSize);
-        console.log(`🗑️ [DEBUG] Deleting batch ${Math.floor(i / batchSize) + 1} (${batchTraceIds.length} runs)`);
 
         const deleteResponse = await fetch(deleteUrl, {
           method: 'POST',
@@ -971,12 +885,11 @@ export class LangSmithService {
 
         if (!deleteResponse.ok) {
           const errorText = await deleteResponse.text();
-          console.error('❌ [DEBUG] Delete API error:', deleteResponse.status, deleteResponse.statusText, errorText);
+          console.error('Delete API error:', deleteResponse.status, deleteResponse.statusText);
           throw new Error(`Failed to delete runs batch: ${deleteResponse.status} ${deleteResponse.statusText}`);
         }
 
         totalDeleted += batchTraceIds.length;
-        console.log(`✅ [DEBUG] Successfully deleted batch (${totalDeleted}/${allTraceIds.length} total)`);
 
         // Add a small delay between batches to be nice to the API
         if (i + batchSize < allTraceIds.length) {
@@ -984,7 +897,6 @@ export class LangSmithService {
         }
       }
 
-      console.log('✅ [DEBUG] Successfully deleted all runs for experiment:', experimentId);
 
       return {
         success: true,
@@ -993,11 +905,163 @@ export class LangSmithService {
       };
 
     } catch (error) {
-      console.error('❌ [DEBUG] Error deleting experiment runs:', error);
+      console.error('Error deleting experiment runs:', error);
       return {
         success: false,
         message: `Failed to delete experiment runs: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
+
+  /**
+   * List available prompts from LangSmith
+   * @param query Optional tag name to filter prompts by (filters by tags only, not title/description)
+   * @param isPublic Whether to search public prompts (default: false for private workspace prompts)
+   * @returns List of prompt information
+   */
+  public async listPrompts(query?: string, isPublic: boolean = false): Promise<PromptInfo[]> {
+    
+    try {
+      // Use the LangSmith client to list prompts
+      // Note: LangSmith SDK doesn't support tag filtering directly, so we fetch all and filter client-side
+      const promptsIterator = this.client.listPrompts({
+        isPublic,
+        // Don't pass query to SDK - we'll filter by tags after fetching
+      } as any);
+      
+      const prompts: any[] = [];
+      for await (const prompt of promptsIterator) {
+        prompts.push(prompt);
+      }
+      
+      // Filter by tags if query is provided
+      const filteredPrompts = query ? prompts.filter(prompt => {
+        const tags = prompt.tags || [];
+        return tags.some((tag: string) => 
+          tag.toLowerCase().includes(query.toLowerCase())
+        );
+      }) : prompts;
+      
+      // Transform the response to our PromptInfo format
+      return filteredPrompts.map(prompt => {
+        return {
+          id: prompt.id,
+          name: prompt.repo_handle,
+          description: prompt.description || undefined,
+          isPublic: prompt.is_public,
+          numCommits: prompt.num_commits,
+          numLikes: prompt.num_likes,
+          updatedAt: prompt.updated_at,
+          owner: prompt.owner || 'system',
+          fullName: prompt.full_name,
+          tags: prompt.tags || [],
+        };
+      });
+    } catch (error) {
+      console.error('Error listing prompts:', error);
+      throw new Error(`Failed to list prompts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Pull a specific prompt from LangSmith
+   * @param promptName The name or full handle of the prompt (e.g., 'joke-generator' or 'owner/joke-generator')
+   * @param includeModel Whether to include the model configuration in the response
+   * @returns The prompt content and metadata
+   */
+  public async pullPrompt(promptName: string, includeModel: boolean = false): Promise<PromptWithContent> {
+    
+    try {
+      // Use the LangSmith client to pull the prompt
+      // The method is _pullPrompt (with underscore) according to the error
+      const promptData = await (this.client as any)._pullPrompt(promptName, {
+        includeModel,
+      });
+      
+      
+      // Extract metadata from the prompt if available
+      const metadata = promptData._metadata || {};
+      
+      // Parse the prompt name to extract owner if not provided
+      let owner = '';
+      let name = promptName;
+      if (promptName.includes('/')) {
+        const parts = promptName.split('/');
+        owner = parts[0];
+        name = parts.slice(1).join('/');
+      }
+      
+      return {
+        id: metadata.id || promptName,
+        name: name,
+        description: metadata.description,
+        isPublic: metadata.is_public || false,
+        owner: owner || metadata.owner || '',
+        fullName: promptName,
+        promptData: promptData,
+        metadata: metadata,
+      };
+    } catch (error) {
+      console.error('Error pulling prompt:', error);
+      throw new Error(`Failed to pull prompt "${promptName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Convert a LangSmith prompt to plain text format
+   * @param promptData The prompt data from pullPrompt
+   * @returns The prompt as a plain text string
+   */
+  public convertPromptToText(promptData: any): string {
+    
+    try {
+      let promptText = '';
+      let parsedData = promptData;
+      
+      // If it's a JSON string, parse it first
+      if (typeof promptData === 'string') {
+        try {
+          parsedData = JSON.parse(promptData);
+        } catch (parseError) {
+          // If parsing fails, treat it as a plain string template
+          return promptData;
+        }
+      }
+      
+      // Handle serialized LangChain PromptTemplate objects
+      if (parsedData.lc && parsedData.kwargs && parsedData.kwargs.template) {
+        promptText = parsedData.kwargs.template;
+      }
+      // If it's a ChatPromptTemplate or similar
+      else if (parsedData.messages && Array.isArray(parsedData.messages)) {
+        promptText = parsedData.messages
+          .map((msg: any) => {
+            if (typeof msg === 'string') return msg;
+            if (msg.content) return msg.content;
+            if (msg.prompt && msg.prompt.template) return msg.prompt.template;
+            return JSON.stringify(msg);
+          })
+          .join('\n\n');
+      }
+      // If it has a template property directly
+      else if (parsedData.template) {
+        promptText = parsedData.template;
+      }
+      // If it's a prompt with input_variables and template
+      else if (parsedData.input_variables && parsedData.template) {
+        promptText = parsedData.template;
+      }
+      // Default: stringify the whole thing
+      else {
+        console.warn('Unknown prompt format, using JSON representation');
+        promptText = JSON.stringify(parsedData, null, 2);
+      }
+      
+      return promptText;
+    } catch (error) {
+      console.error('Error converting prompt to text:', error);
+      throw new Error(`Failed to convert prompt to text: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
 } 
