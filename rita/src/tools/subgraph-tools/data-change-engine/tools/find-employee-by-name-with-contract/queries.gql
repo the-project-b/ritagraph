@@ -1,0 +1,14 @@
+# Employees is actualy "contracts"
+query findEmployeeByNameWithContract($data: EmployeeAdvancedFilterForHrInput!) {
+  employees(data: $data) {
+    employees {
+      contractId
+      employeeId
+      firstName
+      lastName
+      status
+      contractStart
+      contractEnd
+    }
+  }
+}

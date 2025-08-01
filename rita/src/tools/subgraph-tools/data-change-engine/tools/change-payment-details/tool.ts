@@ -130,10 +130,19 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
           mutationQuery: updatePayment(
             {
               id: payment.id,
-              properties: { monthlyHours: newMonthlyHours },
+              properties: {
+                amount: "to-be-determined" as any,
+                monthlyHours: newMonthlyHours,
+              },
             },
             "payment.properties.monthlyHours"
           ),
+          dynamicMutationVariables: {
+            "data.properties.amount": getPayment(
+              payment.id,
+              "payment.properties.amount"
+            ),
+          },
           changedField: "Monthly Hours",
           newValue: newMonthlyHours.toString(),
         };

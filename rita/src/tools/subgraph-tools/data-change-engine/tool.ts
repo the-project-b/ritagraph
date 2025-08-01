@@ -8,11 +8,11 @@ import {
 } from "@langchain/core/messages";
 import { buildDataChangeEngineGraph } from "./sub-graph";
 import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
-import { getActiveEmployeesWithContracts } from "../../get-active-employees-with-contracts/tool";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
+import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
 
 export type ExtendedToolContext = {
   // empty for now
@@ -40,7 +40,7 @@ Employees can have multiple contracts and per contract multiple payments so it i
 
       const tools = toolFactory<ExtendedToolContext>({
         toolDefintions: [
-          getActiveEmployeesWithContracts,
+          findEmployeeByNameWithContract,
           getPaymentsOfEmployee,
           getCurrentDataChangeProposals,
           changePaymentDetails,
