@@ -19,18 +19,20 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx --experimental-wasm-modules -r dotenv/config src/index.ts",
+    "dev": "langgraphjs dev",
     "lint": "eslint src",
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "langgraph:dev": "npx @langchain/langgraph-cli dev",
-    "langgraph:dev:tunnel": "npx @langchain/langgraph-cli dev --tunnel",
+    "langgraph:dev": "langgraphjs dev",
+    "langgraph:dev:tunnel": "langgraphjs dev --tunnel",
     "test": "jest",
-    "codegen:graphql": "graphql-codegen"
+    "codegen": "graphql-codegen --config codegen.ts"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",
   "license": "MIT",
   "dependencies": {
+    "@the-project-b/graphql": "*",
     "@langchain/anthropic": "^0.3.23",
     "@langchain/community": "^0.3.47",
     "@langchain/core": "^0.3.57",
@@ -44,10 +46,7 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "^5.0.7",
-    "@graphql-codegen/typescript": "^4.1.6",
-    "@graphql-codegen/typescript-graphql-request": "^6.3.0",
-    "@graphql-codegen/typescript-operations": "^4.6.1",
+    "@langchain/langgraph-cli": "^0.0.19",
     "@jest/globals": "^30.0.0",
     "@tsconfig/recommended": "^1.0.2",
     "@types/jest": "^29.5.14",

@@ -1,11 +1,30 @@
 
+# Dependencies
 node_modules/
-dist
-.turbo
-.env
-pdfs/**
+
+# Build outputs
+dist/
+**/dist/
+
+# Generated files
 src/generated/**
+**/src/generated/**
+
+# Turbo
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# App specific
+pdfs/**
 .langgraph_api
+
+# System files
 .DS_Store
 .cursorrules
-*.toml
+*.toml.turbo
+.claude
+fly.toml
