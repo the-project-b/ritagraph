@@ -2,7 +2,6 @@
   "node_version": "20",  
   "image_distro": "wolfi",
   "dockerfile_lines": [
-    "ADD ./packages /deps/packages",
     "ADD ./build.mts /api/langgraph_api/js/build.mts"
   ],
   "graphs": {
