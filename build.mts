@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 console.log('🔨 Running LangChain Cloud pre-build script...');
 
 const rootDir = '/deps/ritagraph';
+const packagesDir = '/deps/packages';
 
 // Check if we're in the right directory
 if (!existsSync(`${rootDir}/turbo.json`)) {
@@ -12,27 +13,45 @@ if (!existsSync(`${rootDir}/turbo.json`)) {
   process.exit(1);
 }
 
+// Check if packages were copied by dockerfile_lines
+if (!existsSync(packagesDir)) {
+  console.error('❌ packages not found at', packagesDir);
+  process.exit(1);
+}
+
 try {
-  // Build packages in correct order using Turbo
+  // Build projectb-graphql package directly
   console.log('📦 Building projectb-graphql package...');
-  execSync('npm run build --workspace=@the-project-b/projectb-graphql', {
+  execSync('npm run build', {
     stdio: 'inherit',
-    cwd: rootDir
+    cwd: `${packagesDir}/projectb-graphql`
   });
 
+  // Run codegen for rita-graphs package directly
   console.log('🔧 Running codegen for rita-graphs...');
-  execSync('npm run codegen --workspace=@the-project-b/rita-graphs', {
+  execSync('npm run codegen', {
     stdio: 'inherit',
-    cwd: rootDir
+    cwd: `${packagesDir}/rita-graphs`
   });
 
+  // Build rita-graphs package directly
   console.log('📦 Building rita-graphs package...');
-  execSync('npm run build --workspace=@the-project-b/rita-graphs', {
+  execSync('npm run build', {
     stdio: 'inherit',
-    cwd: rootDir
+    cwd: `${packagesDir}/rita-graphs`
   });
 
-  console.log('✅ All packages built successfully!');
+  // Copy built packages back to node_modules location where rita app expects them
+  console.log('📋 Copying built packages to node_modules...');
+  execSync(`cp -r ${packagesDir}/projectb-graphql/dist ${rootDir}/node_modules/@the-project-b/projectb-graphql/`, {
+    stdio: 'inherit'
+  });
+  
+  execSync(`cp -r ${packagesDir}/rita-graphs/dist ${rootDir}/node_modules/@the-project-b/rita-graphs/`, {
+    stdio: 'inherit'
+  });
+
+  console.log('✅ All packages built and copied successfully!');
 } catch (error) {
   console.error('❌ Build failed:', error);
   process.exit(1);
