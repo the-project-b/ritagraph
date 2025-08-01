@@ -24,7 +24,17 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
   ExtendedToolContext
 > = (ctx) =>
   tool(
-    async ({ employeeId, contractId, newAmount, newFrequency }, config) => {
+    async (
+      {
+        employeeId,
+        paymentId,
+        contractId,
+        newAmount,
+        newFrequency,
+        newMonthlyHours,
+      },
+      config
+    ) => {
       console.log("[TOOL > change_payment_details]");
 
       const { selectedCompanyId, accessToken } = ctx;
@@ -35,44 +45,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
       // 1) Get how many contracts the employee has
 
       prefixedLog("contractId", contractId);
-
-      if (!contractId) {
-        const employee = await client.getEmployeeById({
-          data: {
-            employeeId: employeeId,
-            employeeCompanyId: selectedCompanyId,
-          },
-        });
-
-        prefixedLog("employee", employee);
-        if (!employee.employee) {
-          return {
-            error: "The employee id did not resolve to an employee.",
-          };
-        }
-
-        const contractIds =
-          employee.employee?.employeeContract?.map((contract) => contract.id) ??
-          [];
-
-        prefixedLog("contractIds", contractIds);
-
-        if (contractIds.length > 1) {
-          // Handle edge case and ask how many people to change the payment for
-          return {
-            error:
-              "This employee has multiple contracts. Please specify which contract to change the payment for.",
-          };
-        }
-
-        if (contractIds.length === 0) {
-          return {
-            error: "This employee does not have any contracts.",
-          };
-        }
-
-        contractId = contractIds[0];
-      }
 
       // 2) Determine the payment id
 
@@ -85,13 +57,13 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
 
       prefixedLog("payments", payments);
 
-      const baseDataChangeProps = {
+      const buildBaseDataChangeProps = () => ({
         id: uuid(),
         relatedUserId: employeeId,
         description: `Change payment details for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
-      };
+      });
 
       if (payments.payments.length === 0) {
         return {
@@ -100,13 +72,29 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
       }
 
       const newProposals: Array<DataChangeProposal> = [];
-      const payment = payments.payments[0];
+      const payment = payments.payments.find(
+        (payment) => payment.id === paymentId
+      );
+
+      if (!payment) {
+        return {
+          error: `This payment does not exist. Those are the existing paymentIds payments: ${JSON.stringify(
+            payments.payments,
+            null,
+            2
+          )}`,
+        };
+      }
 
       prefixedLog("payment", payment);
 
       if (newAmount) {
+        // Amount changes require the monthly hours to be present - race conditions can happen where we schedule the
+        // change but at the time that is approved the monthly hours "are silently" changed to a different value.
+        // That is why we utilize the dynamic mutation variables
+
         const dataChangeProposal: DataChangeProposal = {
-          ...baseDataChangeProps,
+          ...buildBaseDataChangeProps(),
           description: `Change amount of payment ${payment.userFirstName} ${payment.userLastName} to ${newAmount}`,
           statusQuoQuery: getPayment(payment.id, "payment.properties.amount"),
           mutationQuery: updatePayment(
@@ -114,20 +102,47 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
               id: payment.id,
               properties: {
                 amount: newAmount,
-                monthlyHours: payment.properties.monthlyHours,
+                monthlyHours: "to-be-determined" as any,
               },
             },
             "payment.properties.amount"
           ),
+          dynamicMutationVariables: {
+            "data.properties.monthlyHours": getPayment(
+              payment.id,
+              "payment.properties.monthlyHours"
+            ),
+          },
           changedField: "Salary",
           newValue: newAmount.toFixed(2).toString(),
         };
         newProposals.push(dataChangeProposal);
       }
 
+      if (newMonthlyHours) {
+        const dataChangeProposal: DataChangeProposal = {
+          ...buildBaseDataChangeProps(),
+          description: `Change monthly hours of payment ${payment.userFirstName} ${payment.userLastName} to ${newMonthlyHours}`,
+          statusQuoQuery: getPayment(
+            payment.id,
+            "payment.properties.monthlyHours"
+          ),
+          mutationQuery: updatePayment(
+            {
+              id: payment.id,
+              properties: { monthlyHours: newMonthlyHours },
+            },
+            "payment.properties.monthlyHours"
+          ),
+          changedField: "Monthly Hours",
+          newValue: newMonthlyHours.toString(),
+        };
+        newProposals.push(dataChangeProposal);
+      }
+
       if (newFrequency) {
         const dataChangeProposal: DataChangeProposal = {
-          ...baseDataChangeProps,
+          ...buildBaseDataChangeProps(),
           description: `Change frequency of payment ${payment.userFirstName} ${payment.userLastName} to ${newFrequency}`,
           statusQuoQuery: getPayment(payment.id, "payment.frequency"),
           mutationQuery: placeHolderQuery,
@@ -182,18 +197,9 @@ These are the pending data change proposals. You can use them to approve the bas
       description:
         "Change employees payment. There are multiple properties that can be changed. Only change the ones mentioned in the request.",
       schema: z.object({
-        employeeId: z
-          .string()
-          .optional()
-          .describe(
-            "The id of the employee to change the payment for either the employeeId or the contractId is required"
-          ),
-        contractId: z
-          .string()
-          .optional()
-          .describe(
-            "The id of the contract to change the payment for either the employeeId or the contractId is required"
-          ),
+        employeeId: z.string(),
+        contractId: z.string(),
+        paymentId: z.string(),
         newAmount: z.number().optional(),
         newMonthlyHours: z.number().optional(),
         newFrequency: z.nativeEnum(PaymentFrequency).optional(),

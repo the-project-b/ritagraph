@@ -29,6 +29,8 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
 You are part of a Payroll assistant system.
 You job is it schedule data changes (mutations). 
 You get a vague request from the user and you have to resolve it using your tools.
+
+Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
       `;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([

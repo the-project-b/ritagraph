@@ -12,6 +12,7 @@ export const getPayment: (
         frequency
         properties {
           amount
+          monthlyHours
         }
       }
     }
@@ -31,6 +32,7 @@ export const updatePayment: (
       paymentUpdate(data: $data) {
         properties {
           amount
+          monthlyHours
         }
       }
     }

@@ -15,6 +15,7 @@ export type DataChangeProposal = {
   id: string;
 
   statusQuoQuery: QueryDefinition;
+  dynamicMutationVariables?: Record<string, QueryDefinition>;
   mutationQuery: QueryDefinition;
   relatedUserId?: string;
   status: "approved" | "pending" | "rejected";

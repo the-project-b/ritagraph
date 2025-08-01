@@ -1,7 +1,10 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../utils/graphql/client";
-import { GetEmployeeByIdQuery } from "../../generated/graphql";
+import {
+  GetEmployeeByIdQuery,
+  GetPaymentsQuery,
+} from "../../generated/graphql";
 import { ToolContext } from "../tool-factory";
 
 export const getPaymentsOfEmployee = (ctx: ToolContext) =>
@@ -39,9 +42,9 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
 
       return {
         instructions: `
-These are the payments for ${employee.employee?.firstName} ${employee.employee?.lastName}
+These are the payments for ${employee.employee?.firstName} ${employee.employee?.lastName} grouped by contract id.
 `,
-        payments: payments.payments,
+        payments: formatOutput(payments.payments),
       };
     },
     {
@@ -52,3 +55,27 @@ These are the payments for ${employee.employee?.firstName} ${employee.employee?.
       }),
     }
   );
+
+function formatOutput(payments: GetPaymentsQuery["payments"]) {
+  const paymentsGroupedByContractId = payments.reduce((acc, payment) => {
+    acc[payment.contractId] = acc[payment.contractId] || [];
+    acc[payment.contractId].push(payment);
+    return acc;
+  }, {} as Record<string, GetPaymentsQuery["payments"]>);
+
+  const entries = Object.entries(paymentsGroupedByContractId);
+
+  const result = entries
+    .map(([contractId, payments]) => {
+      return `Contract ID: ${contractId}
+Payments:
+${JSON.stringify(
+  payments.map(({ contractId, ...p }) => p),
+  null,
+  2
+)}`;
+    })
+    .join("\n---------\n");
+
+  return result;
+}
