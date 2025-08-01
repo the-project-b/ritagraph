@@ -5,7 +5,6 @@
     "ADD ./packages /deps/packages",
     "ADD ./build.mts /api/langgraph_api/js/build.mts"
   ],
-  "dependencies": ["./apps/rita"],
   "graphs": {
     "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
   },
