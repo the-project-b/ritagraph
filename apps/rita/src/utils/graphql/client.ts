@@ -1,7 +1,7 @@
 import { GraphQLClient } from "graphql-request";
-import { getSdk } from "../../generated/graphql";
+import { getSdk, Sdk } from "../../generated/graphql";
 
-export function createGraphQLClient(accessToken: string) {
+export function createGraphQLClient(accessToken: string): Sdk {
   const client = new GraphQLClient(
     `${process.env.PROJECTB_GRAPHQL_ENDPOINT}/schema`,
     {

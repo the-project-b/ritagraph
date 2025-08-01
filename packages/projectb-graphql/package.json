@@ -1,0 +1,22 @@
+{
+  "name": "@the-project-b/graphql",
+  "version": "1.0.0",
+  "description": "Shared GraphQL codegen configuration for Project B",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@graphql-codegen/cli": "^5.0.2",
+    "@graphql-codegen/typescript": "^4.0.9",
+    "@graphql-codegen/typescript-graphql-request": "^6.3.0",
+    "@graphql-codegen/typescript-operations": "^4.6.1",
+    "dotenv": "^16.5.0",
+    "graphql": "^16.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
