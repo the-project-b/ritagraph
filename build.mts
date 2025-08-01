@@ -20,38 +20,32 @@ if (!existsSync(packagesDir)) {
 }
 
 try {
-  // Build projectb-graphql package directly
-  console.log('📦 Building projectb-graphql package...');
-  execSync('npm run build', {
-    stdio: 'inherit',
-    cwd: `${packagesDir}/projectb-graphql`
-  });
-
-  // Run codegen for rita-graphs package directly
-  console.log('🔧 Running codegen for rita-graphs...');
-  execSync('npm run codegen', {
-    stdio: 'inherit',
-    cwd: `${packagesDir}/rita-graphs`
-  });
-
-  // Build rita-graphs package directly
-  console.log('📦 Building rita-graphs package...');
-  execSync('npm run build', {
-    stdio: 'inherit',
-    cwd: `${packagesDir}/rita-graphs`
-  });
-
-  // Copy built packages back to node_modules location where rita app expects them
-  console.log('📋 Copying built packages to node_modules...');
-  execSync(`cp -r ${packagesDir}/projectb-graphql/dist ${rootDir}/node_modules/@the-project-b/projectb-graphql/`, {
+  // Copy packages back to their expected workspace location
+  console.log('📋 Setting up workspace packages...');
+  execSync(`cp -r ${packagesDir} ${rootDir}/`, {
     stdio: 'inherit'
   });
   
-  execSync(`cp -r ${packagesDir}/rita-graphs/dist ${rootDir}/node_modules/@the-project-b/rita-graphs/`, {
-    stdio: 'inherit'
+  // Build packages using workspace commands from the main project directory
+  console.log('📦 Building projectb-graphql package...');
+  execSync('npm run build --workspace=@the-project-b/projectb-graphql', {
+    stdio: 'inherit',
+    cwd: rootDir
   });
 
-  console.log('✅ All packages built and copied successfully!');
+  console.log('🔧 Running codegen for rita-graphs...');
+  execSync('npm run codegen --workspace=@the-project-b/rita-graphs', {
+    stdio: 'inherit',
+    cwd: rootDir
+  });
+
+  console.log('📦 Building rita-graphs package...');
+  execSync('npm run build --workspace=@the-project-b/rita-graphs', {
+    stdio: 'inherit',
+    cwd: rootDir
+  });
+
+  console.log('✅ All packages built successfully!');
 } catch (error) {
   console.error('❌ Build failed:', error);
   process.exit(1);
