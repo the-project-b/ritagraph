@@ -1,7 +1,10 @@
 {
   "node_version": "20",
   "image_distro": "wolfi",
-  "dockerfile_lines": [],
+  "dockerfile_lines": [
+    "RUN cd packages/projectb-graphql && npm run build",
+    "RUN cd packages/rita-graphs && npm run codegen && npm run build"
+  ],
   "dependencies": ["./apps/rita"],
   "graphs": {
     "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
