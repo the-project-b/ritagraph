@@ -1,6 +1,10 @@
 {
   "node_version": "20",
-  "dockerfile_lines": [],
+  "dockerfile_lines": [
+    "ARG GITHUB_TOKEN",
+    "RUN echo '//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}' >> .npmrc",
+    "RUN echo '@the-project-b:registry=https://npm.pkg.github.com' >> .npmrc"
+  ],
   "dependencies": ["./apps/rita"],
   "graphs": {
     "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
