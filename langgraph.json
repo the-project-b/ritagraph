@@ -2,7 +2,7 @@
   "node_version": "20",  
   "image_distro": "wolfi",
   "dockerfile_lines": [
-    "RUN cd /deps/ritagraph && npx turbo run build"
+    "ADD ./packages /deps/packages"
   ],
   "dependencies": ["./apps/rita"],
   "graphs": {
