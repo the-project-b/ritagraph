@@ -2,7 +2,10 @@
   "node_version": "20",  
   "image_distro": "wolfi",
   "dockerfile_lines": [
-    "ADD ./packages /deps/packages"
+    "ADD ./packages /deps/packages",
+    "RUN cd /deps/ritagraph && npm run build --workspace=@the-project-b/projectb-graphql",
+    "RUN cd /deps/ritagraph && npm run codegen --workspace=@the-project-b/rita-graphs",
+    "RUN cd /deps/ritagraph && npm run build --workspace=@the-project-b/rita-graphs"
   ],
   "dependencies": ["./apps/rita"],
   "graphs": {
