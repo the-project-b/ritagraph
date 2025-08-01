@@ -18,18 +18,11 @@ if (!existsSync(`${rootDir}/packages`)) {
 }
 
 try {
-  // Set environment variables needed for GraphQL codegen
-  const buildEnv = {
-    ...process.env,
-    PROJECTB_GRAPHQL_ENDPOINT: 'https://dashboard.project-b.dev/graphqlapi'
-  };
-
   // Use Turbo to build packages in the correct dependency order
   console.log('📦 Building all packages with Turbo...');
   execSync('npm run build', {
     stdio: 'inherit',
-    cwd: rootDir,
-    env: buildEnv
+    cwd: rootDir
   });
 
   console.log('✅ All packages built successfully with Turbo!');
