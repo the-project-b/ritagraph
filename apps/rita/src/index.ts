@@ -1,2 +1,2 @@
-// Export the graph so it can be used in the package
-export { graph as rita } from './graphs/rita/graph.js';
+// Export the graph from the shared package
+export { rita } from '@the-project-b/rita-graphs';
