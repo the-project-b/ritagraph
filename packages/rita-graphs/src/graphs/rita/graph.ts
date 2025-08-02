@@ -16,7 +16,7 @@ import { routerEdgeDecision } from "./nodes/router.js";
 import { loadSettings } from "./nodes/load-settings.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { createMcpClient } from "../../mcp/client.js";
-import { getAuthUser } from "../../security/auth.js";
+// Remove direct import - getAuthUser will be passed as parameter
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
@@ -26,81 +26,91 @@ import {
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
 
-async function fetchTools(
-  companyId: string,
-  config: AnnotationRoot<any>
-): Promise<Array<ToolInterface>> {
-  const authUser = getAuthUser(config);
-  const mcpClient = createMcpClient({
-    accessToken: authUser.token,
-    companyId: companyId,
-  });
-  const mcpTools = await mcpClient.getTools();
-  const toolContext = {
-    accessToken: authUser.token,
-    selectedCompanyId: companyId,
-  };
+function createFetchTools(getAuthUser: (config: any) => any) {
+  return async function fetchTools(
+    companyId: string,
+    config: AnnotationRoot<any>
+  ): Promise<Array<ToolInterface>> {
+    const authUser = getAuthUser(config);
+    const mcpClient = createMcpClient({
+      accessToken: authUser.token,
+      companyId: companyId,
+    });
+    const mcpTools = await mcpClient.getTools();
+    const toolContext = {
+      accessToken: authUser.token,
+      selectedCompanyId: companyId,
+    };
 
-  const tools = toolFactory<undefined>({
-    toolDefintions: [
-      getPaymentsOfEmployee,
-      mutationEngine,
-      getActiveEmployeesWithContracts,
-    ],
-    ctx: toolContext,
-  });
-
-  return [...mcpTools, ...tools];
-}
-
-const graph = async () => {
-  try {
-    console.log("Initializing Dynamic Multi-Agent RITA Graph...");
-
-    const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
-      // => Nodes
-      .addNode("loadSettings", loadSettings)
-      .addNode("router", router)
-      .addNode("quickResponse", quickResponse)
-      .addNode(
-        "workflowEngine",
-        buildWorkflowEngineReAct({
-          fetchTools,
-          configAnnotation: ConfigurableAnnotation,
-          quickUpdateNode: quickUpdate,
-          preWorkflowResponse: preWorkflowResponse,
-        }),
-        {
-          ends: ["finalMessage"],
-        }
-      )
-      .addNode("finalMessage", finalMessage)
-      // => Edges
-      .addEdge(START, "loadSettings")
-      .addEdge("loadSettings", "router")
-      .addConditionalEdges("router", routerEdgeDecision, [
-        "quickResponse",
-        "workflowEngine",
-      ])
-      .addEdge("workflowEngine", "finalMessage")
-      .addEdge("finalMessage", END);
-
-    // Compile the graph
-    const memory = new MemorySaver();
-    const graph = workflow.compile({
-      checkpointer: memory,
+    const tools = toolFactory<undefined>({
+      toolDefintions: [
+        getPaymentsOfEmployee,
+        mutationEngine,
+        getActiveEmployeesWithContracts,
+      ],
+      ctx: toolContext,
     });
 
-    // Add version read from the package.json file
-    graph.name = `Rita`;
+    return [...mcpTools, ...tools];
+  };
+}
 
-    return graph;
-  } catch (error) {
-    console.error("Error:", error);
-    process.exit(1);
-  }
-};
+export function createRitaGraph(getAuthUser: (config: any) => any) {
+  return async () => {
+    try {
+      console.log("Initializing Dynamic Multi-Agent RITA Graph...");
+
+      const fetchTools = createFetchTools(getAuthUser);
+
+      const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
+        // => Nodes
+        .addNode("loadSettings", (state, config) => loadSettings(state, config, getAuthUser))
+        .addNode("router", router)
+        .addNode("quickResponse", quickResponse)
+        .addNode(
+          "workflowEngine",
+          buildWorkflowEngineReAct({
+            fetchTools,
+            configAnnotation: ConfigurableAnnotation,
+            quickUpdateNode: quickUpdate,
+            preWorkflowResponse: preWorkflowResponse,
+          }),
+          {
+            ends: ["finalMessage"],
+          }
+        )
+        .addNode("finalMessage", finalMessage)
+        // => Edges
+        .addEdge(START, "loadSettings")
+        .addEdge("loadSettings", "router")
+        .addConditionalEdges("router", routerEdgeDecision, [
+          "quickResponse",
+          "workflowEngine",
+        ])
+        .addEdge("workflowEngine", "finalMessage")
+        .addEdge("finalMessage", END);
+
+      // Compile the graph
+      const memory = new MemorySaver();
+      const graph = workflow.compile({
+        checkpointer: memory,
+      });
+
+      // Add version read from the package.json file
+      graph.name = `Rita`;
+
+      return graph;
+    } catch (error) {
+      console.error("Error:", error);
+      process.exit(1);
+    }
+  };
+}
 
 // All query logic is now in dedicated nodes under ./nodes/
 
-export { graph };
+// Keep backward compatibility - export the direct graph for existing consumers
+export const graph = async () => {
+  // This should not be used when auth is required
+  throw new Error("Use createRitaGraph() factory function for auth-enabled graphs");
+};

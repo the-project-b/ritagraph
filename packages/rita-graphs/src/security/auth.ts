@@ -82,7 +82,7 @@ auth.authenticate(async (request: Request) => {
  * Decrypt and verify encrypted impersonation context
  * Uses the same encryption approach as the backend EncryptionService
  */
-async function verifyEncryptedImpersonationContext(encryptedToken: string): Promise<ViewAsValue> {
+export async function verifyEncryptedImpersonationContext(encryptedToken: string): Promise<ViewAsValue> {
   const appSecret = process.env.APP_SECRET;
   
   if (!appSecret) {
@@ -229,7 +229,87 @@ export function getAuthUser(config: any): AuthUser {
   return { ...authUser, token: authUser.token || config.backupAccessToken };
 }
 
-async function fetchUserDataFromBackend(token: string) {
+// Auth utilities are now exported individually above
+
+/**
+ * Creates a configured Auth instance for an app
+ * This eliminates duplication across apps while maintaining the requirement
+ * that each app has its own Auth instance for LangGraph module discovery
+ */
+export function createAuthInstance(): Auth {
+  const authInstance = new Auth();
+  
+  authInstance.authenticate(async (request: Request) => {
+    // Extract the Authorization header from the request (Headers instance)
+    let authorization: string | undefined = undefined;
+    let impersonationContext: string | undefined = undefined;
+    
+    if (request.headers && typeof request.headers.get === "function") {
+      authorization =
+        request.headers.get("authorization") ||
+        request.headers.get("Authorization") ||
+        undefined;
+      impersonationContext =
+        request.headers.get("x-impersonation-context") ||
+        request.headers.get("X-Impersonation-Context") ||
+        undefined;
+    } else if (request.headers) {
+      // fallback for plain object
+      authorization =
+        (request.headers as any).authorization ||
+        (request.headers as any).Authorization;
+      impersonationContext =
+        (request.headers as any)["x-impersonation-context"] ||
+        (request.headers as any)["X-Impersonation-Context"];
+    }
+    
+    if (!authorization || typeof authorization !== "string") {
+      throw new HTTPException(401, { message: "Missing Authorization header" });
+    }
+    
+    // At this point, authorization is a string
+    const authHeader: string = authorization;
+    let token = "";
+    if (authHeader.toLowerCase().startsWith("bearer ")) {
+      token = authHeader.slice(7).trim();
+    } else {
+      token = authHeader.trim();
+    }
+    if (!token) {
+      throw new HTTPException(401, {
+        message: "Invalid Authorization header format",
+      });
+    }
+
+    // Use shared utilities
+    let user = await fetchUserDataFromBackend(token);
+
+    if (impersonationContext) {
+      try {
+        const viewAsData = await verifyEncryptedImpersonationContext(impersonationContext);
+        user = applyImpersonationContext(user, viewAsData);
+      } catch (error) {
+        console.error("❌ Rita Graph Auth - Failed to decrypt impersonation context:", error);
+        throw new HTTPException(401, { message: "Invalid impersonation token" });
+      }
+    } else {
+      console.log("ℹ️ Rita Graph Auth - No impersonation context found, using original user");
+    }
+
+    // Return standardized auth data
+    return {
+      identity: "Project-B Backend",
+      role: "authenticated-user",
+      token, // Pass the token so it is available in config.user.token
+      permissions: [], // Required by BaseAuthReturn
+      user: user.data.me,
+    };
+  });
+
+  return authInstance;
+}
+
+export async function fetchUserDataFromBackend(token: string) {
   const query = `query Me {
   me {
     ...MeFieldsHr
@@ -274,7 +354,7 @@ fragment MeFieldsHr on OnboardingHrManager {
   return data;
 }
 
-function applyImpersonationContext(userData: any, viewAsData: ViewAsValue) {
+export function applyImpersonationContext(userData: any, viewAsData: ViewAsValue) {
   const transformedData = JSON.parse(JSON.stringify(userData));
   
   transformedData.data.me = {

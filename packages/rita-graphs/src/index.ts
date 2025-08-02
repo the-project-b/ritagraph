@@ -1,5 +1,5 @@
 // Export main graphs
-export { graph as rita } from './graphs/rita/graph.js';
+export { graph as rita, createRitaGraph } from './graphs/rita/graph.js';
 export { graph as ritmail } from './graphs/ritmail/graph.js';
 
 // Export graph states (both use GraphState as the export name)
