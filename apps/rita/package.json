@@ -38,7 +38,7 @@
     "@langchain/community": "^0.3.47",
     "@langchain/core": "^0.3.57",
     "@langchain/langgraph": "^0.3.5",
-    "@langchain/langgraph-sdk": "^0.0.84",
+    "@langchain/langgraph-sdk": "0.0.105",
     "@langchain/mcp-adapters": "^0.5.2",
     "@langchain/openai": "^0.5.15",
     "@modelcontextprotocol/sdk": "^1.13.0",
