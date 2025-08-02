@@ -1,9 +1,7 @@
 {
-  "node_version": "20",  
-  "image_distro": "wolfi",
-  "dockerfile_lines": [
-    "ADD ./build.mts /api/langgraph_api/js/build.mts"
-  ],
+  "node_version": "20",
+  "dockerfile_lines": [],
+  "dependencies": ["./apps/rita"],
   "graphs": {
     "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
   },
