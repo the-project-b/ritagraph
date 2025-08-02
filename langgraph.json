@@ -1,11 +1,12 @@
 {
   "node_version": "20",
   "dockerfile_lines": [],
-  "dependencies": ["./apps/rita"],
+  "dependencies": ["."],
   "graphs": {
     "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
   },
   "auth": {
-    "path": "apps/rita/src/security/auth.ts:auth"
-  }
+    "path": "./apps/rita/src/security/auth.ts:auth"
+  },
+  "env": ".env"
 }
