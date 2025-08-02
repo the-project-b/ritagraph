@@ -1,6 +1,6 @@
 import {
   rita,
-} from '@the-project-b/rita-v2-graphs';
+} from '@the-project-b/rita-graphs';
 import { Client } from 'langsmith';
 import { evaluate } from 'langsmith/evaluation';
 
