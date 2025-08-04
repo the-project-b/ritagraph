@@ -14,8 +14,11 @@
     "postinstall": "syncpack list-mismatches || true"
   },
   "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "eslint": "^9.32.0",
     "syncpack": "^13.0.4",
-    "turbo": "^2.5.4"
+    "turbo": "^2.5.4",
+    "typescript-eslint": "^8.38.0"
   },
   "packageManager": "npm@10.9.2",
   "workspaces": [

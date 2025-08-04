@@ -11,8 +11,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src",
-    "lint:fix": "npm run lint -- --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
     "codegen": "graphql-codegen --config codegen.ts"
@@ -40,17 +40,14 @@
     "@graphql-codegen/typescript-operations": "^4.6.1",
     "@tsconfig/recommended": "^1.0.10",
     "@types/node": "^24.0.3",
-    "@typescript-eslint/eslint-plugin": "^8.34.1",
-    "@typescript-eslint/parser": "^8.34.1",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
     "dotenv": "^16.5.0",
-    "eslint": "^9.29.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-config-prettier": "8.6.0",
-    "eslint-plugin-import": "^2.27.5",
-    "eslint-plugin-prettier": "4.2.1",
+    "eslint": "^9.32.0",
+    "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-unused-imports": "^4.1.4",
     "graphql-request": "^7.2.0",
-    "prettier": "^2.8.3",
+    "prettier": "^3.6.2",
     "typescript": "^5.8.3"
   }
 }
