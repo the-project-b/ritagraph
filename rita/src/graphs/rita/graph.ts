@@ -20,13 +20,13 @@ import { getAuthUser } from "../../security/auth.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
-  getPaymentsOfEmployee,
   mutationEngine,
   findEmployee,
   getEmployeeById,
   getCurrentUser,
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
+import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
 
 async function fetchTools(
   companyId: string,
@@ -45,9 +45,8 @@ async function fetchTools(
 
   const tools = toolFactory<undefined>({
     toolDefintions: [
-      getPaymentsOfEmployee,
       mutationEngine,
-      //getActiveEmployeesWithContracts,
+      dataRetrievalEngine,
       findEmployee,
       getEmployeeById,
       getCurrentUser,
@@ -60,8 +59,9 @@ async function fetchTools(
   const filteredMcpTools = mcpTools.filter(
     (tool) => !toolsToExclude.includes(tool.name)
   );
+  console.log(filteredMcpTools);
 
-  return [...tools, ...filteredMcpTools];
+  return [...tools];
 }
 
 const graph = async () => {

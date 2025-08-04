@@ -87,10 +87,24 @@ export function buildWorkflowEngineReAct({
 
         console.log("🚀 [TOOLS NODE] ~ updates:", {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
+          dataRepresentationLayerStorage: updates.reduce(
+            (acc, update) => ({
+              ...acc,
+              ...update.dataRepresentationLayerStorage,
+            }),
+            {}
+          ),
         });
 
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
+          dataRepresentationLayerStorage: updates.reduce(
+            (acc, update) => ({
+              ...acc,
+              ...update.dataRepresentationLayerStorage,
+            }),
+            {}
+          ),
         };
       }
 

@@ -6,14 +6,16 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { buildDataRetrievalEngineGraph } from "./sub-graph";
+import { buildDataChangeEngineGraph } from "./sub-graph";
 import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
-import { Command } from "@langchain/langgraph";
-import { changePaymentDetails } from "./tools/change-payment-details/tool";
-import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
-import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
+import { Command, getCurrentTaskInput } from "@langchain/langgraph";
+import { getEmployeeById } from "../../get-employee-by-id/tool";
+import { findEmployee } from "../../find-employee/tool";
+import { getActiveEmployeesWithContracts } from "../../get-active-employees-with-contracts/tool";
 import { DataRepresentationLayerEntity } from "../../../utils/data-representation-layer";
+import { getAllEmployees } from "../../get-all-employees-drl/tool";
+import { dataRepresentationLayerPrompt } from "../../../utils/data-representation-layer/prompt-helper";
 
 export type ExtendedToolContext = {
   addItemToDataRepresentationLayer: (
@@ -26,15 +28,19 @@ export type ExtendedToolContext = {
  * This is a special tool since it runs its own graph.
  * Wrapping this into a tool helps us to have clear segration of concerns.
  */
-export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
+export const dataRetrievalEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersRequest }, config) => {
       const systemPrompt = `
 You are part of a Payroll assistant system.
-You job is it schedule data changes (mutations). 
+Your job is to retrieve data from the database about employees, contracts payments and more.
 You get a vague request from the user and you have to resolve it using your tools.
-
 Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
+
+Only your final response will be shown to the rest of the system. Make sure it includes the relevant data (e.g. <List .../> or other placeholders that you plan to show)
+
+${dataRepresentationLayerPrompt}
+
       `;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
@@ -42,23 +48,34 @@ Employees can have multiple contracts and per contract multiple payments so it i
         new HumanMessage(usersRequest),
       ]);
 
+      let newDataRepresentationLayerStorage: Record<
+        string,
+        DataRepresentationLayerEntity
+      > = {};
+      const addItemToDataRepresentationLayer = (
+        key: string,
+        value: DataRepresentationLayerEntity
+      ) => {
+        newDataRepresentationLayerStorage[key] = value;
+      };
+
       const tools = toolFactory<ExtendedToolContext>({
         toolDefintions: [
-          findEmployeeByNameWithContract,
           getPaymentsOfEmployee,
-          getCurrentDataChangeProposals,
-          changePaymentDetails,
+          getEmployeeById,
+          findEmployee,
+          getActiveEmployeesWithContracts,
+          getAllEmployees,
         ],
         ctx: {
           ...toolContext,
           extendedContext: {
-            addItemToDataRepresentationLayer:
-              toolContext.extendedContext.addItemToDataRepresentationLayer,
+            addItemToDataRepresentationLayer,
           },
         },
       });
 
-      const agent = buildDataRetrievalEngineGraph({ tools });
+      const agent = buildDataChangeEngineGraph({ tools });
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({
@@ -68,6 +85,11 @@ Employees can have multiple contracts and per contract multiple payments so it i
 
       return new Command({
         update: {
+          dataRepresentationLayerStorage: {
+            ...(getCurrentTaskInput(config) as any)
+              .dataRepresentationLayerStorage,
+            ...newDataRepresentationLayerStorage,
+          },
           messages: [
             new ToolMessage({
               content: response.messages[response.messages.length - 1].content,
@@ -78,11 +100,11 @@ Employees can have multiple contracts and per contract multiple payments so it i
       });
     },
     {
-      name: "data_change_engine",
+      name: "data_retrieval_engine",
       description:
-        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user",
+        "Takes a description of the data and tries to retrieve it from the database",
       schema: z.object({
-        usersRequest: z.string().describe("What the user wants to retrieve"),
+        usersRequest: z.string().describe("What the user wants to change"),
       }),
     }
   );

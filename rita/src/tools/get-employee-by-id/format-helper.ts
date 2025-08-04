@@ -1,4 +1,7 @@
-import { GetEmployeeByIdWithExtensiveInfoQuery } from "../../generated/graphql";
+import {
+  GetAllPaymentsOfEmployeeQuery,
+  GetEmployeeByIdWithExtensiveInfoQuery,
+} from "../../generated/graphql";
 
 export function extractContractInformation(
   employeeData: GetEmployeeByIdWithExtensiveInfoQuery["employee"]
@@ -34,6 +37,39 @@ export function extractContractInformation(
     - ${contract.contractType} contract type
     - ${contract.paymentType} payment type
   `
+    )
+    .join("\n")}
+  `;
+
+  return resultTemplate;
+}
+
+export function extractPaymentInformation(
+  payments: GetAllPaymentsOfEmployeeQuery["payments"]
+) {
+  const paymentsMappedToReducedInfo = payments.map((payment) => {
+    return {
+      id: payment.id,
+      contractId: payment.contractId,
+      typeName: payment.typeName,
+      typeTranslationKey: payment.typeTranslationKey,
+      frequency: payment.frequency,
+      paymentType: payment.paymentType,
+      properties: payment.properties,
+    };
+  });
+
+  const resultTemplate = `
+  ${paymentsMappedToReducedInfo
+    .map(
+      (payment) => `
+    - Contract ID: ${payment.contractId}
+    - Type Name: ${payment.typeName}
+    - Type Translation Key: ${payment.typeTranslationKey}
+    - Frequency: ${payment.frequency}
+    - Payment Type: ${JSON.stringify(payment.paymentType)}
+    - Properties: ${JSON.stringify(payment.properties)}
+    `
     )
     .join("\n")}
   `;

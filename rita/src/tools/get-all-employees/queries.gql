@@ -1,0 +1,37 @@
+query getAllEmployees($data: EmployeeAdvancedFilterForHrInput!) {
+  employees(data: $data) {
+    employees {
+      contractEnd
+      contractId
+      employeeId
+      email
+      contractStart
+      firstName
+      lastName
+      status
+      missingFieldsBPO {
+        contractMissingFields
+        personalDataMissingFields
+        userMissingFields
+      }
+      missingFieldsHR {
+        contractMissingFields
+        personalDataMissingFields
+        userMissingFields
+      }
+      missingFieldsEmployee {
+        contractMissingFields
+        personalDataMissingFields
+        userMissingFields
+      }
+    }
+    pagination {
+      currentPage
+      limit
+      nextPage
+      prevPage
+      totalItems
+      totalPages
+    }
+  }
+}

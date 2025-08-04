@@ -9,6 +9,7 @@ import {
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { AnnotationRoot } from "@langchain/langgraph";
 import { ToolInterface } from "../../../shared-types/node-types.js";
+import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
 
@@ -63,6 +64,8 @@ Responsibilities
 4. Use tools deliberately
    - Choose tools based on the current step.
    - Only call a tool if it's clearly required for that step.
+
+${dataRepresentationLayerPrompt}
 
 Format Your Thoughts
 

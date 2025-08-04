@@ -1,13 +1,13 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import {
-  createGraphQLClient,
-  GraphQLClientType,
-} from "../../utils/graphql/client";
+import { createGraphQLClient } from "../../utils/graphql/client";
 import { ToolContext } from "../tool-factory";
 import { Result } from "../../utils/types/result";
-import { GetEmployeeByIdWithExtensiveInfoQuery } from "../../generated/graphql";
-import { extractContractInformation } from "./format-helper";
+import {
+  extractContractInformation,
+  extractPaymentInformation,
+} from "./format-helper";
+import { fetchEmployeeById, fetchPaymentsOfEmployee } from "./fetch-helper";
 
 export const getEmployeeById = (ctx: ToolContext) =>
   tool(
@@ -30,6 +30,7 @@ export const getEmployeeById = (ctx: ToolContext) =>
       const employeeInfo = Result.unwrap(employee);
 
       let contractInformation = "";
+      let paymentInformation = "";
 
       // Now that we have the employee we need to reduce and improve the returned format as much as possible
       const baseInformation = `
@@ -40,9 +41,27 @@ export const getEmployeeById = (ctx: ToolContext) =>
         contractInformation = extractContractInformation(employeeInfo);
       }
 
+      if (includePaymentInfo) {
+        const paymentsResult = await fetchPaymentsOfEmployee(
+          client,
+          ctx.selectedCompanyId,
+          employeeInfo.employeeContract
+        );
+        if (Result.isFailure(paymentsResult)) {
+          return {
+            instructions: `No payments found for the employee or problems retrieving payments.`,
+          };
+        }
+
+        paymentInformation = extractPaymentInformation(
+          Result.unwrap(paymentsResult)
+        );
+      }
+
       const resultTemplate = `
       ${baseInformation}
       ${contractInformation}
+      ${paymentInformation}
       `;
 
       return resultTemplate;
@@ -57,22 +76,3 @@ export const getEmployeeById = (ctx: ToolContext) =>
       }),
     }
   );
-
-async function fetchEmployeeById(
-  client: GraphQLClientType,
-  companyId: string,
-  employeeId: string
-): Promise<Result<GetEmployeeByIdWithExtensiveInfoQuery["employee"], Error>> {
-  try {
-    const { employee } = await client.getEmployeeByIdWithExtensiveInfo({
-      data: {
-        employeeCompanyId: companyId,
-        employeeId,
-      },
-    });
-    // The GraphQL query returns { employees: { employees: [...] } }
-    return Result.success(employee);
-  } catch (e) {
-    return Result.failure(e as Error);
-  }
-}

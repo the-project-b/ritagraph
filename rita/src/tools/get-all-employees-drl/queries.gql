@@ -1,0 +1,16 @@
+query getAllEmployeeIds($data: EmployeeAdvancedFilterForHrInput!) {
+  employees(data: $data) {
+    employees {
+      employeeId
+      contractId
+    }
+    pagination {
+      currentPage
+      limit
+      nextPage
+      prevPage
+      totalItems
+      totalPages
+    }
+  }
+}

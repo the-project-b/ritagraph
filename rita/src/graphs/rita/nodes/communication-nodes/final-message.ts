@@ -4,6 +4,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
+import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 
 /**
  * At the moment just a pass through node
@@ -30,6 +31,8 @@ Guidelines:
  - If you could not find information say so
  - There will never be "pending" operations only thigns to be approved or rejected by the user.
  - Do not claim or say that there is an operation pending.
+
+${dataRepresentationLayerPrompt}
 
 Speak in {language}.
 

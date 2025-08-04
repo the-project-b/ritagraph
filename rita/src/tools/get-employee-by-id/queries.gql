@@ -35,6 +35,27 @@ query getEmployeeByIdWithExtensiveInfo($data: GetEmployeeInput!) {
   }
 }
 
+query getAllPaymentsOfEmployee($data: PaymentsListInput!) {
+  payments(data: $data) {
+    id
+    contractId
+    typeName
+    typeTranslationKey
+    frequency
+    paymentType {
+      compensationBaseTypeId
+      name
+      translationKey
+    }
+    contractId
+    properties {
+      amount
+      title
+      monthlyHours
+    }
+  }
+}
+
 fragment EmployeeDataStatusesFields on EmployeeContractDataStatuses {
   bpoCompletedAt
   hrCompletedAt

@@ -1,5 +1,6 @@
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
 import { QueryDefinition } from "../../utils/types/query-defintion";
+import { DataRepresentationLayerEntity } from "../../utils/data-representation-layer";
 
 export function AnnotationWithDefault<T>(defaultValue: T) {
   return Annotation<T>({
@@ -39,4 +40,7 @@ export const BaseGraphAnnotation = Annotation.Root({
   routingDecision: Annotation<
     "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
   >(),
+  dataRepresentationLayerStorage: AnnotationWithDefault<
+    Record<string, DataRepresentationLayerEntity>
+  >({}),
 });
