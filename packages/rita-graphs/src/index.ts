@@ -1,10 +1,11 @@
 // Export main graphs
 export { graph as rita, createRitaGraph } from './graphs/rita/graph.js';
-export { graph as ritmail } from './graphs/ritmail/graph.js';
+// Commented out ritmail - not used
+// export { graph as ritmail } from './graphs/ritmail/graph.js';
 
 // Export graph states (both use GraphState as the export name)
 export { GraphState as RitaGraphState, GraphStateType as RitaGraphStateType } from './graphs/rita/graph-state.js';
-export { GraphState as RitmailGraphState, GraphStateType as RitmailGraphStateType } from './graphs/ritmail/graph-state.js';
+// export { GraphState as RitmailGraphState, GraphStateType as RitmailGraphStateType } from './graphs/ritmail/graph-state.js';
 
 // Export shared types
 export * from './graphs/shared-types/base-annotation.js';

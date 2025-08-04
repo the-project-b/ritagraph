@@ -119,22 +119,72 @@ npm run build --filter=@the-project-b/rita-v2-graphs
 npm run build --filter=@the-project-b/experiments
 ```
 
+## Dependency Management
+
+This monorepo uses [Syncpack](https://jamiemason.github.io/syncpack/) to ensure consistent dependency versions across all packages.
+
+### Check for version mismatches
+```bash
+npm run syncpack:check
+```
+
+### Fix version mismatches automatically
+```bash
+npm run syncpack:fix
+```
+
+### Format package.json files
+```bash
+npm run syncpack:format
+```
+
+### Best practices for updating dependencies
+
+1. **Always check for mismatches before installing new packages**:
+   ```bash
+   npm run syncpack:check
+   ```
+
+2. **When updating a dependency, update it in one package first**:
+   ```bash
+   # Example: Update @langchain/langgraph in rita-graphs package
+   npm install @langchain/langgraph@latest --workspace=packages/rita-graphs
+   ```
+
+3. **Then synchronize across all packages**:
+   ```bash
+   npm run syncpack:fix
+   npm install
+   ```
+
+4. **For major version updates across the monorepo**:
+   ```bash
+   # Update in root to set the version
+   npm install <package>@<version> --workspace=<first-workspace>
+   # Sync across all workspaces
+   npm run syncpack:fix
+   npm install
+   ```
+
+### Version policies
+
+- **@langchain packages**: Use exact versions (no `^` or `~`) to prevent version drift
+- **Local packages (@the-project-b/*)**: Use workspace protocol (`*`)
+- **ESLint and TypeScript ESLint**: Pinned to compatible versions (v8/v7) for airbnb-base compatibility
+
 ## Cleanup
 
 ### Remove all build artifacts and dependencies
 ```bash
-# Remove node_modules
-find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
+# Use the built-in clean script
+npm run clean
 
-# Remove dist folders
-find . -name "dist" -type d -prune -exec rm -rf '{}' +
-
-# Remove generated files
-rm -rf apps/rita/src/generated/
-rm -rf .turbo
-
-# Remove all artifacts at once (Unix/macOS)
-npm run clean # If configured, or use the commands above
+# This removes:
+# - All node_modules directories
+# - All .turbo cache directories
+# - All dist directories
+# - All generated directories
+# - package-lock.json (for fresh regeneration)
 ```
 
 ### Fresh install

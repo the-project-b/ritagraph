@@ -1,19 +1,34 @@
 {
   "name": "ritagraph",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --ui=tui",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "start": "turbo run start"
+    "start": "turbo run start",
+    "clean": "bash -c 'find . -name \"node_modules\" -type d -prune -exec rm -rf {} + && find . -name \".turbo\" -type d -prune -exec rm -rf {} + && find . -name \"dist\" -type d -prune -exec rm -rf {} + && find . -name \"generated\" -type d -prune -exec rm -rf {} + && if [ \"$0\" != \"\" ]; then find . -name \"package-lock.json\" -type f -exec rm -f {} +; fi' --",
+    "syncpack:check": "syncpack list-mismatches",
+    "syncpack:fix": "syncpack fix-mismatches",
+    "syncpack:format": "syncpack format",
+    "postinstall": "syncpack list-mismatches || true"
   },
   "devDependencies": {
-    "turbo": "^2.5.4"
+    "@eslint/js": "^9.32.0",
+    "eslint": "^9.32.0",
+    "syncpack": "^13.0.4",
+    "turbo": "^2.5.4",
+    "typescript-eslint": "^8.38.0"
   },
   "packageManager": "npm@10.9.2",
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "@langchain/langgraph": "0.4.2",
+    "@langchain/core": "^0.3.66",
+    "@langchain/langgraph-sdk": "0.0.105"
+  }
 }
