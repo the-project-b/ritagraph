@@ -1,0 +1,56 @@
+{
+  "name": "@the-project-b/rita-graphs",
+  "description": "Shared Rita graphs and tools for LangGraph.js",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist/**/*",
+    "package.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write \"**/*.ts\"",
+    "format:check": "prettier --check \"**/*.ts\"",
+    "codegen": "graphql-codegen --config codegen.ts"
+  },
+  "author": "Dmitry Zhorov / Andries Verbanck | project-b",
+  "license": "MIT",
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.23",
+    "@langchain/community": "^0.3.47",
+    "@langchain/core": "^0.3.57",
+    "@langchain/langgraph": "^0.3.5",
+    "@langchain/langgraph-sdk": "0.0.105",
+    "@langchain/mcp-adapters": "^0.5.2",
+    "@langchain/openai": "^0.5.15",
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@the-project-b/graphql": "*",
+    "graphql": "^16.11.0",
+    "langsmith": "^0.3.33",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.4",
+    "@graphql-codegen/typescript": "^4.0.15",
+    "@graphql-codegen/typescript-graphql-request": "^6.2.18",
+    "@graphql-codegen/typescript-operations": "^4.2.17",
+    "@tsconfig/recommended": "^1.0.10",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "dotenv": "^16.0.3",
+    "eslint": "^8.33.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "8.6.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-prettier": "4.2.1",
+    "eslint-plugin-unused-imports": "^3.0.0",
+    "graphql-request": "^7.2.0",
+    "prettier": "^2.8.3",
+    "typescript": "^5.8.3"
+  }
+}

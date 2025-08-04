@@ -1,0 +1,12 @@
+{
+  "node_version": "20",
+  "dockerfile_lines": [],
+  "dependencies": ["."],
+  "graphs": {
+    "rita": "./src/graphs/rita/graph.ts:graph"
+  },
+  "auth": {
+    "path": "./src/graphs/rita/graph.ts:auth"
+  },
+  "env": ".env"
+}

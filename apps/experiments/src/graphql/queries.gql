@@ -1,0 +1,160 @@
+fragment ViewAs on ViewAsInfo {
+  enabled
+  impersonates {
+    client
+    role
+  }
+  identity {
+    company {
+      name
+      avatarUrl
+      companyId
+    }
+    user {
+      userId
+      firstName
+      lastName
+      email
+      role
+      avatarUrl
+    }
+  }
+  original {
+    company {
+      name
+      companyId
+      avatarUrl
+    }
+    user {
+      userId
+      firstName
+      lastName
+      role
+      avatarUrl
+    }
+  }
+}
+
+fragment MeFieldsEmployee on OnboardingEmployee {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    bpoCompany {
+      id
+      name
+    }
+    inferredPayrollEngine {
+      id
+      identifier
+    }
+    avatarUrl
+    id
+    name
+    features
+    isDemo
+  }
+  viewAs {
+    ...ViewAs
+  }
+  employeeSpace {
+    id
+    status
+  }
+}
+
+fragment MeFieldsHr on OnboardingHrManager {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    bpoCompany {
+      id
+      name
+    }
+    inferredPayrollEngine {
+      id
+      identifier
+    }
+    avatarUrl
+    id
+    name
+    features
+    forwardingEmail
+    isDemo
+  }
+  viewAs {
+    ...ViewAs
+  }
+}
+
+fragment MeFieldsBpo on OnboardingBpo {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    id
+    name
+    avatarUrl
+    features
+    forwardingEmail
+    inferredPayrollEngine {
+      id
+      identifier
+    }
+    isDemo
+  }
+  viewAs {
+    ...ViewAs
+  }
+}
+
+fragment MeFieldsAdmin on OnboardingAdmin {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    id
+    name
+    avatarUrl
+    features
+    forwardingEmail
+    isDemo
+  }
+  viewAs {
+    ...ViewAs
+  }
+}
+
+query Me {
+  me {
+    ...MeFieldsEmployee
+    ...MeFieldsHr
+    ...MeFieldsBpo
+    ...MeFieldsAdmin
+  }
+}

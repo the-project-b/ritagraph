@@ -1,0 +1,14 @@
+{
+  "node_version": "20",
+  "image_distro": "wolfi",
+  "dockerfile_lines": [
+    "ADD ./build.mts /api/langgraph_api/js/build.mts"
+  ],
+  "graphs": {
+    "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
+  },
+  "auth": {
+    "path": "./apps/rita/src/security/auth.ts:auth"
+  },
+  "env": ".env"
+}
