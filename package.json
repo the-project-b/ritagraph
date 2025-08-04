@@ -24,7 +24,7 @@
   ],
   "overrides": {
     "@langchain/langgraph": "0.4.2",
-    "@langchain/core": "0.3.66",
+    "@langchain/core": "^0.3.66",
     "@langchain/langgraph-sdk": "0.0.105"
   }
 }
