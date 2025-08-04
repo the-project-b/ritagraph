@@ -1,0 +1,49 @@
+{
+  "versionGroups": [
+    {
+      "label": "Use workspace protocol for local packages",
+      "dependencies": ["@the-project-b/**"],
+      "dependencyTypes": ["prod", "dev"],
+      "pinVersion": "*"
+    },
+    {
+      "label": "Ensure @langchain packages are synchronized",
+      "dependencies": ["@langchain/**"],
+      "dependencyTypes": ["prod", "dev"],
+      "policy": "sameRange"
+    }
+  ],
+  "semverGroups": [
+    {
+      "label": "Use exact versions for @langchain packages",
+      "dependencies": ["@langchain/**"],
+      "dependencyTypes": ["prod"],
+      "range": ""
+    }
+  ],
+  "sortAz": [
+    "contributors",
+    "dependencies",
+    "devDependencies",
+    "keywords",
+    "peerDependencies",
+    "resolutions",
+    "scripts"
+  ],
+  "sortFirst": [
+    "name",
+    "description",
+    "version",
+    "author",
+    "license",
+    "type",
+    "main",
+    "files",
+    "repository",
+    "publishConfig",
+    "scripts",
+    "dependencies",
+    "devDependencies",
+    "peerDependencies"
+  ]
+}
