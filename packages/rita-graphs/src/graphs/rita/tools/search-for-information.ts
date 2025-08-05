@@ -125,7 +125,7 @@ const searchForInformation = tool(
         .string()
         .describe("Natural language description of what data to search for"),
     }),
-  }
+  },
 );
 
 export { searchForInformation };

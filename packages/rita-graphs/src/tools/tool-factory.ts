@@ -12,7 +12,7 @@ type Params<T> = {
 };
 
 export type ToolFactoryToolDefintion<T = any> = (
-  ctx: ToolContext<T>
+  ctx: ToolContext<T>,
 ) => ToolInterface<any>;
 
 /**
@@ -25,7 +25,7 @@ export function toolFactory<T>({
   const tools = toolDefintions.map((toolDefinition) => toolDefinition(ctx));
   console.log(
     "TOOLS coming out of toolFactory",
-    tools.map((i) => i.name).join(", ")
+    tools.map((i) => i.name).join(", "),
   );
 
   return tools;

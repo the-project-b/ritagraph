@@ -7,7 +7,7 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import { buildDataChangeEngineGraph } from "./sub-graph";
-import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
+import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command, getCurrentTaskInput } from "@langchain/langgraph";
 import { getEmployeeById } from "../../get-employee-by-id/tool";
@@ -20,7 +20,7 @@ import { dataRepresentationLayerPrompt } from "../../../utils/data-representatio
 export type ExtendedToolContext = {
   addItemToDataRepresentationLayer: (
     key: string,
-    value: DataRepresentationLayerEntity
+    value: DataRepresentationLayerEntity,
   ) => void;
 };
 
@@ -40,7 +40,6 @@ Employees can have multiple contracts and per contract multiple payments so it i
 Only your final response will be shown to the rest of the system. Make sure it includes the relevant data (e.g. <List .../> or other placeholders that you plan to show)
 
 ${dataRepresentationLayerPrompt}
-
       `;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
@@ -48,13 +47,14 @@ ${dataRepresentationLayerPrompt}
         new HumanMessage(usersRequest),
       ]);
 
-      let newDataRepresentationLayerStorage: Record<
+      const newDataRepresentationLayerStorage: Record<
         string,
         DataRepresentationLayerEntity
       > = {};
+
       const addItemToDataRepresentationLayer = (
         key: string,
-        value: DataRepresentationLayerEntity
+        value: DataRepresentationLayerEntity,
       ) => {
         newDataRepresentationLayerStorage[key] = value;
       };
@@ -106,5 +106,5 @@ ${dataRepresentationLayerPrompt}
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to change"),
       }),
-    }
+    },
   );

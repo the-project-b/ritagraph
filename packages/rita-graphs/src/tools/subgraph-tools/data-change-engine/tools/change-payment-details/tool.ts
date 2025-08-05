@@ -1,14 +1,16 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
-import { ToolFactoryToolDefintion } from "../../../../tool-factory";
+import {
+  ToolContext,
+  ToolFactoryToolDefintion,
+} from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
 import {
   CreateRitaThreadItemMutation,
   PaymentFrequency,
 } from "../../../../../generated/graphql";
-import { ExtendedToolContext } from "../../tool";
 import {
   getPayment,
   placeHolderQuery,
@@ -20,9 +22,9 @@ function prefixedLog(...message: Array<any>) {
   console.log(`[TOOL > change_payment_details]`, ...message);
 }
 
-export const changePaymentDetails: ToolFactoryToolDefintion<
-  ExtendedToolContext
-> = (ctx) =>
+export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
+  ctx,
+) =>
   tool(
     async (
       {
@@ -33,7 +35,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
         newFrequency,
         newMonthlyHours,
       },
-      config
+      config,
     ) => {
       console.log("[TOOL > change_payment_details]");
 
@@ -73,7 +75,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
 
       const newProposals: Array<DataChangeProposal> = [];
       const payment = payments.payments.find(
-        (payment) => payment.id === paymentId
+        (payment) => payment.id === paymentId,
       );
 
       if (!payment) {
@@ -81,7 +83,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
           error: `This payment does not exist. Those are the existing paymentIds payments: ${JSON.stringify(
             payments.payments,
             null,
-            2
+            2,
           )}`,
         };
       }
@@ -105,12 +107,12 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
                 monthlyHours: "to-be-determined" as any,
               },
             },
-            "payment.properties.amount"
+            "payment.properties.amount",
           ),
           dynamicMutationVariables: {
             "data.properties.monthlyHours": getPayment(
               payment.id,
-              "payment.properties.monthlyHours"
+              "payment.properties.monthlyHours",
             ),
           },
           changedField: "Salary",
@@ -125,7 +127,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
           description: `Change monthly hours of payment ${payment.userFirstName} ${payment.userLastName} to ${newMonthlyHours}`,
           statusQuoQuery: getPayment(
             payment.id,
-            "payment.properties.monthlyHours"
+            "payment.properties.monthlyHours",
           ),
           mutationQuery: updatePayment(
             {
@@ -135,12 +137,12 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
                 monthlyHours: newMonthlyHours,
               },
             },
-            "payment.properties.monthlyHours"
+            "payment.properties.monthlyHours",
           ),
           dynamicMutationVariables: {
             "data.properties.amount": getPayment(
               payment.id,
-              "payment.properties.amount"
+              "payment.properties.amount",
             ),
           },
           changedField: "Monthly Hours",
@@ -164,14 +166,14 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
 
       const newProposalDbUpdateResults = await Promise.all(
         newProposals.map((proposal) =>
-          createThreadItemForProposal(proposal, thread_id, accessToken)
-        )
+          createThreadItemForProposal(proposal, thread_id, accessToken),
+        ),
       );
 
       // TODO: Remove this once we have a way to handle failed thread items
       if (newProposalDbUpdateResults.some(Result.isFailure)) {
         const failedThreadItems = newProposalDbUpdateResults.filter(
-          Result.isFailure
+          Result.isFailure,
         );
         const issues = failedThreadItems
           .map((item) => Result.unwrapFailure(item))
@@ -179,7 +181,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<
 
         console.error(
           "Failed to create thread items for the data change proposals.",
-          issues
+          issues,
         );
 
         return {
@@ -213,13 +215,13 @@ These are the pending data change proposals. You can use them to approve the bas
         newMonthlyHours: z.number().optional(),
         newFrequency: z.nativeEnum(PaymentFrequency).optional(),
       }),
-    }
+    },
   );
 
 async function createThreadItemForProposal(
   proposal: DataChangeProposal,
   threadId: string,
-  accessToken: string
+  accessToken: string,
 ): Promise<Result<CreateRitaThreadItemMutation>> {
   try {
     const client = createGraphQLClient(accessToken);

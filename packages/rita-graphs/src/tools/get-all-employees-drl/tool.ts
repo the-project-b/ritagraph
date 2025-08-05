@@ -2,15 +2,15 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { randomUUID as uuid } from "crypto";
 import {
-  createGraphQLClient,
   GraphQLClientType,
+  createGraphQLClient,
 } from "../../utils/graphql/client";
 import { ToolContext } from "../tool-factory";
 import { Result } from "../../utils/types/result";
 import { GetAllEmployeeIdsQuery } from "../../generated/graphql";
 import {
-  buildRepresentationString,
   DataRepresentationLayerEntity,
+  buildRepresentationString,
 } from "../../utils/data-representation-layer";
 
 /**
@@ -19,7 +19,7 @@ import {
 export const getAllEmployees = (
   ctx: ToolContext<{
     addItemToDataRepresentationLayer: (key: string, value: any) => void;
-  }>
+  }>,
 ) =>
   tool(
     async () => {
@@ -29,7 +29,7 @@ export const getAllEmployees = (
 
       const employeesResult = await getAllEmployeeIds(
         client,
-        ctx.selectedCompanyId
+        ctx.selectedCompanyId,
       );
 
       if (Result.isFailure(employeesResult)) {
@@ -51,7 +51,7 @@ export const getAllEmployees = (
 
       addItemToDataRepresentationLayer(
         dataRepresentationLayerEntity.id,
-        dataRepresentationLayerEntity
+        dataRepresentationLayerEntity,
       );
 
       return `
@@ -65,17 +65,17 @@ ${buildRepresentationString(dataRepresentationLayerEntity)}
       description:
         "Returns a placeholder for the list of all active employees with contracts. This placeholder will be replaced later with the properly formatted employee list in the final response.",
       schema: z.object({}),
-    }
+    },
   );
 
 async function getAllEmployeeIds(
   client: GraphQLClientType,
-  companyId: string
+  companyId: string,
 ): Promise<Result<GetAllEmployeeIdsQuery["employees"]["employees"], Error>> {
   try {
     const { employees } = await client.getAllEmployeeIds({
       data: {
-        companyId: companyId,
+        companyId,
       },
     });
 

@@ -1,14 +1,16 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { ToolFactoryToolDefintion } from "../../../../tool-factory";
-import { ExtendedToolContext } from "../../tool";
+import {
+  ToolContext,
+  ToolFactoryToolDefintion,
+} from "../../../../tool-factory";
 import { Result } from "../../../../../utils/types/result";
 import { GetThreadItemsByLanggraphThreadIdQuery } from "../../../../../generated/graphql";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 
 export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
-  ExtendedToolContext
+  ToolContext
 > = (ctx) =>
   tool(
     async (_, { configurable }) => {
@@ -19,7 +21,7 @@ export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
 
       const threadItemsResult = await getThreadItemsByLanggraphThreadId(
         thread_id,
-        accessToken
+        accessToken,
       );
 
       if (Result.isFailure(threadItemsResult)) {
@@ -50,12 +52,12 @@ These are the pending data change proposals. You can use them to approve the bas
       description:
         "All data change proposals have to be approved by the user. This tool will list all pending data change proposals, which then can be approved by using their id and the corresponding tool call",
       schema: z.object({}),
-    }
+    },
   );
 
 async function getThreadItemsByLanggraphThreadId(
   threadId: string,
-  accessToken: string
+  accessToken: string,
 ): Promise<
   Result<
     GetThreadItemsByLanggraphThreadIdQuery["threadByLanggraphId"]["threadItems"]
@@ -74,7 +76,7 @@ async function getThreadItemsByLanggraphThreadId(
 }
 
 function isDataChangeProposal(
-  ritaThreadItem: GetThreadItemsByLanggraphThreadIdQuery["threadByLanggraphId"]["threadItems"][number]["data"]
+  ritaThreadItem: GetThreadItemsByLanggraphThreadIdQuery["threadByLanggraphId"]["threadItems"][number]["data"],
 ): ritaThreadItem is DataChangeProposal {
   return ritaThreadItem.data?.type === "DATA_CHANGE_PROPOSAL";
 }

@@ -7,20 +7,12 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import { buildDataRetrievalEngineGraph } from "./sub-graph";
-import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
+import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
 import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
-import { DataRepresentationLayerEntity } from "../../../utils/data-representation-layer";
-
-export type ExtendedToolContext = {
-  addItemToDataRepresentationLayer: (
-    key: string,
-    value: DataRepresentationLayerEntity
-  ) => void;
-};
 
 /**
  * This is a special tool since it runs its own graph.
@@ -42,7 +34,7 @@ Employees can have multiple contracts and per contract multiple payments so it i
         new HumanMessage(usersRequest),
       ]);
 
-      const tools = toolFactory<ExtendedToolContext>({
+      const tools = toolFactory<undefined>({
         toolDefintions: [
           findEmployeeByNameWithContract,
           getPaymentsOfEmployee,
@@ -51,10 +43,6 @@ Employees can have multiple contracts and per contract multiple payments so it i
         ],
         ctx: {
           ...toolContext,
-          extendedContext: {
-            addItemToDataRepresentationLayer:
-              toolContext.extendedContext.addItemToDataRepresentationLayer,
-          },
         },
       });
 
@@ -84,5 +72,5 @@ Employees can have multiple contracts and per contract multiple payments so it i
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to retrieve"),
       }),
-    }
+    },
   );

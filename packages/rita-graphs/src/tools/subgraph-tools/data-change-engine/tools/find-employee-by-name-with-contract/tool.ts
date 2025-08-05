@@ -1,8 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
-  createGraphQLClient,
   GraphQLClientType,
+  createGraphQLClient,
 } from "../../../../../utils/graphql/client";
 import { ToolContext } from "../../../../tool-factory";
 import { Result } from "../../../../../utils/types/result";
@@ -16,8 +16,8 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
 
       const employees = await Promise.all(
         nameParts.map((namePart) =>
-          fetchEmployeeByName(client, ctx.selectedCompanyId, namePart)
-        )
+          fetchEmployeeByName(client, ctx.selectedCompanyId, namePart),
+        ),
       );
 
       const unfailedSearchResults = employees.filter(Result.isSuccess);
@@ -33,7 +33,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
       }
 
       const deduplicatedEmployees = Array.from(
-        new Map(foundEmployees.map(toMappable)).values()
+        new Map(foundEmployees.map(toMappable)).values(),
       );
 
       return {
@@ -52,13 +52,13 @@ These are the employees matching the given name.
           .array(z.string())
           .describe("Parts of the name of the employee e.g. [John, Doe]"),
       }),
-    }
+    },
   );
 
 async function fetchEmployeeByName(
   client: GraphQLClientType,
   companyId: string,
-  search: string
+  search: string,
 ): Promise<
   Result<FindEmployeeByNameWithContractQuery["employees"]["employees"], Error>
 > {
@@ -77,16 +77,16 @@ async function fetchEmployeeByName(
 }
 
 function toMappable(
-  employee: FindEmployeeByNameWithContractQuery["employees"]["employees"][number]
+  employee: FindEmployeeByNameWithContractQuery["employees"]["employees"][number],
 ): [
   string,
-  FindEmployeeByNameWithContractQuery["employees"]["employees"][number]
+  FindEmployeeByNameWithContractQuery["employees"]["employees"][number],
 ] {
   return [employee.employeeId, employee];
 }
 
 function isActiveContract(
-  contract: FindEmployeeByNameWithContractQuery["employees"]["employees"][number]
+  contract: FindEmployeeByNameWithContractQuery["employees"]["employees"][number],
 ) {
   const now = new Date();
 
