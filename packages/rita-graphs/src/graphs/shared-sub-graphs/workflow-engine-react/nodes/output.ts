@@ -2,6 +2,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
+import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 
 export const output: WorkflowEngineNode = async ({
   messages,
@@ -20,6 +21,8 @@ export const output: WorkflowEngineNode = async ({
 Extract all the relevant information from the previous thought process and tool calls.
 Make sure you find and extract all the information that is relevant to the users request.
 Put this into a brief response draft.
+
+${dataRepresentationLayerPrompt}
 `
   ).format({});
 

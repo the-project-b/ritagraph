@@ -7,7 +7,7 @@ type Params = {
   tools: Array<ToolInterface>;
 };
 
-export function buildDataRetrievalEngineGraph({ tools }: Params) {
+export function buildDataChangeEngineGraph({ tools }: Params) {
   const llm = new ChatOpenAI({ temperature: 0 });
 
   // Initialize memory to persist state between graph runs

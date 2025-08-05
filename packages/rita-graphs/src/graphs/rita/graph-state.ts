@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { Runnable } from "@langchain/core/runnables";
-import { Annotation, Command, type LangGraphRunnableConfig } from "@langchain/langgraph";
+import {
+  Annotation,
+  Command,
+  type LangGraphRunnableConfig,
+} from "@langchain/langgraph";
 import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
@@ -25,7 +29,7 @@ type NodeReturn<State = GraphStateType> = Command | Partial<State> | null;
 // LangGraph passes a RunnableConfig that includes our custom config
 export type Node<State = GraphStateType> = (
   state: State,
-  config?: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>
+  config?: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
 ) => Promise<NodeReturn<State>> | NodeReturn<State>;
 
 export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
@@ -38,7 +42,7 @@ export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
 export type AgentNode<
   TInput = any,
   TOutput = any,
-  TTools extends ToolDefinition[] = ToolDefinition[]
+  TTools extends ToolDefinition[] = ToolDefinition[],
 > = Runnable<TInput, TOutput> & {
   displayName: string;
   config: {

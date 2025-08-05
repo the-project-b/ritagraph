@@ -19,7 +19,7 @@ import {
   BaseGraphAnnotation,
 } from "../../shared-types/base-annotation.js";
 import { abortOutput } from "./nodes/abort-output.js";
-import { BaseMessage, isAIMessage } from "@langchain/core/messages";
+import { isAIMessage } from "@langchain/core/messages";
 
 export const workflowEngineState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
@@ -37,7 +37,7 @@ export type WorkflowEngineNode = Node<WorkflowEngineStateType, any>;
 type BuildWorkflowEngineReActParams = {
   fetchTools: (
     companyId: string,
-    config: AnnotationRoot<any>
+    config: AnnotationRoot<any>,
   ) => Promise<Array<ToolInterface>>;
   preWorkflowResponse?: WorkflowEngineNode;
   quickUpdateNode?: WorkflowEngineNode;
@@ -61,7 +61,7 @@ export function buildWorkflowEngineReAct({
         message.tool_calls.length === 0
       ) {
         throw new Error(
-          "Most recent message must be an AIMessage with a tool call."
+          "Most recent message must be an AIMessage with a tool call.",
         );
       }
 
@@ -81,16 +81,29 @@ export function buildWorkflowEngineReAct({
         const commands = result.filter(isCommand);
         const updates = [];
         commands.forEach((item) => {
-          updates;
           updates.push(item.update);
         });
 
         console.log("🚀 [TOOLS NODE] ~ updates:", {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
+          dataRepresentationLayerStorage: updates.reduce(
+            (acc, update) => ({
+              ...acc,
+              ...update.dataRepresentationLayerStorage,
+            }),
+            {},
+          ),
         });
 
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
+          dataRepresentationLayerStorage: updates.reduce(
+            (acc, update) => ({
+              ...acc,
+              ...update.dataRepresentationLayerStorage,
+            }),
+            {},
+          ),
         };
       }
 
@@ -115,7 +128,7 @@ export function buildWorkflowEngineReAct({
    * The general idea is to use a Re-Act pattern to contionusly improve the response
    * In order to properly reason it can communciate in its own messageing system.
    */
-  let subGraph = new StateGraph(workflowEngineState, configAnnotation);
+  const subGraph = new StateGraph(workflowEngineState, configAnnotation);
 
   subGraph
     .addNode("preWorkflowResponse", preWorkflowResponse ?? emptyNode)

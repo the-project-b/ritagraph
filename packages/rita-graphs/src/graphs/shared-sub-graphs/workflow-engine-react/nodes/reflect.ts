@@ -7,6 +7,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
+import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 
 const MAX_REFLECTION_STEPS = 3;
 
@@ -33,6 +34,8 @@ You are part of Payroll Specialist Assistant.
 Your counterpart is using tools to solve the users request.
 
 You are checking if the counterpart has come up with enough information or is missing the point.
+
+${dataRepresentationLayerPrompt}
 
 Guidelines:
 - Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.

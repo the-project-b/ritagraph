@@ -20,21 +20,23 @@ import { createMcpClient } from "../../mcp/client.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
-  getPaymentsOfEmployee,
   mutationEngine,
-  getActiveEmployeesWithContracts,
+  getEmployeeById,
+  getCurrentUser,
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
+import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
+import { findEmployee } from "../../tools/find-employee/tool.js";
 
 function createFetchTools(getAuthUser: (config: any) => any) {
   return async function fetchTools(
     companyId: string,
-    config: AnnotationRoot<any>
+    config: AnnotationRoot<any>,
   ): Promise<Array<ToolInterface>> {
     const authUser = getAuthUser(config);
     const mcpClient = createMcpClient({
       accessToken: authUser.token,
-      companyId: companyId,
+      companyId,
     });
     const mcpTools = await mcpClient.getTools();
     const toolContext = {
@@ -44,14 +46,23 @@ function createFetchTools(getAuthUser: (config: any) => any) {
 
     const tools = toolFactory<undefined>({
       toolDefintions: [
-        getPaymentsOfEmployee,
         mutationEngine,
-        getActiveEmployeesWithContracts,
+        dataRetrievalEngine,
+        findEmployee,
+        getEmployeeById,
+        getCurrentUser,
       ],
       ctx: toolContext,
     });
 
-    return [...mcpTools, ...tools];
+    const toolsToExclude = ["find-employee-by-name", "get-current-user"];
+
+    const filteredMcpTools = mcpTools.filter(
+      (tool) => !toolsToExclude.includes(tool.name),
+    );
+    console.log(filteredMcpTools);
+
+    return [...tools];
   };
 }
 
@@ -60,24 +71,24 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
     try {
       console.log("Initializing Dynamic Multi-Agent RITA Graph...");
 
-      const fetchTools = createFetchTools(getAuthUser);
-
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
-        .addNode("loadSettings", (state, config) => loadSettings(state, config, getAuthUser))
+        .addNode("loadSettings", (state, config) =>
+          loadSettings(state, config, getAuthUser),
+        )
         .addNode("router", router)
         .addNode("quickResponse", quickResponse)
         .addNode(
           "workflowEngine",
           buildWorkflowEngineReAct({
-            fetchTools,
+            fetchTools: createFetchTools(getAuthUser),
             configAnnotation: ConfigurableAnnotation,
             quickUpdateNode: quickUpdate,
-            preWorkflowResponse: preWorkflowResponse,
+            preWorkflowResponse,
           }),
           {
             ends: ["finalMessage"],
-          }
+          },
         )
         .addNode("finalMessage", finalMessage)
         // => Edges
@@ -112,5 +123,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
 // Keep backward compatibility - export the direct graph for existing consumers
 export const graph = async () => {
   // This should not be used when auth is required
-  throw new Error("Use createRitaGraph() factory function for auth-enabled graphs");
+  throw new Error(
+    "Use createRitaGraph() factory function for auth-enabled graphs",
+  );
 };

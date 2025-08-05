@@ -6,7 +6,7 @@
     "rita": "./src/graphs/rita/graph.ts:graph"
   },
   "auth": {
-    "path": "src/security/auth.ts:auth"
+    "path": "./src/graphs/rita/graph.ts:auth"
   },
   "env": ".env"
 }

@@ -6,17 +6,13 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { buildDataChangeEngineGraph } from "./sub-graph";
-import { toolFactory, ToolFactoryToolDefintion } from "../../tool-factory";
-import { getActiveEmployeesWithContracts } from "../../get-active-employees-with-contracts/tool";
+import { buildDataRetrievalEngineGraph } from "./sub-graph";
+import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
-
-export type ExtendedToolContext = {
-  // empty for now
-};
+import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
 
 /**
  * This is a special tool since it runs its own graph.
@@ -29,6 +25,8 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
 You are part of a Payroll assistant system.
 You job is it schedule data changes (mutations). 
 You get a vague request from the user and you have to resolve it using your tools.
+
+Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
       `;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
@@ -36,20 +34,19 @@ You get a vague request from the user and you have to resolve it using your tool
         new HumanMessage(usersRequest),
       ]);
 
-      const tools = toolFactory<ExtendedToolContext>({
+      const tools = toolFactory<undefined>({
         toolDefintions: [
-          getActiveEmployeesWithContracts,
+          findEmployeeByNameWithContract,
           getPaymentsOfEmployee,
           getCurrentDataChangeProposals,
           changePaymentDetails,
         ],
         ctx: {
           ...toolContext,
-          extendedContext: {},
         },
       });
 
-      const agent = buildDataChangeEngineGraph({ tools });
+      const agent = buildDataRetrievalEngineGraph({ tools });
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({
@@ -73,7 +70,7 @@ You get a vague request from the user and you have to resolve it using your tool
       description:
         "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user",
       schema: z.object({
-        usersRequest: z.string().describe("What the user wants to change"),
+        usersRequest: z.string().describe("What the user wants to retrieve"),
       }),
-    }
+    },
   );

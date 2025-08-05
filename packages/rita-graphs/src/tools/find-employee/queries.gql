@@ -1,0 +1,10 @@
+query findEmployeeByName($data: EmployeeAdvancedFilterForHrInput!) {
+  employees(data: $data) {
+    employees {
+      employeeId
+      firstName
+      lastName
+      status
+    }
+  }
+}
