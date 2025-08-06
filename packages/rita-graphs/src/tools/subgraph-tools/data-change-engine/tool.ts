@@ -41,9 +41,7 @@ Employees can have multiple contracts and per contract multiple payments so it i
           getCurrentDataChangeProposals,
           changePaymentDetails,
         ],
-        ctx: {
-          ...toolContext,
-        },
+        ctx: toolContext,
       });
 
       const agent = buildDataRetrievalEngineGraph({ tools });

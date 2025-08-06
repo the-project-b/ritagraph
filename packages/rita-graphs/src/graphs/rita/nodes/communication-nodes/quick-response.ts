@@ -4,6 +4,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
+import { Tags } from "../../../tags.js";
 
 /**
  * At the moment just a pass through node
@@ -11,7 +12,11 @@ import { onBaseMessages } from "../../../../utils/message-filter.js";
 export const quickResponse: Node = async ({ messages, preferredLanguage }) => {
   console.log("💬 Direct Response");
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
+  const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    temperature: 0.1,
+    tags: [Tags.COMMUNICATION],
+  });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `You are a Payroll Specialist Assistant.
@@ -24,7 +29,7 @@ I am here to help you with your payroll questions.
 How can I assist you today?
 
 Speak in {language}.
-`
+`,
   ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([
