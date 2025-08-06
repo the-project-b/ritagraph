@@ -23,10 +23,10 @@ export function toolFactory<T>({
   ctx,
 }: Params<T>): Array<ToolInterface> {
   const tools = toolDefintions.map((toolDefinition) => toolDefinition(ctx));
-  console.log(
-    "TOOLS coming out of toolFactory",
-    tools.map((i) => i.name).join(", "),
-  );
+  // console.log(
+  //   "[TOOL FACTORY] Initialized tools:",
+  //   tools.map((i) => i.name).join(", "),
+  // );
 
   return tools;
 }

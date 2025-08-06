@@ -60,7 +60,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     const filteredMcpTools = mcpTools.filter(
       (tool) => !toolsToExclude.includes(tool.name),
     );
-    console.log(filteredMcpTools);
+    // console.log(filteredMcpTools);
 
     return [...tools];
   };
