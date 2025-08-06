@@ -1,0 +1,4 @@
+export enum Tags {
+  THOUGHT = "THOUGHT",
+  COMMUNICATION = "COMMUNICATION",
+}

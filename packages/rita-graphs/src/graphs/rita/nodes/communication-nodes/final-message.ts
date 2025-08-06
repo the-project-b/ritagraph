@@ -5,6 +5,7 @@ import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
+import { Tags } from "../../../tags.js";
 
 /**
  * At the moment just a pass through node
@@ -15,7 +16,10 @@ export const finalMessage: Node = async ({
   messages,
 }) => {
   console.log("💬 Final Response");
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({
+    model: "gpt-4o-mini",
+    tags: [Tags.COMMUNICATION],
+  });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `Respond to the users request.
@@ -37,7 +41,7 @@ ${dataRepresentationLayerPrompt}
 Speak in {language}.
 
 Drafted Response: {draftedResponse}
-  `
+  `,
   ).format({
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
@@ -49,7 +53,7 @@ Drafted Response: {draftedResponse}
       .filter((i) =>
         Array.isArray(i.additional_kwargs?.tags)
           ? !i.additional_kwargs?.tags.includes("THOUGHT")
-          : true
+          : true,
       )
       .slice(-3)
       .filter(onBaseMessages),

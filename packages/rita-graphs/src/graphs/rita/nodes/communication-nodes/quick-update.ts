@@ -8,6 +8,7 @@ import {
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
+import { Tags } from "../../../tags.js";
 
 /**
  * At the moment just a pass through node
@@ -22,6 +23,7 @@ export const quickUpdate: WorkflowEngineNode = async ({
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
     temperature: 0.1,
+    tags: [Tags.THOUGHT],
   });
 
   const lastAiMessage = messages.filter((i) => i instanceof AIMessage).at(-1);
@@ -49,7 +51,7 @@ Rough examples:
 
 Give brief updates. Not more then 1 sentence.
 Speak in {language}.
-`
+`,
   ).format({
     initialUserMessage: initialUserMessage?.content.toString() ?? "No message",
     taskEngineMessages: taskEngineMessages
