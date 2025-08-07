@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "start": "node dist/main.js",
-    "dev": "tsx watch src/main.ts",
+    "dev": "LOGGING_OUTPUT_FORMAT=pretty tsx watch src/main.ts",
     "build": "tsc",
     "build:docker": "node esbuild.config.js",
     "codegen": "graphql-codegen --config codegen.ts",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@apollo/server": "^4.12.2",
     "@the-project-b/graphql": "*",
+    "@the-project-b/logging": "*",
     "@the-project-b/rita-graphs": "*",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",

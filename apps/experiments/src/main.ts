@@ -5,11 +5,14 @@ import cors from 'cors';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
+import { createLogger } from '@the-project-b/logging';
 
 import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers } from './graphql/resolvers.js';
 import { authMiddleware } from './auth/middleware.js';
 import { EvaluatorRegistry } from './evaluators/core/registry.js';
+
+const logger = createLogger({ service: 'experiments' });
 
 async function startServer(): Promise<void> {
   const app = express();
@@ -38,19 +41,45 @@ async function startServer(): Promise<void> {
   );
 
   const port = process.env.PORT || 4000;
+  const environment = process.env.NODE_ENV || 'development';
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
-  console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
-  console.log(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
+  // Main startup message - always show this
+  logger.info(`🚀 Server ready at http://localhost:${port}/graphql`);
   
-  // List registered evaluators
-  console.log(`\n📊 Registered Evaluators:`);
-  const evaluators = EvaluatorRegistry.getAll();
-  evaluators.forEach((evaluator) => {
-    console.log(`  - ${evaluator.config.type}: ${evaluator.config.description}`);
+  // Additional startup details at debug level
+  logger.debug(`Server configuration`, {
+    port,
+    environment,
+    introspection: process.env.NODE_ENV !== 'production',
+    endpoint: '/graphql',
+    authRequired: true,
+    authType: 'Bearer'
   });
-  console.log(`  Total: ${evaluators.length} evaluator(s) registered\n`);
+  
+  // List registered evaluators at debug level
+  const evaluators = EvaluatorRegistry.getAll();
+  const evaluatorTypes = evaluators.map(e => e.config.type);
+  logger.debug(`📊 Registered ${evaluators.length} evaluators: ${evaluatorTypes.join(', ')}`);
+  
+  // Detailed evaluator info at trace level
+  evaluators.forEach((evaluator) => {
+    logger.trace(`Evaluator details: ${evaluator.config.type}`, {
+      type: evaluator.config.type,
+      name: evaluator.config.name,
+      description: evaluator.config.description,
+      supportsCustomPrompt: evaluator.config.supportsCustomPrompt,
+      supportsReferenceKey: evaluator.config.supportsReferenceKey,
+      defaultModel: evaluator.config.defaultModel
+    });
+  });
 }
 
 startServer().catch((error) => {
-  console.error('Failed to start server', error);
+  logger.error('Failed to start server', error, {
+    errorType: error?.constructor?.name || 'UnknownError',
+    errorMessage: error?.message,
+    port: process.env.PORT || 4000,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  process.exit(1);
 }); 

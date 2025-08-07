@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createHash } from "crypto";
+import { createLogger } from "@the-project-b/logging";
 import {
   EvaluationOptions,
   EvaluatorParams,
@@ -7,6 +9,11 @@ import {
   TextEvaluationOutputs,
   TypedEvaluator,
 } from "../core/types.js";
+
+// Create logger instance
+const logger = createLogger({ service: "experiments" }).child({
+  module: "DataChangeProposalEvaluator",
+});
 
 // Define the specific types for this evaluator
 interface DataChangeProposalInputs extends TextEvaluationInputs {
@@ -38,12 +45,14 @@ interface DataChangeProposalReferenceOutputs {
         newValue: string;
         mutationQueryPropertyPath?: string;
         relatedUserId?: string;
+        mutationVariables?: any;
       }>
     | {
         changedField: string;
         newValue: string;
         mutationQueryPropertyPath?: string;
         relatedUserId?: string;
+        mutationVariables?: any;
       };
 }
 
@@ -53,6 +62,7 @@ interface NormalizedProposal {
   newValue: string;
   mutationQueryPropertyPath?: string;
   relatedUserId?: string;
+  mutationVariables?: any;
 }
 
 /**
@@ -63,6 +73,7 @@ function hashProposal(proposal: NormalizedProposal): string {
   const sortedProposal = {
     changedField: proposal.changedField || "",
     mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
+    mutationVariables: proposal.mutationVariables || null,
     newValue: proposal.newValue || "",
     relatedUserId: proposal.relatedUserId || "",
   };
@@ -154,8 +165,21 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     // Check if the required key exists (should already be checked by factory, but double-check here)
     if (!params.referenceOutputs || !params.referenceOutputs[key]) {
       // This shouldn't happen if factory is working correctly, but log just in case
-      console.warn(
+      logger.warn(
         `[DataChangeProposalEvaluator] Required reference key '${key}' not found. This should have been caught by factory.`,
+        {
+          operation: "evaluate",
+          evaluatorType: "DATA_CHANGE_PROPOSAL",
+          requestedKey: key,
+          hasReferenceOutputs: !!params.referenceOutputs,
+          availableKeys: params.referenceOutputs
+            ? Object.keys(params.referenceOutputs)
+            : [],
+          isCustomKey: referenceKey !== undefined,
+          hasQuestion: !!params.inputs?.question,
+          hasAnswer: !!params.outputs?.answer,
+          hasDataChangeProposals: !!params.outputs?.dataChangeProposals,
+        },
       );
       // Return a skip result
       return {
@@ -185,6 +209,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
             proposal.mutationQueryPropertyPath ||
             proposal.mutationQuery?.propertyPath,
           relatedUserId: proposal.relatedUserId,
+          mutationVariables: proposal.mutationQuery?.variables,
         };
         return normalized;
       },

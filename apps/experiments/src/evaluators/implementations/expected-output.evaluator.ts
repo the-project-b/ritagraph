@@ -1,4 +1,5 @@
 import type { EvaluatorResult as OpenEvalsResult } from 'openevals';
+import { createLogger } from '@the-project-b/logging';
 import { 
   TypedEvaluator, 
   EvaluatorParams, 
@@ -8,6 +9,9 @@ import {
   TextEvaluationOutputs
 } from '../core/types.js';
 import { EXPECTED_OUTPUT_PROMPT } from '../prompts/expected-output.prompt.js';
+
+// Create logger instance
+const logger = createLogger({ service: 'experiments' }).child({ module: 'ExpectedOutputEvaluator' });
 
 // Define the specific types for this evaluator
 interface ExpectedOutputInputs extends TextEvaluationInputs {
@@ -50,12 +54,28 @@ export const expectedOutputEvaluator: TypedEvaluator<
       const referenceValue = params.referenceOutputs[key];
       
       if (referenceValue === undefined) {
-        console.warn(`[EXPECTED_OUTPUT] Reference key '${key}' not found in referenceOutputs. Available keys: ${Object.keys(params.referenceOutputs).join(', ')}`);
+        logger.warn(`[EXPECTED_OUTPUT] Reference key '${key}' not found in referenceOutputs. Available keys: ${Object.keys(params.referenceOutputs).join(', ')}`, {
+          operation: 'evaluate',
+          evaluatorType: 'EXPECTED_OUTPUT',
+          requestedKey: key,
+          availableKeys: Object.keys(params.referenceOutputs),
+          isCustomKey: referenceKey !== undefined,
+          hasQuestion: !!params.inputs?.question,
+          hasAnswer: !!params.outputs?.answer
+        });
         // Try to find a reasonable fallback
         const availableKeys = Object.keys(params.referenceOutputs);
         const fallbackKey = availableKeys.find(k => k.includes('expected') || k.includes('reference')) || availableKeys[0];
         if (fallbackKey) {
-          console.warn(`[EXPECTED_OUTPUT] Using fallback key '${fallbackKey}'`);
+          logger.warn(`[EXPECTED_OUTPUT] Using fallback key '${fallbackKey}'`, {
+            operation: 'evaluate',
+            evaluatorType: 'EXPECTED_OUTPUT',
+            originalKey: key,
+            fallbackKey,
+            availableKeys: availableKeys,
+            foundExpectedKey: availableKeys.some(k => k.includes('expected')),
+            foundReferenceKey: availableKeys.some(k => k.includes('reference'))
+          });
           referenceOutputs = {
             reference: params.referenceOutputs[fallbackKey],
           };
