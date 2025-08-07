@@ -3,6 +3,7 @@ import {
   RitaThreadStatus,
   RitaThreadTriggerType,
 } from "@the-project-b/rita-graphs";
+import { createLogger } from '@the-project-b/logging';
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 import { getAuthUser } from "../security/auth.js";
@@ -46,6 +47,9 @@ export interface PromptWithContent {
   promptData: any; // The actual prompt template/data
   metadata?: Record<string, any>;
 }
+
+// Create logger instance
+const logger = createLogger({ service: 'experiments' }).child({ module: 'LangSmithService' });
 
 // Create graph with auth - wrap in async to match factory signature
 const create_rita_graph = async () => createRitaGraph(getAuthUser)();
@@ -114,13 +118,14 @@ export class LangSmithService {
         triggerType: RitaThreadTriggerType.Evaluation,
         hrCompanyId: selectedCompanyId,
         status: RitaThreadStatus.Received,
-        lcThreadId: lcThreadId, // Use the same thread ID for LangGraph
+        lcThreadId, // Use the same thread ID for LangGraph
       },
     });
 
     const ritaThread = threadResult.createRitaThread;
-    console.log(
+    logger.info(
       `🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId})`,
+      { threadId: ritaThread.id, lcThreadId: ritaThread.lcThreadId }
     );
 
     const target = async (inputs: Record<string, any>) => {
@@ -167,7 +172,7 @@ export class LangSmithService {
       const answer = lastMessage?.content;
 
       if (typeof answer !== "string") {
-        console.warn(
+        logger.warn(
           `[${ritaThread.id}] Graph did not return a final message with string content`,
         );
         return {
@@ -221,7 +226,7 @@ export class LangSmithService {
           );
           promptToUse = this.convertPromptToText(promptData.promptData);
         } catch (error) {
-          console.error(
+          logger.error(
             `Failed to fetch prompt ${evaluatorInput.langsmithPromptName}:`,
             error,
           );
@@ -295,7 +300,7 @@ export class LangSmithService {
       url = `${webUrl}/o/${tenantId}/datasets/${datasetId}/compare?selectedSessions=${experimentId}`;
     }
     if (!url) {
-      console.warn(
+      logger.warn(
         "Could not construct LangSmith results URL, providing fallback",
       );
       url = webUrl ? `${webUrl}/projects` : "URL not available";
@@ -362,7 +367,7 @@ export class LangSmithService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
+        logger.error(
           `Failed to fetch experiments: ${response.status} ${response.statusText}`,
         );
 
@@ -386,12 +391,12 @@ export class LangSmithService {
 
           return this.transformSessionsResponse(data, total);
         } catch (parseError) {
-          console.error("Failed to parse JSON response:", parseError);
+          logger.error("Failed to parse JSON response:", parseError);
           throw new Error(`Failed to parse response as JSON: ${parseError}`);
         }
       }
     } catch (error) {
-      console.error("Error in getDatasetExperiments:", error);
+      logger.error("Error in getDatasetExperiments:", error);
 
       throw new Error(
         `Failed to fetch experiments: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -451,13 +456,13 @@ export class LangSmithService {
                 }
               }
             } catch (parseError) {
-              console.warn("Failed to parse SSE data:", parseError);
+              logger.warn("Failed to parse SSE data:", parseError);
             }
           }
         }
       }
     } catch (error) {
-      console.error("Error parsing streaming response:", error);
+      logger.error("Error parsing streaming response:", error);
       throw error;
     } finally {
       reader.releaseLock();
@@ -489,7 +494,7 @@ export class LangSmithService {
       };
     }
 
-    console.warn("Unknown response format, returning empty");
+    logger.warn("Unknown response format, returning empty");
     return { experiments: [], total: 0 };
   }
 
@@ -576,7 +581,7 @@ export class LangSmithService {
 
       return feedbackStatsRaw;
     } catch (error) {
-      console.error("Failed to parse feedback stats:", error);
+      logger.error("Failed to parse feedback stats:", error);
       return undefined;
     }
   }
@@ -731,11 +736,10 @@ export class LangSmithService {
 
       if (!runsResponse.ok) {
         const errorText = await runsResponse.text();
-        console.error(
-          "Runs API error:",
-          runsResponse.status,
-          runsResponse.statusText,
-        );
+        logger.error("Runs API error:", {
+          status: runsResponse.status,
+          statusText: runsResponse.statusText,
+        });
         throw new Error(
           `Failed to fetch runs: ${runsResponse.status} ${runsResponse.statusText}`,
         );
@@ -811,7 +815,7 @@ export class LangSmithService {
         totalRuns: totalRunsCount,
       };
     } catch (error) {
-      console.error("Error getting experiment details:", error);
+      logger.error("Error getting experiment details:", error);
       throw error;
     }
   }
@@ -844,11 +848,10 @@ export class LangSmithService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
-          "Feedback API error:",
-          response.status,
-          response.statusText,
-        );
+        logger.error("Feedback API error:", {
+          status: response.status,
+          statusText: response.statusText,
+        });
         throw new Error(
           `Failed to fetch feedback: ${response.status} ${response.statusText}`,
         );
@@ -885,7 +888,7 @@ export class LangSmithService {
 
       return feedback;
     } catch (error) {
-      console.error("Error getting feedback for run:", error);
+      logger.error("Error getting feedback for run:", error);
       throw error;
     }
   }
@@ -895,7 +898,7 @@ export class LangSmithService {
   ): Promise<DeleteExperimentRunsResult> {
     const { experimentId } = input;
 
-    console.warn("LangSmith does not support permanent run deletion via API");
+    logger.warn("LangSmith does not support permanent run deletion via API");
 
     // Build the API URL
     let baseUrl =
@@ -968,11 +971,10 @@ export class LangSmithService {
 
         if (!runsQueryResponse.ok) {
           const errorText = await runsQueryResponse.text();
-          console.error(
-            "Runs query API error:",
-            runsQueryResponse.status,
-            runsQueryResponse.statusText,
-          );
+          logger.error("Runs query API error:", {
+            status: runsQueryResponse.status,
+            statusText: runsQueryResponse.statusText,
+          });
           throw new Error(
             `Failed to query runs: ${runsQueryResponse.status} ${runsQueryResponse.statusText}`,
           );
@@ -989,7 +991,7 @@ export class LangSmithService {
 
         // Safety break - avoid infinite loop
         if (pageCount > 100) {
-          console.warn("Breaking pagination loop at 100 pages for safety");
+          logger.warn("Breaking pagination loop at 100 pages for safety");
           break;
         }
       } while (cursor);
@@ -1025,11 +1027,10 @@ export class LangSmithService {
 
         if (!deleteResponse.ok) {
           const errorText = await deleteResponse.text();
-          console.error(
-            "Delete API error:",
-            deleteResponse.status,
-            deleteResponse.statusText,
-          );
+          logger.error("Delete API error:", {
+            status: deleteResponse.status,
+            statusText: deleteResponse.statusText,
+          });
           throw new Error(
             `Failed to delete runs batch: ${deleteResponse.status} ${deleteResponse.statusText}`,
           );
@@ -1049,7 +1050,7 @@ export class LangSmithService {
         deletedCount: totalDeleted,
       };
     } catch (error) {
-      console.error("Error deleting experiment runs:", error);
+      logger.error("Error deleting experiment runs:", error);
       return {
         success: false,
         message: `Failed to delete experiment runs: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1106,7 +1107,7 @@ export class LangSmithService {
         };
       });
     } catch (error) {
-      console.error("Error listing prompts:", error);
+      logger.error("Error listing prompts:", error);
       throw new Error(
         `Failed to list prompts: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -1153,7 +1154,7 @@ export class LangSmithService {
         metadata,
       };
     } catch (error) {
-      console.error("Error pulling prompt:", error);
+      logger.error("Error pulling prompt:", error);
       throw new Error(
         `Failed to pull prompt "${promptName}": ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -1205,13 +1206,13 @@ export class LangSmithService {
       // }
       // Default: stringify the whole thing
       else {
-        console.warn("Unknown prompt format, using JSON representation");
+        logger.warn("Unknown prompt format, using JSON representation");
         promptText = JSON.stringify(parsedData, null, 2);
       }
 
       return promptText;
     } catch (error) {
-      console.error("Error converting prompt to text:", error);
+      logger.error("Error converting prompt to text:", error);
       throw new Error(
         `Failed to convert prompt to text: ${error instanceof Error ? error.message : "Unknown error"}`,
       );

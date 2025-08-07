@@ -1,5 +1,8 @@
+import { createLogger } from '@the-project-b/logging';
 import { ME_QUERY } from '../graphql/queries.js';
 import { Auth0UserResponse, AuthError, Me, UserToCompaniesResponse, VerifiedUser } from './types.js';
+
+const logger = createLogger({ service: 'experiments' }).child({ module: 'AuthService' });
 
 export class AuthService {
   private readonly graphqlEndpoint: string;
@@ -54,7 +57,7 @@ export class AuthService {
       
       return verifiedUser;
     } catch (error) {
-      console.error('[AuthService] Token verification failed', error instanceof Error ? error.message : 'Unknown error');
+      logger.error('Token verification failed', error instanceof Error ? error : undefined);
       if (error instanceof Error) {
         throw new AuthError(`Token verification failed: ${error.message}`, 401);
       }
@@ -82,14 +85,14 @@ export class AuthService {
     
     if (!response.ok) {
       await response.text(); // Consume response body
-      console.error(`[AuthService] Auth0 GraphQL request failed: ${response.status} ${response.statusText}`);
+      logger.error(`Auth0 GraphQL request failed: ${response.status} ${response.statusText}`);
       throw new Error(`Auth0 verification failed: ${response.status} ${response.statusText}`);
     }
 
     const data: Auth0UserResponse = await response.json();
     
     if (!data.data?.authUser) {
-      console.error('[AuthService] Invalid Auth0 user response structure');
+      logger.error('Invalid Auth0 user response structure');
       throw new Error('Invalid Auth0 user response');
     }
 
@@ -129,14 +132,14 @@ export class AuthService {
     
     if (!response.ok) {
       await response.text(); // Consume response body
-      console.error(`[AuthService] UserToCompanies GraphQL request failed: ${response.status} ${response.statusText}`);
+      logger.error(`UserToCompanies GraphQL request failed: ${response.status} ${response.statusText}`);
       throw new Error(`ACL data fetch failed: ${response.status} ${response.statusText}`);
     }
 
     const data: UserToCompaniesResponse = await response.json();
     
     if (!data.data?.userToCompanies || !Array.isArray(data.data.userToCompanies) || data.data.userToCompanies.length === 0) {
-      console.error('[AuthService] Invalid user companies response structure');
+      logger.error('Invalid user companies response structure');
       throw new Error('Invalid user companies response');
     }
 
@@ -152,14 +155,14 @@ export class AuthService {
     
     if (!response.ok) {
       await response.text(); // Consume response body
-      console.error(`[AuthService] User details GraphQL request failed: ${response.status} ${response.statusText}`);
+      logger.error(`User details GraphQL request failed: ${response.status} ${response.statusText}`);
       throw new Error(`User details fetch failed: ${response.status} ${response.statusText}`);
     }
 
     const data: {data: {me: Me}} = await response.json();
 
     if (!data.data.me) {
-      console.error('[AuthService] Invalid user information response structure');
+      logger.error('Invalid user information response structure');
       throw new Error('Invalid user information response');
     }
 
@@ -189,7 +192,7 @@ export class AuthService {
       const response = await fetch(url, request);
       return response;
     } catch (error) {
-      console.error('[AuthService] GraphQL request failed:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error('GraphQL request failed', error instanceof Error ? error : undefined);
       throw error;
     }
   }

@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import { createLogger } from '@the-project-b/logging';
 import { AuthService } from './auth.service.js';
 import { AuthError, VerifiedUser } from './types.js';
+
+const logger = createLogger({ service: 'experiments' }).child({ module: 'AuthMiddleware' });
 
 /**
  * Enhanced authentication middleware that verifies tokens against the backend
@@ -37,7 +40,7 @@ export function authMiddleware(authService?: AuthService) {
       }
       
       // Handle unexpected errors
-      console.error('[AuthMiddleware] Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error('Unexpected error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Internal server error during authentication',
       });

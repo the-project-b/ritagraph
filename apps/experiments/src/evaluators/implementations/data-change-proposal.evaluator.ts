@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { createLogger } from '@the-project-b/logging';
 import {
   EvaluationOptions,
   EvaluatorParams,
@@ -7,6 +8,9 @@ import {
   TextEvaluationOutputs,
   TypedEvaluator,
 } from "../core/types.js";
+
+// Create logger instance
+const logger = createLogger({ service: 'experiments' }).child({ module: 'DataChangeProposalEvaluator' });
 
 // Define the specific types for this evaluator
 interface DataChangeProposalInputs extends TextEvaluationInputs {
@@ -154,8 +158,8 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     // Check if the required key exists (should already be checked by factory, but double-check here)
     if (!params.referenceOutputs || !params.referenceOutputs[key]) {
       // This shouldn't happen if factory is working correctly, but log just in case
-      console.warn(
-        `[DataChangeProposalEvaluator] Required reference key '${key}' not found. This should have been caught by factory.`,
+      logger.warn(
+        `[DataChangeProposalEvaluator] Required reference key '${key}' not found. This should have been caught by factory.`
       );
       // Return a skip result
       return {

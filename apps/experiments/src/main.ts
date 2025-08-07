@@ -5,11 +5,14 @@ import cors from 'cors';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
+import { createLogger } from '@the-project-b/logging';
 
 import { typeDefs } from './graphql/typeDefs.js';
 import { resolvers } from './graphql/resolvers.js';
 import { authMiddleware } from './auth/middleware.js';
 import { EvaluatorRegistry } from './evaluators/core/registry.js';
+
+const logger = createLogger({ service: 'experiments' });
 
 async function startServer(): Promise<void> {
   const app = express();
@@ -39,18 +42,18 @@ async function startServer(): Promise<void> {
 
   const port = process.env.PORT || 4000;
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
-  console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
-  console.log(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
+  logger.info(`🚀 Server ready at http://localhost:${port}/graphql`);
+  logger.info(`🔐 Authentication middleware enabled - all GraphQL operations require valid Bearer token`);
   
   // List registered evaluators
-  console.log(`\n📊 Registered Evaluators:`);
+  logger.info(`\n📊 Registered Evaluators:`);
   const evaluators = EvaluatorRegistry.getAll();
   evaluators.forEach((evaluator) => {
-    console.log(`  - ${evaluator.config.type}: ${evaluator.config.description}`);
+    logger.info(`  - ${evaluator.config.type}: ${evaluator.config.description}`);
   });
-  console.log(`  Total: ${evaluators.length} evaluator(s) registered\n`);
+  logger.info(`  Total: ${evaluators.length} evaluator(s) registered\n`);
 }
 
 startServer().catch((error) => {
-  console.error('Failed to start server', error);
+  logger.error('Failed to start server', error);
 }); 
