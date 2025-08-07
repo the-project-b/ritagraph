@@ -1,15 +1,18 @@
-import { 
+import {
   createRitaGraph,
+  RitaThreadStatus,
   RitaThreadTriggerType,
-  RitaThreadStatus
 } from "@the-project-b/rita-graphs";
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 import { getAuthUser } from "../security/auth.js";
 
+import { GraphQLErrors } from "../graphql/errors.js";
 import type { GraphQLContext } from "../types/context.js";
 import type {
   DatasetExperiment,
+  DeleteExperimentRunsInput,
+  DeleteExperimentRunsResult,
   ExperimentDetails,
   Feedback,
   GetDatasetExperimentsInput,
@@ -17,10 +20,7 @@ import type {
   GraphName,
   Run,
   RunEvaluationInput,
-  DeleteExperimentRunsInput,
-  DeleteExperimentRunsResult,
 } from "../types/index.js";
-import { GraphQLErrors } from "../graphql/errors.js";
 
 // Define types for prompt information
 export interface PromptInfo {
@@ -104,10 +104,10 @@ export class LangSmithService {
     // Create Rita thread in database BEFORE running evaluations
     const { createGraphQLClient } = await import("../graphql/client.js");
     const graphqlClient = createGraphQLClient(context.token || "");
-    
+
     // Generate the LangGraph thread ID that will be used for all evaluations
     const lcThreadId = `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    
+
     const threadResult = await graphqlClient.createRitaThread({
       input: {
         title: `Evaluation - ${experimentPrefix || graphName}`,
@@ -119,7 +119,9 @@ export class LangSmithService {
     });
 
     const ritaThread = threadResult.createRitaThread;
-    console.log(`🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId})`);
+    console.log(
+      `🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId})`,
+    );
 
     const target = async (inputs: Record<string, any>) => {
       const question = inputs.question;
@@ -183,12 +185,14 @@ export class LangSmithService {
       if (threadItemsResult?.thread?.threadItems) {
         for (const item of threadItemsResult.thread.threadItems) {
           try {
-            const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+            const data =
+              typeof item.data === "string" ? JSON.parse(item.data) : item.data;
             if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
               dataChangeProposals.push({
                 changedField: data.proposal.changedField,
                 newValue: data.proposal.newValue,
-                mutationQueryPropertyPath: data.proposal.mutationQuery?.propertyPath,
+                mutationQueryPropertyPath:
+                  data.proposal.mutationQuery?.propertyPath,
                 relatedUserId: data.proposal.relatedUserId,
               });
             }
@@ -206,7 +210,7 @@ export class LangSmithService {
 
     // Prepare evaluators, potentially fetching prompts from LangSmith
     const { createEvaluator } = await import("../evaluators/core/factory.js");
-    
+
     const evaluatorPromises = evaluators.map(async (evaluatorInput) => {
       let promptToUse = evaluatorInput.customPrompt;
 
