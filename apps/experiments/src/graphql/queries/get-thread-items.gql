@@ -1,0 +1,11 @@
+query getThreadItemsByThreadId($threadId: String!) {
+  thread(id: $threadId) {
+    id
+    threadItems {
+      id
+      data
+      createdAt
+      updatedAt
+    }
+  }
+}

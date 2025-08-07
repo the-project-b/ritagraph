@@ -1,0 +1,20 @@
+mutation createRitaThread($input: CreateRitaThreadInput!) {
+  createRitaThread(input: $input) {
+    id
+    lcThreadId
+    title
+    subtitle
+    triggerType
+    triggerEmail
+    status
+    hrCompanyId
+    createdAt
+    updatedAt
+    hrCompany {
+      id
+      name
+      slug
+      type
+    }
+  }
+}

@@ -1,14 +1,18 @@
-import { randomUUID } from 'crypto';
-import { evaluate } from 'langsmith/evaluation';
-import { 
-  AsyncEvaluationResult, 
-  EvaluationJobDetails, 
-  EvaluationJobStatus, 
+import { randomUUID } from "crypto";
+import { evaluate } from "langsmith/evaluation";
+import {
+  AsyncEvaluationResult,
+  EvaluationJobDetails,
+  EvaluationJobStatus,
   EvaluationResult,
   RunEvaluationInput,
-  UsedPromptInfo
-} from '../types/index.js';
-import type { GraphQLContext } from '../types/context.js';
+  UsedPromptInfo,
+} from "../types/index.js";
+import type { GraphQLContext } from "../types/context.js";
+import {
+  RitaThreadStatus,
+  RitaThreadTriggerType,
+} from "@the-project-b/rita-graphs";
 
 interface JobData {
   jobId: string;
@@ -47,22 +51,22 @@ export class EvaluationJobManager {
    * Start a new asynchronous evaluation job
    */
   async startEvaluationJob(
-    input: RunEvaluationInput, 
-    context: GraphQLContext
+    input: RunEvaluationInput,
+    context: GraphQLContext,
   ): Promise<AsyncEvaluationResult> {
     const jobId = randomUUID();
-    const experimentName = input.experimentPrefix 
+    const experimentName = input.experimentPrefix
       ? `${input.experimentPrefix}-${Date.now()}`
       : `eval-${input.graphName}-${Date.now()}`;
-    
+
     const now = new Date().toISOString();
-    
+
     // Create job record
     const jobData: JobData = {
       jobId,
       status: EvaluationJobStatus.QUEUED,
       experimentName,
-      message: 'Evaluation job queued and will start shortly',
+      message: "Evaluation job queued and will start shortly",
       createdAt: now,
       updatedAt: now,
       input,
@@ -75,7 +79,7 @@ export class EvaluationJobManager {
     this.executeJob(jobId).catch((error) => {
       console.error(`[EvaluationJobManager] Job ${jobId} failed:`, error);
       this.updateJobStatus(jobId, EvaluationJobStatus.FAILED, {
-        message: 'Evaluation job failed',
+        message: "Evaluation job failed",
         errorMessage: error.message,
       });
     });
@@ -84,7 +88,7 @@ export class EvaluationJobManager {
       jobId,
       status: EvaluationJobStatus.QUEUED,
       experimentName,
-      message: 'Evaluation job queued and will start shortly',
+      message: "Evaluation job queued and will start shortly",
       createdAt: now,
     };
   }
@@ -126,78 +130,92 @@ export class EvaluationJobManager {
     }
 
     console.log(`[EvaluationJobManager] Starting job ${jobId}`);
-    
+
     this.updateJobStatus(jobId, EvaluationJobStatus.RUNNING, {
-      message: 'Evaluation job is now running...',
+      message: "Evaluation job is now running...",
       progress: 0,
     });
 
     try {
-      const { LangSmithService } = await import('../langsmith/service.js'); 
+      const { LangSmithService } = await import("../langsmith/service.js");
       const langsmithService = new LangSmithService();
 
       // Use the same target function as the sync version but run it async
-      const target = await this.createTargetFunction(job.input, job.context, langsmithService);
-      
+      const target = await this.createTargetFunction(
+        job.input,
+        job.context,
+        langsmithService,
+      );
+
       // Prepare evaluators, potentially fetching prompts from LangSmith
-      const { createEvaluator } = await import('../evaluators/core/factory.js');
+      const { createEvaluator } = await import("../evaluators/core/factory.js");
       const usedPrompts: Record<string, UsedPromptInfo> = {};
-      
-      const evaluatorPromises = job.input.evaluators.map(async (evaluatorInput) => {
-        console.log(`[EvaluationJobManager] Creating evaluator: ${evaluatorInput.type}`);
-        let promptToUse = evaluatorInput.customPrompt;
-        
-        // If langsmithPromptName is provided, fetch the prompt from LangSmith
-        if (evaluatorInput.langsmithPromptName && !evaluatorInput.customPrompt) {
-          console.log(`[EvaluationJobManager] Fetching prompt from LangSmith: ${evaluatorInput.langsmithPromptName}`);
-          try {
-            const promptData = await langsmithService.pullPrompt(evaluatorInput.langsmithPromptName);
-            promptToUse = langsmithService.convertPromptToText(promptData.promptData);
+
+      const evaluatorPromises = job.input.evaluators.map(
+        async (evaluatorInput) => {
+          let promptToUse = evaluatorInput.customPrompt;
+
+          // If langsmithPromptName is provided, fetch the prompt from LangSmith
+          if (
+            evaluatorInput.langsmithPromptName &&
+            !evaluatorInput.customPrompt
+          ) {
+            try {
+              const promptData = await langsmithService.pullPrompt(
+                evaluatorInput.langsmithPromptName,
+              );
+              promptToUse = langsmithService.convertPromptToText(
+                promptData.promptData,
+              );
+              usedPrompts[evaluatorInput.type] = {
+                type: "langsmith",
+                content: promptToUse,
+                source: evaluatorInput.langsmithPromptName,
+              };
+            } catch (error) {
+              console.error(
+                `[EvaluationJobManager] Failed to fetch prompt ${evaluatorInput.langsmithPromptName}:`,
+                error,
+              );
+              throw new Error(
+                `Failed to fetch LangSmith prompt "${evaluatorInput.langsmithPromptName}": ${error instanceof Error ? error.message : "Unknown error"}`,
+              );
+            }
+          } else if (evaluatorInput.customPrompt) {
             usedPrompts[evaluatorInput.type] = {
-              type: 'langsmith',
-              content: promptToUse,
-              source: evaluatorInput.langsmithPromptName
+              type: "custom",
+              content: evaluatorInput.customPrompt,
             };
-            console.log(`[EvaluationJobManager] Successfully fetched prompt: ${evaluatorInput.langsmithPromptName}`);
-          } catch (error) {
-            console.error(`[EvaluationJobManager] Failed to fetch prompt ${evaluatorInput.langsmithPromptName}:`, error);
-            throw new Error(`Failed to fetch LangSmith prompt "${evaluatorInput.langsmithPromptName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          } else {
+            usedPrompts[evaluatorInput.type] = {
+              type: "default",
+              content: "(using built-in evaluator prompt)",
+            };
           }
-        } else if (evaluatorInput.customPrompt) {
-          usedPrompts[evaluatorInput.type] = {
-            type: 'custom',
-            content: evaluatorInput.customPrompt
-          };
-        } else {
-          usedPrompts[evaluatorInput.type] = {
-            type: 'default',
-            content: '(using built-in evaluator prompt)'
-          };
-        }
-        
-        return createEvaluator(
-          evaluatorInput.type,
-          promptToUse,
-          evaluatorInput.model,
-          evaluatorInput.referenceKey,
-        );
-      });
-      
+
+          return createEvaluator(
+            evaluatorInput.type,
+            promptToUse,
+            evaluatorInput.model,
+            evaluatorInput.referenceKey,
+          );
+        },
+      );
+
       const evaluators = await Promise.all(evaluatorPromises);
-      
+
       // Store the used prompts
       this.updateJobStatus(jobId, EvaluationJobStatus.RUNNING, {
         usedPrompts,
       });
-      
-      console.log(`[EvaluationJobManager] Created ${evaluators.length} evaluators for job ${jobId}`);
 
-      console.log(`[EvaluationJobManager] Running evaluate for job ${jobId} with concurrency control`);
+
 
       // Prepare evaluation config for concurrent execution
       const evaluationConfig = {
         evaluators,
-        experimentPrefix: job.input.experimentPrefix || `eval-${job.input.graphName}`,
+        experimentPrefix:
+          job.input.experimentPrefix || `eval-${job.input.graphName}`,
         maxConcurrency: job.input.maxConcurrency || 10, // Enable concurrent processing of examples
       };
 
@@ -211,19 +229,18 @@ export class EvaluationJobManager {
 
       // Transform results to match our schema
       const results = await this.transformExperimentResults(experimentResults);
-      
+
       this.updateJobStatus(jobId, EvaluationJobStatus.COMPLETED, {
-        message: 'Evaluation completed successfully',
+        message: "Evaluation completed successfully",
         progress: 100,
         results,
         experimentId: results.experimentId,
       });
-
     } catch (error) {
       console.error(`[EvaluationJobManager] Job ${jobId} failed:`, error);
       this.updateJobStatus(jobId, EvaluationJobStatus.FAILED, {
-        message: 'Evaluation job failed',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        message: "Evaluation job failed",
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
       });
       throw error;
     }
@@ -233,12 +250,12 @@ export class EvaluationJobManager {
    * Create the target function for evaluation (same as sync version)
    */
   private async createTargetFunction(
-    input: RunEvaluationInput, 
+    input: RunEvaluationInput,
     context: GraphQLContext,
-    langsmithService: any
+    langsmithService: any,
   ) {
     const { graphName, selectedCompanyId, preferredLanguage } = input;
-    
+
     let selectedPreferredLanguage = preferredLanguage;
     if (!selectedPreferredLanguage) {
       selectedPreferredLanguage = context.user?.me.preferredLanguage;
@@ -253,28 +270,52 @@ export class EvaluationJobManager {
     return async (inputs: Record<string, any>) => {
       // Expect the 'question' key directly from the input
       const question = inputs.question;
-      if (!question || typeof question !== 'string') {
-        throw new Error(`Input must contain a 'question' field with a string value. Available keys: ${Object.keys(inputs).join(', ')}`);
+      if (!question || typeof question !== "string") {
+        throw new Error(
+          `Input must contain a 'question' field with a string value. Available keys: ${Object.keys(inputs).join(", ")}`,
+        );
       }
-      
+
       // Check if this specific example has a preferredLanguage override
       const examplePreferredLanguage = inputs.preferredLanguage;
-      
+
       const graphInput = {
-        messages: [{ role: 'user', content: question }],
-        ...(examplePreferredLanguage && { preferredLanguage: examplePreferredLanguage }), // Only include if provided
+        messages: [{ role: "user", content: question }],
+        ...(examplePreferredLanguage && {
+          preferredLanguage: examplePreferredLanguage,
+        }), // Only include if provided
       };
       const graph = await graphFactory();
 
       // Extract bearer token (if provided)
-      let token = context.token || '';
-      if (token.toLowerCase().startsWith('bearer ')) {
+      let token = context.token || "";
+      if (token.toLowerCase().startsWith("bearer ")) {
         token = token.slice(7).trim();
       }
 
+      // Create Rita thread just before invoking the graph
+      const { createGraphQLClient } = await import("../graphql/client.js");
+      const graphqlClient = createGraphQLClient(context.token || "");
+      
+      // Generate a unique LangGraph thread ID for this evaluation
+      const lcThreadId = `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      const threadResult = await graphqlClient.createRitaThread({
+        input: {
+          title: `Evaluation - ${question.substring(0, 50)}...`,
+          triggerType: RitaThreadTriggerType.Evaluation,
+          hrCompanyId: selectedCompanyId,
+          status: RitaThreadStatus.Received,
+          lcThreadId,
+        },
+      });
+
+      const ritaThread = threadResult.createRitaThread;
+      console.log(`🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId}) for question: "${question.substring(0, 50)}..."`);
+
       const config = {
         configurable: {
-          thread_id: `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          thread_id: ritaThread.lcThreadId, // Use the LangGraph thread ID
           langgraph_auth_user: {
             token,
             user: {
@@ -284,7 +325,7 @@ export class EvaluationJobManager {
               company: {
                 id: selectedCompanyId,
               },
-            }
+            },
           },
         },
       };
@@ -296,18 +337,48 @@ export class EvaluationJobManager {
         : undefined;
       const answer = lastMessage?.content;
 
-      if (typeof answer !== 'string') {
+      if (typeof answer !== "string") {
         console.warn(
-          'Graph did not return a final message with string content. Returning empty answer. Full result:',
+          `[${ritaThread.id}] Graph did not return a final message with string content. Returning empty answer. Full result:`,
           JSON.stringify(result, null, 2),
         );
-        return { 
-          answer: '',
+        return {
+          answer: "",
+          dataChangeProposals: [],
         };
       }
+
+      // Fetch data change proposals from the database after graph execution
+      const threadItemsResult = await graphqlClient.getThreadItemsByThreadId({
+        threadId: ritaThread.id,
+      });
+
+      const dataChangeProposals = [];
+      if (threadItemsResult?.thread?.threadItems) {
+        for (const item of threadItemsResult.thread.threadItems) {
+          try {
+            const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+            if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
+              const proposal = {
+                changedField: data.proposal.changedField,
+                newValue: data.proposal.newValue,
+                mutationQueryPropertyPath: data.proposal.mutationQuery?.propertyPath,
+                relatedUserId: data.proposal.relatedUserId,
+              };
+              dataChangeProposals.push(proposal);
+            }
+          } catch (e) {
+            console.error(`[${ritaThread.id}] Failed to parse thread item:`, e);
+          }
+        }
+      }
       
-      return { 
+      if (dataChangeProposals.length > 0) {
+        console.log(`[${ritaThread.id}] Found ${dataChangeProposals.length} data change proposal(s)`);
+      }
+      return {
         answer,
+        dataChangeProposals,
       };
     };
   }
@@ -315,12 +386,14 @@ export class EvaluationJobManager {
   /**
    * Transform LangSmith experiment results to our schema format with dynamic feedback stats
    */
-  private async transformExperimentResults(experimentResults: any): Promise<EvaluationResult> {
+  private async transformExperimentResults(
+    experimentResults: any,
+  ): Promise<EvaluationResult> {
     const results: any[] = [];
-    
+
     // Handle different result formats from evaluate
     const resultItems = experimentResults.results ?? experimentResults ?? [];
-    
+
     for (const item of resultItems) {
       const run = item.run;
       const evalResults = item.evaluationResults;
@@ -354,26 +427,28 @@ export class EvaluationJobManager {
     const manager = experimentResults?.manager;
     const client = manager?.client;
     const experiment = manager?._experiment;
-    const experimentName = experiment?.name ?? 'Unnamed Experiment';
+    const experimentName = experiment?.name ?? "Unnamed Experiment";
 
     const webUrl = client?.webUrl;
     const tenantId = client?._tenantId;
     const datasetId = experiment?.reference_dataset_id;
     const experimentId = experiment?.id;
 
-    let url = '';
+    let url = "";
     if (webUrl && tenantId && datasetId && experimentId) {
       url = `${webUrl}/o/${tenantId}/datasets/${datasetId}/compare?selectedSessions=${experimentId}`;
     }
     if (!url) {
-      console.warn('Could not construct the full LangSmith results URL from the experiment object. Providing a fallback.');
-      url = webUrl ? `${webUrl}/projects` : 'URL not available';
+      console.warn(
+        "Could not construct the full LangSmith results URL from the experiment object. Providing a fallback.",
+      );
+      url = webUrl ? `${webUrl}/projects` : "URL not available";
     }
 
     return {
       url,
       experimentName,
-      experimentId: experimentId || 'unknown',
+      experimentId: experimentId || "unknown",
       results,
     };
   }
@@ -382,13 +457,15 @@ export class EvaluationJobManager {
    * Update job status
    */
   private updateJobStatus(
-    jobId: string, 
-    status: EvaluationJobStatus, 
-    updates: Partial<JobData> = {}
+    jobId: string,
+    status: EvaluationJobStatus,
+    updates: Partial<JobData> = {},
   ): void {
     const job = this.jobs.get(jobId);
     if (!job) {
-      console.warn(`[EvaluationJobManager] Attempted to update non-existent job ${jobId}`);
+      console.warn(
+        `[EvaluationJobManager] Attempted to update non-existent job ${jobId}`,
+      );
       return;
     }
 
@@ -400,14 +477,21 @@ export class EvaluationJobManager {
     };
 
     this.jobs.set(jobId, updatedJob);
-    console.log(`[EvaluationJobManager] Job ${jobId} status updated to ${status}`);
+    console.log(
+      `[EvaluationJobManager] Job ${jobId} status updated to ${status}`,
+    );
   }
 
   /**
    * Get a list of all jobs with their status
    */
-  getAllJobs(): Array<{ jobId: string; status: EvaluationJobStatus; experimentName: string; createdAt: string }> {
-    return Array.from(this.jobs.values()).map(job => ({
+  getAllJobs(): Array<{
+    jobId: string;
+    status: EvaluationJobStatus;
+    experimentName: string;
+    createdAt: string;
+  }> {
+    return Array.from(this.jobs.values()).map((job) => ({
       jobId: job.jobId,
       status: job.status,
       experimentName: job.experimentName,
@@ -418,18 +502,23 @@ export class EvaluationJobManager {
   /**
    * Cleanup completed jobs (call periodically)
    */
-  cleanup(maxAge: number = 24 * 60 * 60 * 1000): void { // 24 hours default
+  cleanup(maxAge: number = 24 * 60 * 60 * 1000): void {
+    // 24 hours default
     const now = Date.now();
     let cleaned = 0;
-    
+
     for (const [jobId, job] of this.jobs.entries()) {
       const jobAge = now - new Date(job.createdAt).getTime();
-      if (jobAge > maxAge && (job.status === EvaluationJobStatus.COMPLETED || job.status === EvaluationJobStatus.FAILED)) {
+      if (
+        jobAge > maxAge &&
+        (job.status === EvaluationJobStatus.COMPLETED ||
+          job.status === EvaluationJobStatus.FAILED)
+      ) {
         this.jobs.delete(jobId);
         cleaned++;
       }
     }
-    
+
     if (cleaned > 0) {
       console.log(`[EvaluationJobManager] Cleaned up ${cleaned} old jobs`);
     }

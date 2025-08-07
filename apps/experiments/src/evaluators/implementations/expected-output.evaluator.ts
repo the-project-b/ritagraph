@@ -2,7 +2,7 @@ import type { EvaluatorResult as OpenEvalsResult } from 'openevals';
 import { 
   TypedEvaluator, 
   EvaluatorParams, 
-  EvaluatorResult, 
+  EvaluationResult, 
   EvaluationOptions,
   TextEvaluationInputs,
   TextEvaluationOutputs
@@ -40,7 +40,7 @@ export const expectedOutputEvaluator: TypedEvaluator<
   async evaluate(
     params: EvaluatorParams<ExpectedOutputInputs, ExpectedOutputOutputs, ExpectedOutputReferenceOutputs>,
     options: EvaluationOptions = {}
-  ): Promise<EvaluatorResult> {
+  ): Promise<EvaluationResult> {
     const { customPrompt, model, referenceKey } = options;
     
     // Build reference outputs with proper typing and validation
@@ -84,12 +84,15 @@ export const expectedOutputEvaluator: TypedEvaluator<
       outputs: params.outputs,
       referenceOutputs,
     }) as OpenEvalsResult;
+    
+    // Ensure score is a valid number
+    const score = typeof evaluatorResult.score === 'number' ? evaluatorResult.score : 
+                  typeof evaluatorResult.score === 'boolean' ? (evaluatorResult.score ? 1 : 0) : 0;
 
     return {
       key: evaluatorResult.key,
-      score: evaluatorResult.score,
+      score: score,
       comment: evaluatorResult.comment,
-      metadata: evaluatorResult.metadata,
     };
   },
 } as const;

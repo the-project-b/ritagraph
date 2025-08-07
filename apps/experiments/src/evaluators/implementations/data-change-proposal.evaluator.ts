@@ -1,11 +1,11 @@
 import { createHash } from "crypto";
 import {
-  TypedEvaluator,
-  EvaluatorParams,
-  EvaluatorResult,
   EvaluationOptions,
+  EvaluatorParams,
+  EvaluationResult,
   TextEvaluationInputs,
   TextEvaluationOutputs,
+  TypedEvaluator,
 } from "../core/types.js";
 
 // Define the specific types for this evaluator
@@ -59,18 +59,21 @@ interface NormalizedProposal {
  * Creates an MD5 hash of a normalized proposal for comparison
  */
 function hashProposal(proposal: NormalizedProposal): string {
-  // Create a deterministic string representation
-  const proposalString = JSON.stringify(
-    {
-      changedField: proposal.changedField || "",
-      newValue: proposal.newValue || "",
-      mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
-      relatedUserId: proposal.relatedUserId || "",
-    },
-    Object.keys(proposal).sort(),
-  ); // Sort keys for consistency
+  // Create a deterministic string representation with sorted keys
+  const sortedProposal = {
+    changedField: proposal.changedField || "",
+    mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
+    newValue: proposal.newValue || "",
+    relatedUserId: proposal.relatedUserId || "",
+  };
 
-  return createHash("md5").update(proposalString).digest("hex");
+  // JSON.stringify with sorted keys
+  const proposalString = JSON.stringify(
+    sortedProposal,
+    Object.keys(sortedProposal).sort(),
+  );
+  const hash = createHash("md5").update(proposalString).digest("hex");
+  return hash;
 }
 
 /**
@@ -131,6 +134,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     defaultModel: "openai:gpt-4o", // Not used but kept for interface compatibility
     supportsCustomPrompt: false, // No LLM involved
     supportsReferenceKey: true,
+    requiredReferenceKeys: ["expectedDataProposal"], // Only run when expectedDataProposal exists in reference outputs
   } as const,
 
   async evaluate(
@@ -140,53 +144,29 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       DataChangeProposalReferenceOutputs
     >,
     options: EvaluationOptions = {},
-  ): Promise<EvaluatorResult> {
+  ): Promise<EvaluationResult> {
     const { referenceKey } = options;
 
     // Extract the expected data proposals from reference outputs
     let expectedProposals: NormalizedProposal[] = [];
     const key = referenceKey || "expectedDataProposal";
-    
-    // Check if reference outputs exist at all
-    if (!params.referenceOutputs) {
-      console.info(
-        `[DATA_CHANGE_PROPOSAL] No reference outputs provided. Skipping data change proposal evaluation.`,
+
+    // Check if the required key exists (should already be checked by factory, but double-check here)
+    if (!params.referenceOutputs || !params.referenceOutputs[key]) {
+      // This shouldn't happen if factory is working correctly, but log just in case
+      console.warn(
+        `[DataChangeProposalEvaluator] Required reference key '${key}' not found. This should have been caught by factory.`,
       );
-      // Return a neutral result indicating this evaluation was not applicable
+      // Return a skip result
       return {
         key: "data_change_proposal_verification",
-        score: 1, // Use 1 to not penalize when evaluation is not applicable
-        comment: "Data change proposal evaluation not applicable - no reference outputs provided",
-        metadata: {
-          reason: "no_reference_outputs",
-          evaluator_type: "DATA_CHANGE_PROPOSAL",
-          skipped: true,
-        },
+        score: 0,
+        comment: `Error: Required reference key '${key}' not found`,
       };
     }
-    
+
     const referenceValue = params.referenceOutputs[key];
-    
-    // Check if the expected key exists in reference outputs
-    if (referenceValue === undefined) {
-      console.info(
-        `[DATA_CHANGE_PROPOSAL] Reference key '${key}' not found. This example does not require data change proposal verification.`,
-      );
-      // Return a neutral result indicating this evaluation was not applicable for this example
-      return {
-        key: "data_change_proposal_verification",
-        score: 1, // Use 1 to not penalize when evaluation is not applicable
-        comment: `Data change proposal evaluation not applicable - no '${key}' in reference outputs`,
-        metadata: {
-          reason: "reference_key_not_found",
-          expected_key: key,
-          available_keys: Object.keys(params.referenceOutputs),
-          evaluator_type: "DATA_CHANGE_PROPOSAL",
-          skipped: true,
-        },
-      };
-    }
-    
+
     // Normalize expected proposals to always be an array
     expectedProposals = Array.isArray(referenceValue)
       ? referenceValue
@@ -197,12 +177,17 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
 
     // Extract only the static fields for comparison
     const normalizedActualProposals: NormalizedProposal[] = actualProposals.map(
-      (proposal) => ({
-        changedField: proposal.changedField,
-        newValue: proposal.newValue,
-        mutationQueryPropertyPath: proposal.mutationQuery?.propertyPath,
-        relatedUserId: proposal.relatedUserId,
-      }),
+      (proposal: any) => {
+        const normalized = {
+          changedField: proposal.changedField,
+          newValue: proposal.newValue,
+          mutationQueryPropertyPath:
+            proposal.mutationQueryPropertyPath ||
+            proposal.mutationQuery?.propertyPath,
+          relatedUserId: proposal.relatedUserId,
+        };
+        return normalized;
+      },
     );
 
     // Compare the proposal sets using hash comparison
@@ -256,7 +241,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     }
 
     // Return binary score: 1 for match, 0 for mismatch
-    return {
+    const evaluationResult = {
       key: "data_change_proposal_verification",
       score: comparisonResult.matches ? 1 : 0,
       comment,
@@ -271,5 +256,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         comparisonMethod: "md5_hash",
       },
     };
+
+    return evaluationResult;
   },
 } as const;

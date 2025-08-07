@@ -1,4 +1,8 @@
-import { createRitaGraph } from "@the-project-b/rita-graphs";
+import { 
+  createRitaGraph,
+  RitaThreadTriggerType,
+  RitaThreadStatus
+} from "@the-project-b/rita-graphs";
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 import { getAuthUser } from "../security/auth.js";
@@ -16,7 +20,6 @@ import type {
   DeleteExperimentRunsInput,
   DeleteExperimentRunsResult,
 } from "../types/index.js";
-import { createEvaluator } from "../evaluators/core/factory.js";
 import { GraphQLErrors } from "../graphql/errors.js";
 
 // Define types for prompt information
@@ -61,6 +64,14 @@ export class LangSmithService {
   }
 
   /**
+   * Gets the LangSmith client instance
+   * @returns Client - The LangSmith client
+   */
+  public getClient(): Client {
+    return this.client;
+  }
+
+  /**
    * Gets the list of available graph names
    * @returns GraphName[] - Array of available graph names
    */
@@ -89,6 +100,27 @@ export class LangSmithService {
     if (!graphFactory) {
       throw new Error(`Graph factory not found for graph: ${graphName}`);
     }
+
+    // Create Rita thread in database BEFORE running evaluations
+    const { createGraphQLClient } = await import("../graphql/client.js");
+    const graphqlClient = createGraphQLClient(context.token || "");
+    
+    // Generate the LangGraph thread ID that will be used for all evaluations
+    const lcThreadId = `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    
+    const threadResult = await graphqlClient.createRitaThread({
+      input: {
+        title: `Evaluation - ${experimentPrefix || graphName}`,
+        triggerType: RitaThreadTriggerType.Evaluation,
+        hrCompanyId: selectedCompanyId,
+        status: RitaThreadStatus.Received,
+        lcThreadId: lcThreadId, // Use the same thread ID for LangGraph
+      },
+    });
+
+    const ritaThread = threadResult.createRitaThread;
+    console.log(`🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId})`);
+
     const target = async (inputs: Record<string, any>) => {
       const question = inputs.question;
 
@@ -109,7 +141,7 @@ export class LangSmithService {
 
       const config = {
         configurable: {
-          thread_id: `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          thread_id: ritaThread.lcThreadId, // Use the LangGraph thread ID for all evaluations
           langgraph_auth_user: {
             token,
             user: {
@@ -134,19 +166,47 @@ export class LangSmithService {
 
       if (typeof answer !== "string") {
         console.warn(
-          "Graph did not return a final message with string content",
+          `[${ritaThread.id}] Graph did not return a final message with string content`,
         );
         return {
           answer: "",
+          dataChangeProposals: [],
         };
+      }
+
+      // Fetch data change proposals from the database after graph execution
+      const threadItemsResult = await graphqlClient.getThreadItemsByThreadId({
+        threadId: ritaThread.id,
+      });
+
+      const dataChangeProposals = [];
+      if (threadItemsResult?.thread?.threadItems) {
+        for (const item of threadItemsResult.thread.threadItems) {
+          try {
+            const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+            if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
+              dataChangeProposals.push({
+                changedField: data.proposal.changedField,
+                newValue: data.proposal.newValue,
+                mutationQueryPropertyPath: data.proposal.mutationQuery?.propertyPath,
+                relatedUserId: data.proposal.relatedUserId,
+              });
+            }
+          } catch (e) {
+            // Skip invalid JSON items
+          }
+        }
       }
 
       return {
         answer,
+        dataChangeProposals,
       };
     };
 
     // Prepare evaluators, potentially fetching prompts from LangSmith
+    const { createEvaluator } = await import("../evaluators/core/factory.js");
+    
     const evaluatorPromises = evaluators.map(async (evaluatorInput) => {
       let promptToUse = evaluatorInput.customPrompt;
 
@@ -217,12 +277,12 @@ export class LangSmithService {
     }
 
     const manager = experimentResults?.manager;
-    const client = manager?.client;
+    const langsmithClient = manager?.client;
     const experiment = manager?._experiment;
     const experimentName = experiment?.name ?? "Unnamed Experiment";
 
-    const webUrl = client?.webUrl;
-    const tenantId = client?._tenantId;
+    const webUrl = langsmithClient?.webUrl;
+    const tenantId = langsmithClient?._tenantId;
     const datasetId = experiment?.reference_dataset_id;
     const experimentId = experiment?.id;
 
