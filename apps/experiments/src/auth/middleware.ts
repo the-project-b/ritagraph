@@ -13,10 +13,10 @@ export function authMiddleware(authService?: AuthService) {
   const service = authService || new AuthService();
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Extract token from Authorization header (outside try block for scope)
+    const token = AuthService.extractBearerToken(req.headers.authorization);
+    
     try {
-      // Extract token from Authorization header
-      const token = AuthService.extractBearerToken(req.headers.authorization);
-      
       if (!token) {
         res.status(401).json({
           error: 'Unauthorized: Missing or invalid Authorization header. Expected: "Bearer <token>"',
@@ -40,7 +40,14 @@ export function authMiddleware(authService?: AuthService) {
       }
       
       // Handle unexpected errors
-      logger.error('Unexpected error', error instanceof Error ? error : undefined);
+      logger.error('Unexpected error during authentication', error instanceof Error ? error : undefined, {
+        operation: 'authMiddleware',
+        hasToken: !!token,
+        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        path: req.path,
+        method: req.method
+      });
       res.status(500).json({
         error: 'Internal server error during authentication',
       });

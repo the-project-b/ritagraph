@@ -54,12 +54,28 @@ export const expectedOutputEvaluator: TypedEvaluator<
       const referenceValue = params.referenceOutputs[key];
       
       if (referenceValue === undefined) {
-        logger.warn(`[EXPECTED_OUTPUT] Reference key '${key}' not found in referenceOutputs. Available keys: ${Object.keys(params.referenceOutputs).join(', ')}`);
+        logger.warn(`[EXPECTED_OUTPUT] Reference key '${key}' not found in referenceOutputs. Available keys: ${Object.keys(params.referenceOutputs).join(', ')}`, {
+          operation: 'evaluate',
+          evaluatorType: 'EXPECTED_OUTPUT',
+          requestedKey: key,
+          availableKeys: Object.keys(params.referenceOutputs),
+          isCustomKey: referenceKey !== undefined,
+          hasQuestion: !!params.inputs?.question,
+          hasAnswer: !!params.outputs?.answer
+        });
         // Try to find a reasonable fallback
         const availableKeys = Object.keys(params.referenceOutputs);
         const fallbackKey = availableKeys.find(k => k.includes('expected') || k.includes('reference')) || availableKeys[0];
         if (fallbackKey) {
-          logger.warn(`[EXPECTED_OUTPUT] Using fallback key '${fallbackKey}'`);
+          logger.warn(`[EXPECTED_OUTPUT] Using fallback key '${fallbackKey}'`, {
+            operation: 'evaluate',
+            evaluatorType: 'EXPECTED_OUTPUT',
+            originalKey: key,
+            fallbackKey,
+            availableKeys: availableKeys,
+            foundExpectedKey: availableKeys.some(k => k.includes('expected')),
+            foundReferenceKey: availableKeys.some(k => k.includes('reference'))
+          });
           referenceOutputs = {
             reference: params.referenceOutputs[fallbackKey],
           };

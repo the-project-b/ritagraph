@@ -78,7 +78,16 @@ export function createEvaluator(
     // If outputs is missing (e.g., run failed), return a default evaluation
     if (!params.outputs) {
       logger.warn(
-        `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`
+        `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`,
+        {
+          operation: 'evaluate',
+          evaluatorType: type,
+          hasInputs: !!params.inputs,
+          hasOutputs: false,
+          hasReferenceOutputs: !!params.referenceOutputs,
+          customPrompt: !!customPrompt,
+          model: model || evaluator.config.defaultModel
+        }
       );
       return {
         key: type.toLowerCase(),
@@ -105,7 +114,15 @@ export function createEvaluator(
       if (!hasRequiredKey) {
         // Skip this evaluation by returning a null score
         logger.warn(
-          `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`
+          `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`,
+          {
+            operation: 'evaluate',
+            evaluatorType: type,
+            requiredKeys: keysToCheck,
+            availableReferenceKeys: params.referenceOutputs ? Object.keys(params.referenceOutputs) : [],
+            referenceKeyUsed: referenceKey,
+            hasReferenceOutputs: !!params.referenceOutputs
+          }
         );
         return {
           key: type.toLowerCase(),
