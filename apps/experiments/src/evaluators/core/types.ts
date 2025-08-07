@@ -1,29 +1,39 @@
+// Import EvaluationResult from LangSmith SDK
+import type { EvaluationResult } from "langsmith/evaluation";
+
 // Model provider types
-export type ModelProvider = 'openai' | 'anthropic' | 'google' | 'azure';
-export type OpenAIModel = 'gpt-4o' | 'gpt-4o-mini' | 'gpt-4-turbo' | 'gpt-3.5-turbo';
-export type AnthropicModel = 'claude-3-5-sonnet-20241022' | 'claude-3-opus-20240229' | 'claude-3-haiku-20240307';
+export type ModelProvider = "openai" | "anthropic" | "google" | "azure";
+export type OpenAIModel =
+  | "gpt-4o"
+  | "gpt-4o-mini"
+  | "gpt-4-turbo"
+  | "gpt-3.5-turbo";
+export type AnthropicModel =
+  | "claude-3-5-sonnet-20241022"
+  | "claude-3-opus-20240229"
+  | "claude-3-haiku-20240307";
 
 // Full model identifier (e.g., 'openai:gpt-4o', 'anthropic:claude-3-5-sonnet-20241022')
-export type ModelIdentifier = `${ModelProvider}:${string}` | OpenAIModel | AnthropicModel;
+export type ModelIdentifier =
+  | `${ModelProvider}:${string}`
+  | OpenAIModel
+  | AnthropicModel;
 
 // Evaluation data types - using generics for flexibility while maintaining type safety
 export interface EvaluatorParams<
   TInputs = Record<string, unknown>,
   TOutputs = Record<string, unknown>,
-  TReferenceOutputs = Record<string, unknown>
+  TReferenceOutputs = Record<string, unknown>,
 > {
   inputs: TInputs;
   outputs: TOutputs;
   referenceOutputs?: TReferenceOutputs;
 }
 
-// Standardized evaluation result based on openevals structure
-export interface EvaluatorResult {
-  readonly key: string;
-  readonly score: number | boolean;
-  readonly comment?: string;
-  readonly metadata?: Readonly<Record<string, unknown>>;
-}
+// Re-export EvaluationResult for backward compatibility
+export type { EvaluationResult };
+// Alias for backward compatibility (to be removed in future)
+export type EvaluatorResult = EvaluationResult;
 
 // Options passed to evaluator evaluate function
 export interface EvaluationOptions {
@@ -40,6 +50,7 @@ export interface EvaluatorConfig {
   readonly defaultModel: ModelIdentifier;
   readonly supportsCustomPrompt: boolean;
   readonly supportsReferenceKey: boolean;
+  readonly requiredReferenceKeys?: readonly string[]; // Keys that must exist in reference outputs for evaluator to run
 }
 
 // Public information about an evaluator (same as config for now, but semantically different)
@@ -49,13 +60,13 @@ export type EvaluatorInfo = EvaluatorConfig;
 export interface Evaluator<
   TInputs = Record<string, unknown>,
   TOutputs = Record<string, unknown>,
-  TReferenceOutputs = Record<string, unknown>
+  TReferenceOutputs = Record<string, unknown>,
 > {
   readonly config: EvaluatorConfig;
   evaluate(
     params: EvaluatorParams<TInputs, TOutputs, TReferenceOutputs>,
-    options?: EvaluationOptions
-  ): Promise<EvaluatorResult>;
+    options?: EvaluationOptions,
+  ): Promise<EvaluationResult>;
 }
 
 // Type for evaluator implementations - allows for specific typing per evaluator
@@ -63,7 +74,7 @@ export interface TypedEvaluator<
   TType extends string,
   TInputs = Record<string, unknown>,
   TOutputs = Record<string, unknown>,
-  TReferenceOutputs = Record<string, unknown>
+  TReferenceOutputs = Record<string, unknown>,
 > extends Evaluator<TInputs, TOutputs, TReferenceOutputs> {
   readonly config: EvaluatorConfig & {
     readonly type: TType;
@@ -71,7 +82,7 @@ export interface TypedEvaluator<
 }
 
 // Helper type for extracting evaluator type from config
-export type EvaluatorType<T extends Evaluator> = T['config']['type'];
+export type EvaluatorType<T extends Evaluator> = T["config"]["type"];
 
 // Registry map type
 export type EvaluatorMap = ReadonlyMap<string, Evaluator>;

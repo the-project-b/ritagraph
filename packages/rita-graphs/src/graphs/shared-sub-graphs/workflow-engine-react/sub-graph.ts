@@ -72,7 +72,7 @@ export function buildWorkflowEngineReAct({
       });
 
       // The result of the tool node is a bit messy.
-      console.log("🚀 ~ toolsNode: ~ result:", result);
+      // console.log("🚀 ~ toolsNode: ~ result:", result);
 
       // Handle mixed Command and non-Command outputs
       if (Array.isArray(result)) {
@@ -84,16 +84,16 @@ export function buildWorkflowEngineReAct({
           updates.push(item.update);
         });
 
-        console.log("🚀 [TOOLS NODE] ~ updates:", {
-          taskEngineMessages: updates.map((update) => update.messages).flat(),
-          dataRepresentationLayerStorage: updates.reduce(
-            (acc, update) => ({
-              ...acc,
-              ...update.dataRepresentationLayerStorage,
-            }),
-            {},
-          ),
-        });
+        // console.log("🚀 [TOOLS NODE] ~ updates:", {
+        //   taskEngineMessages: updates.map((update) => update.messages).flat(),
+        //   dataRepresentationLayerStorage: updates.reduce(
+        //     (acc, update) => ({
+        //       ...acc,
+        //       ...update.dataRepresentationLayerStorage,
+        //     }),
+        //     {},
+        //   ),
+        // });
 
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),

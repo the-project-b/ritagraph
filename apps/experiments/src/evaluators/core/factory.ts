@@ -1,36 +1,42 @@
-import { EvaluatorRegistry } from './registry';
-import { 
-  EvaluatorInfo, 
+import { EvaluatorRegistry } from "./registry";
+import {
+  EvaluatorInfo,
   EvaluationOptions,
   EvaluatorParams,
-  EvaluatorResult,
-  ModelIdentifier 
-} from './types';
+  EvaluationResult,
+  ModelIdentifier,
+} from "./types";
 
 // Dynamically generate evaluator type from registry
-export type EvaluatorType = ReturnType<typeof EvaluatorRegistry.getTypes>[number];
+export type EvaluatorType = ReturnType<
+  typeof EvaluatorRegistry.getTypes
+>[number];
 
 // Type for the evaluator function returned by createEvaluator
-export type EvaluatorFunction = (params: EvaluatorParams) => Promise<EvaluatorResult>;
+// Can return undefined to skip evaluation for this example
+export type EvaluatorFunction = (
+  params: EvaluatorParams,
+) => Promise<EvaluationResult>;
 
 // Export evaluator metadata for richer information
-export const EVALUATOR_INFO: Readonly<Record<string, EvaluatorInfo>> = Object.freeze(
-  EvaluatorRegistry.getAll().reduce(
-    (acc, evaluator) => {
-      const { config } = evaluator;
-      acc[config.type] = Object.freeze({
-        type: config.type,
-        name: config.name,
-        description: config.description,
-        defaultModel: config.defaultModel,
-        supportsCustomPrompt: config.supportsCustomPrompt,
-        supportsReferenceKey: config.supportsReferenceKey,
-      });
-      return acc;
-    },
-    {} as Record<string, EvaluatorInfo>
-  )
-);
+export const EVALUATOR_INFO: Readonly<Record<string, EvaluatorInfo>> =
+  Object.freeze(
+    EvaluatorRegistry.getAll().reduce(
+      (acc, evaluator) => {
+        const { config } = evaluator;
+        acc[config.type] = Object.freeze({
+          type: config.type,
+          name: config.name,
+          description: config.description,
+          defaultModel: config.defaultModel,
+          supportsCustomPrompt: config.supportsCustomPrompt,
+          supportsReferenceKey: config.supportsReferenceKey,
+        });
+        return acc;
+      },
+      {} as Record<string, EvaluatorInfo>,
+    ),
+  );
 
 /**
  * Create an evaluator function with bound configuration
@@ -43,42 +49,69 @@ export function createEvaluator(
 ): EvaluatorFunction {
   // Validate evaluator exists
   if (!EvaluatorRegistry.has(type)) {
-    const availableTypes = EvaluatorRegistry.getTypes().join(', ');
+    const availableTypes = EvaluatorRegistry.getTypes().join(", ");
     throw new Error(
-      `Cannot create evaluator for unknown type: '${type}'. Available types: ${availableTypes}`
+      `Cannot create evaluator for unknown type: '${type}'. Available types: ${availableTypes}`,
     );
   }
 
   const evaluator = EvaluatorRegistry.get(type);
-  
+
   // Build options object with proper typing
   const options: EvaluationOptions = Object.freeze({
     ...(customPrompt && { customPrompt }),
     ...(model && { model }),
     ...(referenceKey && { referenceKey }),
   });
-  
+
   // Return a strongly typed evaluator function
-  return async (params: EvaluatorParams): Promise<EvaluatorResult> => {
+  return async (params: EvaluatorParams): Promise<EvaluationResult> => {
     // Validate required parameters - allow evaluation of failed runs
     if (!params.inputs) {
-      throw new Error('Evaluator params must include inputs');
+      throw new Error("Evaluator params must include inputs");
     }
-    
+
     // If outputs is missing (e.g., run failed), return a default evaluation
     if (!params.outputs) {
-      console.warn(`[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`);
+      console.warn(
+        `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`,
+      );
       return {
         key: type.toLowerCase(),
         score: 0,
-        comment: 'Run failed - no outputs available for evaluation',
-        metadata: { 
-          reason: 'missing_outputs',
-          evaluator_type: type 
-        },
+        comment: "Run failed - no outputs available for evaluation",
       };
     }
-    
+
+    // Check if evaluator has required reference keys
+    if (
+      evaluator.config.requiredReferenceKeys &&
+      evaluator.config.requiredReferenceKeys.length > 0
+    ) {
+      const keysToCheck = referenceKey
+        ? [referenceKey]
+        : evaluator.config.requiredReferenceKeys;
+
+      // Check if this specific example has the required keys
+      const hasRequiredKey = keysToCheck.some(
+        (key) =>
+          params.referenceOutputs && params.referenceOutputs[key] !== undefined,
+      );
+
+      if (!hasRequiredKey) {
+        // Skip this evaluation by returning a null score
+        // Using console.warn as it's allowed by ESLint
+        console.warn(
+          `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`,
+        );
+        return {
+          key: type.toLowerCase(),
+          score: null,
+          comment: `Skipped - required reference key(s) not present: ${keysToCheck.join(", ")}`,
+        };
+      }
+    }
+
     return evaluator.evaluate(params, options);
   };
 }

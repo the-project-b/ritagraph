@@ -2,7 +2,7 @@ import type { EvaluatorResult as OpenEvalsResult } from 'openevals';
 import { 
   TypedEvaluator, 
   EvaluatorParams, 
-  EvaluatorResult, 
+  EvaluationResult, 
   EvaluationOptions,
   TextEvaluationInputs,
   TextEvaluationOutputs
@@ -42,7 +42,7 @@ export const languageVerificationEvaluator: TypedEvaluator<
   async evaluate(
     params: EvaluatorParams<LanguageVerificationInputs, LanguageVerificationOutputs, LanguageVerificationReferenceOutputs>,
     options: EvaluationOptions = {}
-  ): Promise<EvaluatorResult> {
+  ): Promise<EvaluationResult> {
     const { customPrompt, model, referenceKey } = options;
     
     // Determine the expected language:
@@ -116,24 +116,23 @@ export const languageVerificationEvaluator: TypedEvaluator<
       binaryScore = evaluatorResult.score >= 0.5 ? 1 : 0;
     } else if (typeof evaluatorResult.score === 'boolean') {
       binaryScore = evaluatorResult.score ? 1 : 0;
+    } else if (evaluatorResult.score === null || evaluatorResult.score === undefined) {
+      binaryScore = 0;
     }
 
+    // Include additional context in the comment
+    const languageSource = referenceKey && params.referenceOutputs && params.referenceOutputs[referenceKey] 
+      ? 'dataset_output' 
+      : (params.inputs.preferredLanguage 
+        ? 'dataset_input' 
+        : (params.outputs.preferredLanguage ? 'user_authentication' : 'default'));
+    
+    const enhancedComment = `${evaluatorResult.comment || ''} [Expected: ${expectedLanguage === 'EN' ? 'English' : 'German'}, Source: ${languageSource}, Original Score: ${evaluatorResult.score}]`.trim();
+    
     return {
       key: evaluatorResult.key,
       score: binaryScore,
-      comment: evaluatorResult.comment,
-      metadata: {
-        ...evaluatorResult.metadata,
-        expectedLanguage: expectedLanguage,
-        expectedLanguageName: expectedLanguage === 'EN' ? 'English' : 'German',
-        referenceKey: referenceKey,
-        languageSource: referenceKey && params.referenceOutputs && params.referenceOutputs[referenceKey] 
-          ? 'dataset_output' 
-          : (params.inputs.preferredLanguage 
-            ? 'dataset_input' 
-            : (params.outputs.preferredLanguage ? 'user_authentication' : 'default')),
-        originalScore: evaluatorResult.score,
-      },
+      comment: enhancedComment,
     };
   },
 } as const;
