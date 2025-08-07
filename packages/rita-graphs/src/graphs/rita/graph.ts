@@ -34,11 +34,11 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     config: AnnotationRoot<any>,
   ): Promise<Array<ToolInterface>> {
     const authUser = getAuthUser(config);
-    const mcpClient = createMcpClient({
-      accessToken: authUser.token,
-      companyId,
-    });
-    const mcpTools = await mcpClient.getTools();
+    // const mcpClient = createMcpClient({
+    //   accessToken: authUser.token,
+    //   companyId,
+    // });
+    // const mcpTools = await mcpClient.getTools();
     const toolContext = {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
@@ -55,12 +55,12 @@ function createFetchTools(getAuthUser: (config: any) => any) {
       ctx: toolContext,
     });
 
-    const toolsToExclude = ["find-employee-by-name", "get-current-user"];
+    // const toolsToExclude = ["find-employee-by-name", "get-current-user"];
 
-    const filteredMcpTools = mcpTools.filter(
-      (tool) => !toolsToExclude.includes(tool.name),
-    );
-    // console.log(filteredMcpTools);
+    // const filteredMcpTools = mcpTools.filter(
+    //   (tool) => !toolsToExclude.includes(tool.name),
+    // );
+    // // console.log(filteredMcpTools);
 
     return [...tools];
   };
