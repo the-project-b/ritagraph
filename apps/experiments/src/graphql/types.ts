@@ -1,8 +1,8 @@
 // GraphQL resolver types for better type safety
 
-import type { 
-  Run, 
-  DatasetExperiment, 
+import type {
+  Run,
+  DatasetExperiment,
   GetDatasetExperimentsInput,
   GetExperimentDetailsInput,
   RunEvaluationInput,
@@ -11,9 +11,9 @@ import type {
   AsyncEvaluationResult,
   GetEvaluationJobStatusInput,
   EvaluationJobDetails,
-  EvaluationResult
-} from '../types/index';
-import type { GraphQLContext } from '../types/context';
+  EvaluationResult,
+} from "../types/index";
+import type { GraphQLContext } from "../types/context";
 
 // Parent types for GraphQL resolvers
 export interface RunParent {
@@ -52,26 +52,26 @@ export interface RunParent {
 export type FieldResolver<TParent, TArgs, TResult> = (
   parent: TParent,
   args: TArgs,
-  context: GraphQLContext
+  context: GraphQLContext,
 ) => Promise<TResult> | TResult;
 
 export type QueryResolver<TArgs, TResult> = (
   parent: undefined,
   args: TArgs,
-  context: GraphQLContext
+  context: GraphQLContext,
 ) => Promise<TResult> | TResult;
 
 export type MutationResolver<TArgs, TResult> = (
   parent: undefined,
   args: TArgs,
-  context: GraphQLContext
+  context: GraphQLContext,
 ) => Promise<TResult> | TResult;
 
 // Specific resolver types
 export type RunFeedbackResolver = FieldResolver<
   RunParent,
   Record<string, never>,
-  Run['feedback']
+  Run["feedback"]
 >;
 
 export type GetDatasetExperimentsResolver = QueryResolver<
@@ -86,7 +86,16 @@ export type GetExperimentDetailsResolver = QueryResolver<
 
 export type GetAvailableEvaluatorsResolver = QueryResolver<
   Record<string, never>,
-  { evaluators: Array<{ type: string; name: string; description: string; defaultModel: string; supportsCustomPrompt: boolean; supportsReferenceKey: boolean }> }
+  {
+    evaluators: Array<{
+      type: string;
+      name: string;
+      description: string;
+      defaultModel: string;
+      supportsCustomPrompt: boolean;
+      supportsReferenceKey: boolean;
+    }>;
+  }
 >;
 
 export type GetAvailableGraphsResolver = QueryResolver<
@@ -116,18 +125,20 @@ export type GetEvaluationJobStatusResolver = QueryResolver<
 
 export type ListLangSmithPromptsResolver = QueryResolver<
   { input?: { query?: string; isPublic?: boolean } },
-  { prompts: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    isPublic: boolean;
-    numCommits: number;
-    numLikes: number;
-    updatedAt: string;
-    owner: string;
-    fullName: string;
-    tags?: string[];
-  }> }
+  {
+    prompts: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      isPublic: boolean;
+      numCommits: number;
+      numLikes: number;
+      updatedAt: string;
+      owner: string;
+      fullName: string;
+      tags?: string[];
+    }>;
+  }
 >;
 
 export type DeleteExperimentRunsResolver = MutationResolver<
@@ -137,7 +148,12 @@ export type DeleteExperimentRunsResolver = MutationResolver<
 
 export type GetAllJobsResolver = QueryResolver<
   Record<string, never>,
-  Array<{ jobId: string; status: string; experimentName: string; createdAt: string }>
+  Array<{
+    jobId: string;
+    status: string;
+    experimentName: string;
+    createdAt: string;
+  }>
 >;
 
 // FeedbackStats resolver types

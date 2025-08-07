@@ -58,7 +58,7 @@ export class AuthError extends Error {
 
   constructor(message: string, status: number) {
     super(message);
-    this.name = 'AuthError';
+    this.name = "AuthError";
     this.status = status;
   }
-} 
+}

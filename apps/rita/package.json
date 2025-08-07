@@ -42,8 +42,6 @@
     "@langchain/mcp-adapters": "0.6.0",
     "@langchain/openai": "0.6.3",
     "@modelcontextprotocol/sdk": "^1.13.0",
-    "@the-project-b/graphql": "*",
-    "@the-project-b/rita-graphs": "*",
     "graphql": "^16.11.0",
     "langsmith": "^0.3.33",
     "zod": "^3.25.28"

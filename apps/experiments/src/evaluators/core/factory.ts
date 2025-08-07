@@ -1,4 +1,4 @@
-import { createLogger } from '@the-project-b/logging';
+import { createLogger } from "@the-project-b/logging";
 import { EvaluatorRegistry } from "./registry";
 import {
   EvaluatorInfo,
@@ -9,7 +9,9 @@ import {
 } from "./types";
 
 // Create logger instance
-const logger = createLogger({ service: 'experiments' }).child({ module: 'EvaluatorFactory' });
+const logger = createLogger({ service: "experiments" }).child({
+  module: "EvaluatorFactory",
+});
 
 // Dynamically generate evaluator type from registry
 export type EvaluatorType = ReturnType<
@@ -80,14 +82,14 @@ export function createEvaluator(
       logger.warn(
         `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`,
         {
-          operation: 'evaluate',
+          operation: "evaluate",
           evaluatorType: type,
           hasInputs: !!params.inputs,
           hasOutputs: false,
           hasReferenceOutputs: !!params.referenceOutputs,
           customPrompt: !!customPrompt,
-          model: model || evaluator.config.defaultModel
-        }
+          model: model || evaluator.config.defaultModel,
+        },
       );
       return {
         key: type.toLowerCase(),
@@ -116,13 +118,15 @@ export function createEvaluator(
         logger.warn(
           `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`,
           {
-            operation: 'evaluate',
+            operation: "evaluate",
             evaluatorType: type,
             requiredKeys: keysToCheck,
-            availableReferenceKeys: params.referenceOutputs ? Object.keys(params.referenceOutputs) : [],
+            availableReferenceKeys: params.referenceOutputs
+              ? Object.keys(params.referenceOutputs)
+              : [],
             referenceKeyUsed: referenceKey,
-            hasReferenceOutputs: !!params.referenceOutputs
-          }
+            hasReferenceOutputs: !!params.referenceOutputs,
+          },
         );
         return {
           key: type.toLowerCase(),

@@ -1,6 +1,6 @@
 // GraphQL schema and resolvers
-export { typeDefs } from './typeDefs.js';
-export { resolvers } from './resolvers.js';
+export { typeDefs } from "./typeDefs.js";
+export { resolvers } from "./resolvers.js";
 
 // Auth helpers
 export {
@@ -11,7 +11,7 @@ export {
   requireACLRole,
   requireCompanyAccess,
   getOptionalAuth,
-} from './auth.helpers.js';
+} from "./auth.helpers.js";
 
 // Error definitions
-export { GraphQLErrors } from './errors.js'; 
+export { GraphQLErrors } from "./errors.js";

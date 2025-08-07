@@ -1,5 +1,5 @@
-import gql from 'graphql-tag';
-import { generateFeedbackStatsType } from './dynamic-schema.js';
+import gql from "graphql-tag";
+import { generateFeedbackStatsType } from "./dynamic-schema.js";
 
 export const typeDefs = gql`
   # Custom scalar for JSON data
@@ -224,7 +224,7 @@ export const typeDefs = gql`
     values: String
   }
 
-${generateFeedbackStatsType()}
+  ${generateFeedbackStatsType()}
 
   # Represents the source of feedback (human, model, etc.)
   type FeedbackSource {
@@ -482,7 +482,9 @@ ${generateFeedbackStatsType()}
     "A simple query to check if the server is running"
     healthCheck: String!
     "Get a list of experiments (sessions) for a specific dataset"
-    getDatasetExperiments(input: GetDatasetExperimentsInput!): DatasetExperimentsResponse!
+    getDatasetExperiments(
+      input: GetDatasetExperimentsInput!
+    ): DatasetExperimentsResponse!
     "Get detailed information about a single experiment including its runs"
     getExperimentDetails(input: GetExperimentDetailsInput!): ExperimentDetails!
     "Get a list of available evaluators with their metadata"
@@ -492,9 +494,13 @@ ${generateFeedbackStatsType()}
     "Get a list of companies the authenticated user has access to"
     getAvailableCompanies: AvailableCompaniesResponse!
     "Get the status and details of an evaluation job"
-    getEvaluationJobStatus(input: GetEvaluationJobStatusInput!): EvaluationJobDetails!
+    getEvaluationJobStatus(
+      input: GetEvaluationJobStatusInput!
+    ): EvaluationJobDetails!
     "Get a list of LangSmith prompts available in the workspace"
-    listLangSmithPrompts(input: ListLangSmithPromptsInput): ListLangSmithPromptsResponse!
+    listLangSmithPrompts(
+      input: ListLangSmithPromptsInput
+    ): ListLangSmithPromptsResponse!
     "Get a list of all evaluation jobs"
     getAllJobs: [JobSummary!]!
   }
@@ -505,6 +511,8 @@ ${generateFeedbackStatsType()}
     "Starts an asynchronous evaluation job and returns immediately with job details"
     runEvaluationAsync(input: RunEvaluationInput!): AsyncEvaluationResult!
     "Deletes all runs associated with a specific experiment/session"
-    deleteExperimentRuns(input: DeleteExperimentRunsInput!): DeleteExperimentRunsResult!
+    deleteExperimentRuns(
+      input: DeleteExperimentRunsInput!
+    ): DeleteExperimentRunsResult!
   }
-`; 
+`;

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { evaluate } from "langsmith/evaluation";
-import { createLogger } from '@the-project-b/logging';
+import { createLogger } from "@the-project-b/logging";
 import {
   AsyncEvaluationResult,
   EvaluationJobDetails,
@@ -15,7 +15,9 @@ import {
   RitaThreadTriggerType,
 } from "@the-project-b/rita-graphs";
 
-const logger = createLogger({ service: 'experiments' }).child({ module: 'EvaluationJobManager' });
+const logger = createLogger({ service: "experiments" }).child({
+  module: "EvaluationJobManager",
+});
 
 interface JobData {
   jobId: string;
@@ -80,14 +82,15 @@ export class EvaluationJobManager {
 
     // Start the job asynchronously (don't await)
     this.executeJob(jobId).catch((error) => {
-      logger.error(`Job ${jobId} failed`, error, { 
+      logger.error(`Job ${jobId} failed`, error, {
         jobId,
-        operation: 'startEvaluationJob',
+        operation: "startEvaluationJob",
         experimentName,
         graphName: input.graphName,
         datasetName: input.datasetName,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       this.updateJobStatus(jobId, EvaluationJobStatus.FAILED, {
         message: "Evaluation job failed",
@@ -140,14 +143,14 @@ export class EvaluationJobManager {
       throw new Error(`Job ${jobId} not found`);
     }
 
-    logger.info(`Starting job ${jobId}`, { 
+    logger.info(`Starting job ${jobId}`, {
       jobId,
-      operation: 'executeJob',
+      operation: "executeJob",
       experimentName: job.experimentName,
       graphName: job.input.graphName,
       datasetName: job.input.datasetName,
       evaluatorCount: job.input.evaluators.length,
-      maxConcurrency: job.input.maxConcurrency || 10
+      maxConcurrency: job.input.maxConcurrency || 10,
     });
 
     this.updateJobStatus(jobId, EvaluationJobStatus.RUNNING, {
@@ -196,12 +199,15 @@ export class EvaluationJobManager {
                 `Failed to fetch prompt ${evaluatorInput.langsmithPromptName}`,
                 error,
                 {
-                  operation: 'fetchPromptForJob',
+                  operation: "fetchPromptForJob",
                   jobId,
                   promptName: evaluatorInput.langsmithPromptName,
                   evaluatorType: evaluatorInput.type,
-                  errorType: error instanceof Error ? error.constructor.name : 'UnknownError'
-                }
+                  errorType:
+                    error instanceof Error
+                      ? error.constructor.name
+                      : "UnknownError",
+                },
               );
               throw new Error(
                 `Failed to fetch LangSmith prompt "${evaluatorInput.langsmithPromptName}": ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -235,8 +241,6 @@ export class EvaluationJobManager {
         usedPrompts,
       });
 
-
-
       // Prepare evaluation config for concurrent execution
       const evaluationConfig = {
         evaluators,
@@ -253,15 +257,15 @@ export class EvaluationJobManager {
 
       // Transform results to match our schema
       const results = await this.transformExperimentResults(experimentResults);
-      
-      logger.info(`Job ${jobId} completed successfully`, { 
+
+      logger.info(`Job ${jobId} completed successfully`, {
         jobId,
-        operation: 'executeJob',
+        operation: "executeJob",
         experimentName: results.experimentName,
         experimentId: results.experimentId,
         resultCount: results.results?.length || 0,
         totalExamples: job.totalExamples,
-        duration: Date.now() - new Date(job.createdAt).getTime()
+        duration: Date.now() - new Date(job.createdAt).getTime(),
       });
 
       this.updateJobStatus(jobId, EvaluationJobStatus.COMPLETED, {
@@ -271,13 +275,14 @@ export class EvaluationJobManager {
         experimentId: results.experimentId,
       });
     } catch (error) {
-      logger.error(`Job ${jobId} failed`, error, { 
+      logger.error(`Job ${jobId} failed`, error, {
         jobId,
-        operation: 'executeJob',
+        operation: "executeJob",
         experimentName: job.experimentName,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
         errorMessage: error instanceof Error ? error.message : String(error),
-        duration: Date.now() - new Date(job.createdAt).getTime()
+        duration: Date.now() - new Date(job.createdAt).getTime(),
       });
       this.updateJobStatus(jobId, EvaluationJobStatus.FAILED, {
         message: "Evaluation job failed",
@@ -337,10 +342,10 @@ export class EvaluationJobManager {
       // Create Rita thread just before invoking the graph
       const { createGraphQLClient } = await import("../graphql/client.js");
       const graphqlClient = createGraphQLClient(context.token || "");
-      
+
       // Generate a unique LangGraph thread ID for this evaluation
       const lcThreadId = `eval-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      
+
       const threadResult = await graphqlClient.createRitaThread({
         input: {
           title: `Evaluation - ${question.substring(0, 50)}...`,
@@ -352,16 +357,18 @@ export class EvaluationJobManager {
       });
 
       const ritaThread = threadResult.createRitaThread;
-      logger.info(`🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId}) for question: "${question.substring(0, 50)}..."`, 
-        { 
-          threadId: ritaThread.id, 
+      logger.info(
+        `🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId}) for question: "${question.substring(0, 50)}..."`,
+        {
+          threadId: ritaThread.id,
           lcThreadId: ritaThread.lcThreadId,
-          operation: 'createTargetFunction',
+          operation: "createTargetFunction",
           graphName,
           selectedCompanyId,
           questionPreview: question.substring(0, 50),
-          hasPreferredLanguage: !!examplePreferredLanguage
-        });
+          hasPreferredLanguage: !!examplePreferredLanguage,
+        },
+      );
 
       const config = {
         configurable: {
@@ -390,15 +397,15 @@ export class EvaluationJobManager {
       if (typeof answer !== "string") {
         logger.warn(
           `[${ritaThread.id}] Graph did not return a final message with string content. Returning empty answer`,
-          { 
-            threadId: ritaThread.id, 
-            operation: 'createTargetFunction',
+          {
+            threadId: ritaThread.id,
+            operation: "createTargetFunction",
             graphName,
             messageType: typeof answer,
             hasResult: !!result,
             hasMessages: Array.isArray(result?.messages),
-            messageCount: result?.messages?.length || 0
-          }
+            messageCount: result?.messages?.length || 0,
+          },
         );
         return {
           answer: "",
@@ -415,38 +422,44 @@ export class EvaluationJobManager {
       if (threadItemsResult?.thread?.threadItems) {
         for (const item of threadItemsResult.thread.threadItems) {
           try {
-            const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+            const data =
+              typeof item.data === "string" ? JSON.parse(item.data) : item.data;
             if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
               const proposal = {
                 changedField: data.proposal.changedField,
                 newValue: data.proposal.newValue,
-                mutationQueryPropertyPath: data.proposal.mutationQuery?.propertyPath,
+                mutationQueryPropertyPath:
+                  data.proposal.mutationQuery?.propertyPath,
                 relatedUserId: data.proposal.relatedUserId,
+                mutationVariables: data.proposal.mutationQuery?.variables,
               };
               dataChangeProposals.push(proposal);
             }
           } catch (e) {
-            logger.error(`[${ritaThread.id}] Failed to parse thread item`, e, { 
+            logger.error(`[${ritaThread.id}] Failed to parse thread item`, e, {
               threadId: ritaThread.id,
-              operation: 'parseThreadItems',
+              operation: "parseThreadItems",
               itemId: item?.id,
               hasData: !!item?.data,
               dataType: typeof item?.data,
-              errorType: e instanceof Error ? e.constructor.name : 'UnknownError'
+              errorType:
+                e instanceof Error ? e.constructor.name : "UnknownError",
             });
           }
         }
       }
-      
+
       if (dataChangeProposals.length > 0) {
-        logger.info(`[${ritaThread.id}] Found ${dataChangeProposals.length} data change proposal(s)`, 
-          { 
-            threadId: ritaThread.id, 
-            operation: 'extractDataChangeProposals',
+        logger.info(
+          `[${ritaThread.id}] Found ${dataChangeProposals.length} data change proposal(s)`,
+          {
+            threadId: ritaThread.id,
+            operation: "extractDataChangeProposals",
             proposalCount: dataChangeProposals.length,
             graphName,
-            hasThreadItems: !!threadItemsResult?.thread?.threadItems
-          });
+            hasThreadItems: !!threadItemsResult?.thread?.threadItems,
+          },
+        );
       }
       return {
         answer,
@@ -514,13 +527,13 @@ export class EvaluationJobManager {
       logger.warn(
         "Could not construct the full LangSmith results URL from the experiment object. Providing a fallback.",
         {
-          operation: 'transformExperimentResults',
+          operation: "transformExperimentResults",
           hasWebUrl: !!webUrl,
           hasTenantId: !!tenantId,
           hasDatasetId: !!datasetId,
           hasExperimentId: !!experimentId,
-          experimentName
-        }
+          experimentName,
+        },
       );
       url = webUrl ? `${webUrl}/projects` : "URL not available";
     }
@@ -543,15 +556,12 @@ export class EvaluationJobManager {
   ): void {
     const job = this.jobs.get(jobId);
     if (!job) {
-      logger.warn(
-        `Attempted to update non-existent job ${jobId}`,
-        { 
-          jobId,
-          operation: 'updateJobStatus',
-          newStatus: status,
-          existingJobIds: Array.from(this.jobs.keys()).slice(0, 5)
-        }
-      );
+      logger.warn(`Attempted to update non-existent job ${jobId}`, {
+        jobId,
+        operation: "updateJobStatus",
+        newStatus: status,
+        existingJobIds: Array.from(this.jobs.keys()).slice(0, 5),
+      });
       return;
     }
 
@@ -563,19 +573,16 @@ export class EvaluationJobManager {
     };
 
     this.jobs.set(jobId, updatedJob);
-    logger.info(
-      `Job ${jobId} status updated to ${status}`,
-      { 
-        jobId, 
-        status,
-        operation: 'updateJobStatus',
-        experimentName: updatedJob.experimentName,
-        hasProgress: updates.progress !== undefined,
-        progress: updates.progress,
-        processedExamples: updates.processedExamples,
-        totalExamples: updates.totalExamples
-      }
-    );
+    logger.info(`Job ${jobId} status updated to ${status}`, {
+      jobId,
+      status,
+      operation: "updateJobStatus",
+      experimentName: updatedJob.experimentName,
+      hasProgress: updates.progress !== undefined,
+      progress: updates.progress,
+      processedExamples: updates.processedExamples,
+      totalExamples: updates.totalExamples,
+    });
   }
 
   /**
@@ -617,11 +624,11 @@ export class EvaluationJobManager {
     }
 
     if (cleaned > 0) {
-      logger.info(`Cleaned up ${cleaned} old jobs`, { 
+      logger.info(`Cleaned up ${cleaned} old jobs`, {
         cleanedCount: cleaned,
-        operation: 'cleanup',
+        operation: "cleanup",
         remainingJobs: this.jobs.size,
-        cutoffTime: cutoff.toISOString()
+        cutoffTime: cutoff.toISOString(),
       });
     }
   }

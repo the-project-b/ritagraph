@@ -16,7 +16,8 @@ const build = async () => {
           allowList: [
             // Bundle local workspace packages
             '@the-project-b/rita-graphs',
-            '@the-project-b/graphql'
+            '@the-project-b/graphql',
+            '@the-project-b/logging'
           ]
         })
       ],

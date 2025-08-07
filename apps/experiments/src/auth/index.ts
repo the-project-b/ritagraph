@@ -1,7 +1,7 @@
 // Main auth service and middleware
-export { AuthService } from './auth.service.js';
-export { authMiddleware, basicAuthMiddleware } from './middleware.js';
-export { AuthUtils } from './auth.utils.js';
+export { AuthService } from "./auth.service.js";
+export { authMiddleware, basicAuthMiddleware } from "./middleware.js";
+export { AuthUtils } from "./auth.utils.js";
 
 // Types
 export type {
@@ -10,7 +10,7 @@ export type {
   CompanyUser,
   UserToCompaniesResponse,
   VerifiedUser,
-} from './types.js';
+} from "./types.js";
 
 // Error class
-export { AuthError } from './types.js'; 
+export { AuthError } from "./types.js";
