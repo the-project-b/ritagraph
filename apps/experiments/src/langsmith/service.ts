@@ -3,7 +3,7 @@ import {
   RitaThreadStatus,
   RitaThreadTriggerType,
 } from "@the-project-b/rita-graphs";
-import { createLogger } from '@the-project-b/logging';
+import { createLogger } from "@the-project-b/logging";
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 import { getAuthUser } from "../security/auth.js";
@@ -49,7 +49,9 @@ export interface PromptWithContent {
 }
 
 // Create logger instance
-const logger = createLogger({ service: 'experiments' }).child({ module: 'LangSmithService' });
+const logger = createLogger({ service: "experiments" }).child({
+  module: "LangSmithService",
+});
 
 // Create graph with auth - wrap in async to match factory signature
 const create_rita_graph = async () => createRitaGraph(getAuthUser)();
@@ -125,16 +127,16 @@ export class LangSmithService {
     const ritaThread = threadResult.createRitaThread;
     logger.info(
       `🧵 RitaThread created: ${ritaThread.id} (lc: ${ritaThread.lcThreadId})`,
-      { 
-        threadId: ritaThread.id, 
+      {
+        threadId: ritaThread.id,
         lcThreadId: ritaThread.lcThreadId,
-        operation: 'createRitaThread',
+        operation: "createRitaThread",
         graphName,
         datasetName,
         experimentPrefix: experimentPrefix || graphName,
         selectedCompanyId,
-        triggerType: RitaThreadTriggerType.Evaluation
-      }
+        triggerType: RitaThreadTriggerType.Evaluation,
+      },
     );
 
     const target = async (inputs: Record<string, any>) => {
@@ -186,12 +188,12 @@ export class LangSmithService {
           {
             threadId: ritaThread.id,
             lcThreadId: ritaThread.lcThreadId,
-            operation: 'evaluateTarget',
+            operation: "evaluateTarget",
             graphName,
             messageType: typeof answer,
             hasMessages: Array.isArray(result?.messages),
-            messageCount: result?.messages?.length || 0
-          }
+            messageCount: result?.messages?.length || 0,
+          },
         );
         return {
           answer: "",
@@ -217,6 +219,7 @@ export class LangSmithService {
                 mutationQueryPropertyPath:
                   data.proposal.mutationQuery?.propertyPath,
                 relatedUserId: data.proposal.relatedUserId,
+                mutationVariables: data.proposal.mutationQuery?.variables,
               });
             }
           } catch (e) {
@@ -248,13 +251,17 @@ export class LangSmithService {
             `Failed to fetch prompt ${evaluatorInput.langsmithPromptName}:`,
             error,
             {
-              operation: 'fetchLangsmithPrompt',
+              operation: "fetchLangsmithPrompt",
               promptName: evaluatorInput.langsmithPromptName,
               evaluatorType: evaluatorInput.type,
               hasCustomPrompt: !!evaluatorInput.customPrompt,
-              errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-              errorMessage: error instanceof Error ? error.message : String(error)
-            }
+              errorType:
+                error instanceof Error
+                  ? error.constructor.name
+                  : "UnknownError",
+              errorMessage:
+                error instanceof Error ? error.message : String(error),
+            },
           );
           throw new Error(
             `Failed to fetch LangSmith prompt "${evaluatorInput.langsmithPromptName}": ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -329,15 +336,15 @@ export class LangSmithService {
       logger.warn(
         "Could not construct LangSmith results URL, providing fallback",
         {
-          operation: 'constructResultsUrl',
+          operation: "constructResultsUrl",
           hasWebUrl: !!webUrl,
           hasTenantId: !!tenantId,
           hasDatasetId: !!datasetId,
           hasExperimentId: !!experimentId,
           experimentName,
           graphName,
-          datasetName
-        }
+          datasetName,
+        },
       );
       url = webUrl ? `${webUrl}/projects` : "URL not available";
     }
@@ -407,7 +414,7 @@ export class LangSmithService {
           `Failed to fetch experiments: ${response.status} ${response.statusText}`,
           undefined,
           {
-            operation: 'getDatasetExperiments',
+            operation: "getDatasetExperiments",
             datasetId,
             httpStatus: response.status,
             httpStatusText: response.statusText,
@@ -415,8 +422,8 @@ export class LangSmithService {
             limit,
             sortBy,
             sortByDesc,
-            endpoint: url.toString()
-          }
+            endpoint: url.toString(),
+          },
         );
 
         throw new Error(
@@ -440,22 +447,26 @@ export class LangSmithService {
           return this.transformSessionsResponse(data, total);
         } catch (parseError) {
           logger.error("Failed to parse JSON response:", parseError, {
-            operation: 'getDatasetExperiments',
+            operation: "getDatasetExperiments",
             datasetId,
-            responseType: 'streaming',
-            errorType: parseError instanceof Error ? parseError.constructor.name : 'UnknownError'
+            responseType: "streaming",
+            errorType:
+              parseError instanceof Error
+                ? parseError.constructor.name
+                : "UnknownError",
           });
           throw new Error(`Failed to parse response as JSON: ${parseError}`);
         }
       }
     } catch (error) {
       logger.error("Error in getDatasetExperiments:", error, {
-        operation: 'getDatasetExperiments',
+        operation: "getDatasetExperiments",
         datasetId,
         offset,
         limit,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
 
       throw new Error(
@@ -517,9 +528,12 @@ export class LangSmithService {
               }
             } catch (parseError) {
               logger.warn("Failed to parse SSE data:", {
-                operation: 'parseStreamingResponse',
+                operation: "parseStreamingResponse",
                 lineContent: line.substring(0, 100),
-                errorType: parseError instanceof Error ? parseError.constructor.name : 'UnknownError'
+                errorType:
+                  parseError instanceof Error
+                    ? parseError.constructor.name
+                    : "UnknownError",
               });
             }
           }
@@ -527,9 +541,10 @@ export class LangSmithService {
       }
     } catch (error) {
       logger.error("Error parsing streaming response:", error, {
-        operation: 'parseStreamingResponse',
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        operation: "parseStreamingResponse",
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
     } finally {
@@ -563,11 +578,11 @@ export class LangSmithService {
     }
 
     logger.warn("Unknown response format, returning empty", {
-      operation: 'transformSessionsResponse',
+      operation: "transformSessionsResponse",
       hasData: !!data,
       dataType: typeof data,
       hasProjectSessions: !!data?.project_sessions,
-      hasCursors: !!data?.cursors
+      hasCursors: !!data?.cursors,
     });
     return { experiments: [], total: 0 };
   }
@@ -656,9 +671,10 @@ export class LangSmithService {
       return feedbackStatsRaw;
     } catch (error) {
       logger.error("Failed to parse feedback stats:", error, {
-        operation: 'parseFeedbackStats',
+        operation: "parseFeedbackStats",
         rawStatsLength: feedbackStatsRaw?.length,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError'
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
       });
       return undefined;
     }
@@ -815,14 +831,14 @@ export class LangSmithService {
       if (!runsResponse.ok) {
         const errorText = await runsResponse.text();
         logger.error("Runs API error:", undefined, {
-          operation: 'getExperimentDetails',
+          operation: "getExperimentDetails",
           experimentId: input.experimentId,
           httpStatus: runsResponse.status,
           httpStatusText: runsResponse.statusText,
           errorText,
           offset: input.offset || 0,
           limit: input.limit || 10,
-          endpoint: runsUrl.toString()
+          endpoint: runsUrl.toString(),
         });
         throw new Error(
           `Failed to fetch runs: ${runsResponse.status} ${runsResponse.statusText}`,
@@ -900,12 +916,13 @@ export class LangSmithService {
       };
     } catch (error) {
       logger.error("Error getting experiment details:", error, {
-        operation: 'getExperimentDetails',
+        operation: "getExperimentDetails",
         experimentId: input.experimentId,
         offset: input.offset || 0,
         limit: input.limit || 10,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
@@ -940,12 +957,12 @@ export class LangSmithService {
       if (!response.ok) {
         const errorText = await response.text();
         logger.error("Feedback API error:", undefined, {
-          operation: 'getFeedbackForRun',
+          operation: "getFeedbackForRun",
           runId,
           httpStatus: response.status,
           httpStatusText: response.statusText,
           errorText,
-          endpoint: feedbackUrl.toString()
+          endpoint: feedbackUrl.toString(),
         });
         throw new Error(
           `Failed to fetch feedback: ${response.status} ${response.statusText}`,
@@ -984,10 +1001,11 @@ export class LangSmithService {
       return feedback;
     } catch (error) {
       logger.error("Error getting feedback for run:", error, {
-        operation: 'getFeedbackForRun',
+        operation: "getFeedbackForRun",
         runId,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
@@ -999,9 +1017,9 @@ export class LangSmithService {
     const { experimentId } = input;
 
     logger.warn("LangSmith does not support permanent run deletion via API", {
-      operation: 'deleteExperimentRuns',
+      operation: "deleteExperimentRuns",
       experimentId,
-      limitation: 'api_not_supported'
+      limitation: "api_not_supported",
     });
 
     // Build the API URL
@@ -1076,14 +1094,14 @@ export class LangSmithService {
         if (!runsQueryResponse.ok) {
           const errorText = await runsQueryResponse.text();
           logger.error("Runs query API error:", undefined, {
-            operation: 'deleteExperimentRuns',
+            operation: "deleteExperimentRuns",
             experimentId,
             httpStatus: runsQueryResponse.status,
             httpStatusText: runsQueryResponse.statusText,
             errorText,
             pageCount,
             currentCursor: cursor,
-            endpoint: runsQueryUrl
+            endpoint: runsQueryUrl,
           });
           throw new Error(
             `Failed to query runs: ${runsQueryResponse.status} ${runsQueryResponse.statusText}`,
@@ -1102,11 +1120,11 @@ export class LangSmithService {
         // Safety break - avoid infinite loop
         if (pageCount > 100) {
           logger.warn("Breaking pagination loop at 100 pages for safety", {
-            operation: 'deleteExperimentRuns',
+            operation: "deleteExperimentRuns",
             experimentId,
             pageCount,
             totalRunsCollected: allTraceIds.length,
-            safetyLimit: 100
+            safetyLimit: 100,
           });
           break;
         }
@@ -1144,7 +1162,7 @@ export class LangSmithService {
         if (!deleteResponse.ok) {
           const errorText = await deleteResponse.text();
           logger.error("Delete API error:", undefined, {
-            operation: 'deleteExperimentRuns',
+            operation: "deleteExperimentRuns",
             experimentId,
             httpStatus: deleteResponse.status,
             httpStatusText: deleteResponse.statusText,
@@ -1152,7 +1170,7 @@ export class LangSmithService {
             batchIndex: i,
             batchSize: batchTraceIds.length,
             totalBatches: Math.ceil(allTraceIds.length / batchSize),
-            endpoint: deleteUrl.toString()
+            endpoint: deleteUrl.toString(),
           });
           throw new Error(
             `Failed to delete runs batch: ${deleteResponse.status} ${deleteResponse.statusText}`,
@@ -1174,10 +1192,11 @@ export class LangSmithService {
       };
     } catch (error) {
       logger.error("Error deleting experiment runs:", error, {
-        operation: 'deleteExperimentRuns',
+        operation: "deleteExperimentRuns",
         experimentId,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       return {
         success: false,
@@ -1236,11 +1255,12 @@ export class LangSmithService {
       });
     } catch (error) {
       logger.error("Error listing prompts:", error, {
-        operation: 'listPrompts',
+        operation: "listPrompts",
         query,
         isPublic,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw new Error(
         `Failed to list prompts: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1289,10 +1309,11 @@ export class LangSmithService {
       };
     } catch (error) {
       logger.error("Error pulling prompt:", error, {
-        operation: 'pullPrompt',
+        operation: "pullPrompt",
         promptName,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw new Error(
         `Failed to pull prompt "${promptName}": ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1346,11 +1367,11 @@ export class LangSmithService {
       // Default: stringify the whole thing
       else {
         logger.warn("Unknown prompt format, using JSON representation", {
-          operation: 'convertPromptToText',
+          operation: "convertPromptToText",
           hasMessages: !!parsedData.messages,
           hasTemplate: !!parsedData.template,
           hasInput: !!parsedData.input,
-          dataKeys: Object.keys(parsedData || {})
+          dataKeys: Object.keys(parsedData || {}),
         });
         promptText = JSON.stringify(parsedData, null, 2);
       }
@@ -1358,10 +1379,11 @@ export class LangSmithService {
       return promptText;
     } catch (error) {
       logger.error("Error converting prompt to text:", error, {
-        operation: 'convertPromptToText',
+        operation: "convertPromptToText",
         promptDataType: typeof promptData,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw new Error(
         `Failed to convert prompt to text: ${error instanceof Error ? error.message : "Unknown error"}`,

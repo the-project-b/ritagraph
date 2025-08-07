@@ -1,10 +1,9 @@
-import { VerifiedUser, CompanyUser } from './types.js';
+import { VerifiedUser, CompanyUser } from "./types.js";
 
 /**
  * Auth utility functions for role and permission checking
  */
 export class AuthUtils {
-  
   /**
    * Checks if user has a specific Auth0 role
    * @param user - The verified user
@@ -22,7 +21,7 @@ export class AuthUtils {
    * @returns boolean
    */
   static hasAnyAuth0Role(user: VerifiedUser, roles: string[]): boolean {
-    return roles.some(role => this.hasAuth0Role(user, role));
+    return roles.some((role) => this.hasAuth0Role(user, role));
   }
 
   /**
@@ -41,8 +40,13 @@ export class AuthUtils {
    * @param permissions - Array of Auth0 permissions to check for
    * @returns boolean
    */
-  static hasAnyAuth0Permission(user: VerifiedUser, permissions: string[]): boolean {
-    return permissions.some(permission => this.hasAuth0Permission(user, permission));
+  static hasAnyAuth0Permission(
+    user: VerifiedUser,
+    permissions: string[],
+  ): boolean {
+    return permissions.some((permission) =>
+      this.hasAuth0Permission(user, permission),
+    );
   }
 
   /**
@@ -72,7 +76,7 @@ export class AuthUtils {
    * @returns boolean
    */
   static hasAccessToCompany(user: VerifiedUser, companyId: string): boolean {
-    return user.companies.some(company => company.companyId === companyId);
+    return user.companies.some((company) => company.companyId === companyId);
   }
 
   /**
@@ -81,8 +85,13 @@ export class AuthUtils {
    * @param companyId - The company ID
    * @returns string | null - The role within the company or null if no access
    */
-  static getUserRoleInCompany(user: VerifiedUser, companyId: string): string | null {
-    const company = user.companies.find(company => company.companyId === companyId);
+  static getUserRoleInCompany(
+    user: VerifiedUser,
+    companyId: string,
+  ): string | null {
+    const company = user.companies.find(
+      (company) => company.companyId === companyId,
+    );
     return company?.role || null;
   }
 
@@ -93,7 +102,11 @@ export class AuthUtils {
    * @param role - The role to check for within the company
    * @returns boolean
    */
-  static hasRoleInCompany(user: VerifiedUser, companyId: string, role: string): boolean {
+  static hasRoleInCompany(
+    user: VerifiedUser,
+    companyId: string,
+    role: string,
+  ): boolean {
     const userRole = this.getUserRoleInCompany(user, companyId);
     return userRole === role;
   }
@@ -105,7 +118,9 @@ export class AuthUtils {
    * @returns boolean
    */
   static isManagingCompany(user: VerifiedUser, companyId: string): boolean {
-    const company = user.companies.find(company => company.companyId === companyId);
+    const company = user.companies.find(
+      (company) => company.companyId === companyId,
+    );
     return company?.managingCompany || false;
   }
 
@@ -125,7 +140,7 @@ export class AuthUtils {
    * @returns CompanyUser[] - Array of companies where user has the specified role
    */
   static getCompaniesByRole(user: VerifiedUser, role: string): CompanyUser[] {
-    return user.companies.filter(company => company.role === role);
+    return user.companies.filter((company) => company.role === role);
   }
 
   /**
@@ -134,7 +149,7 @@ export class AuthUtils {
    * @returns CompanyUser[] - Array of companies user is managing
    */
   static getManagedCompanies(user: VerifiedUser): CompanyUser[] {
-    return user.companies.filter(company => company.managingCompany);
+    return user.companies.filter((company) => company.managingCompany);
   }
 
   /**
@@ -143,8 +158,8 @@ export class AuthUtils {
    * @returns boolean
    */
   static isAdmin(user: VerifiedUser): boolean {
-    const hasAuth0Admin = this.hasAuth0Role(user, 'admin');
-    const hasACLAdmin = this.hasACLRole(user, 'ADMIN');
+    const hasAuth0Admin = this.hasAuth0Role(user, "admin");
+    const hasACLAdmin = this.hasACLRole(user, "ADMIN");
     return hasAuth0Admin || hasACLAdmin;
   }
 
@@ -154,8 +169,10 @@ export class AuthUtils {
    * @returns boolean
    */
   static isBPOAdmin(user: VerifiedUser): boolean {
-    return this.hasAuth0Role(user, 'onboarding-bpo-admin') || 
-           this.hasACLRole(user, 'BPO Admin');
+    return (
+      this.hasAuth0Role(user, "onboarding-bpo-admin") ||
+      this.hasACLRole(user, "BPO Admin")
+    );
   }
 
   /**
@@ -165,7 +182,7 @@ export class AuthUtils {
    */
   static getFullName(user: VerifiedUser): string {
     const company = user.companies[0];
-    if (!company) return 'Unknown User';
+    if (!company) return "Unknown User";
     return `${company.firstName} ${company.lastName}`.trim();
   }
 
@@ -176,6 +193,6 @@ export class AuthUtils {
    */
   static getEmail(user: VerifiedUser): string {
     const company = user.companies[0];
-    return company?.email || '';
+    return company?.email || "";
   }
-} 
+}

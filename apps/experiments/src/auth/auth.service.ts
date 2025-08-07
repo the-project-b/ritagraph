@@ -1,31 +1,42 @@
-import { createLogger } from '@the-project-b/logging';
-import { ME_QUERY } from '../graphql/queries.js';
-import { Auth0UserResponse, AuthError, Me, UserToCompaniesResponse, VerifiedUser } from './types.js';
+import { createLogger } from "@the-project-b/logging";
+import { ME_QUERY } from "../graphql/queries.js";
+import {
+  Auth0UserResponse,
+  AuthError,
+  Me,
+  UserToCompaniesResponse,
+  VerifiedUser,
+} from "./types.js";
 
-const logger = createLogger({ service: 'experiments' }).child({ module: 'AuthService' });
+const logger = createLogger({ service: "experiments" }).child({
+  module: "AuthService",
+});
 
 export class AuthService {
   private readonly graphqlEndpoint: string;
 
   constructor(graphqlEndpoint?: string) {
-    const baseEndpoint = graphqlEndpoint || process.env.PROJECTB_GRAPHQL_ENDPOINT || 'http://localhost:3000';
+    const baseEndpoint =
+      graphqlEndpoint ||
+      process.env.PROJECTB_GRAPHQL_ENDPOINT ||
+      "http://localhost:3000";
     this.graphqlEndpoint = this.ensureGraphQLApiPath(baseEndpoint);
   }
 
   /**
    * Ensures the GraphQL endpoint has the /graphqlapi path properly appended
-   * @param endpoint - The base GraphQL endpoint URL  
+   * @param endpoint - The base GraphQL endpoint URL
    * @returns string - The endpoint with /graphqlapi path
    */
   private ensureGraphQLApiPath(endpoint: string): string {
     // Remove trailing slash if present
-    const cleanEndpoint = endpoint.replace(/\/+$/, '');
-    
+    const cleanEndpoint = endpoint.replace(/\/+$/, "");
+
     // Check if already ends with /graphqlapi
-    if (cleanEndpoint.endsWith('/graphqlapi')) {
+    if (cleanEndpoint.endsWith("/graphqlapi")) {
       return cleanEndpoint;
     }
-    
+
     // Add /graphqlapi path
     return `${cleanEndpoint}/graphqlapi`;
   }
@@ -40,7 +51,7 @@ export class AuthService {
     try {
       // First, verify the token and get Auth0 user data
       const auth0User = await this.getAuth0User(token);
-      
+
       // Then, get ACL roles and company associations
       const userCompanies = await this.getUserToCompanies(token);
 
@@ -54,19 +65,24 @@ export class AuthService {
         token,
         me,
       };
-      
+
       return verifiedUser;
     } catch (error) {
-      logger.error('Token verification failed', error instanceof Error ? error : undefined, {
-        operation: 'verifyToken',
-        hasAuth0User: false,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      logger.error(
+        "Token verification failed",
+        error instanceof Error ? error : undefined,
+        {
+          operation: "verifyToken",
+          hasAuth0User: false,
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      );
       if (error instanceof Error) {
         throw new AuthError(`Token verification failed: ${error.message}`, 401);
       }
-      throw new AuthError('Token verification failed: Unknown error', 500);
+      throw new AuthError("Token verification failed: Unknown error", 500);
     }
   }
 
@@ -87,29 +103,35 @@ export class AuthService {
     `;
 
     const response = await this.makeGraphQLRequest(query, token);
-    
+
     if (!response.ok) {
       await response.text(); // Consume response body
-      logger.error(`Auth0 GraphQL request failed: ${response.status} ${response.statusText}`, undefined, {
-        operation: 'getAuth0User',
-        httpStatus: response.status,
-        httpStatusText: response.statusText,
-        endpoint: this.graphqlEndpoint,
-        query: 'GetAuthUser'
-      });
-      throw new Error(`Auth0 verification failed: ${response.status} ${response.statusText}`);
+      logger.error(
+        `Auth0 GraphQL request failed: ${response.status} ${response.statusText}`,
+        undefined,
+        {
+          operation: "getAuth0User",
+          httpStatus: response.status,
+          httpStatusText: response.statusText,
+          endpoint: this.graphqlEndpoint,
+          query: "GetAuthUser",
+        },
+      );
+      throw new Error(
+        `Auth0 verification failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     const data: Auth0UserResponse = await response.json();
-    
+
     if (!data.data?.authUser) {
-      logger.error('Invalid Auth0 user response structure', undefined, {
-        operation: 'getAuth0User',
+      logger.error("Invalid Auth0 user response structure", undefined, {
+        operation: "getAuth0User",
         hasData: !!data.data,
         hasAuthUser: !!data.data?.authUser,
-        endpoint: this.graphqlEndpoint
+        endpoint: this.graphqlEndpoint,
       });
-      throw new Error('Invalid Auth0 user response');
+      throw new Error("Invalid Auth0 user response");
     }
 
     return data.data.authUser;
@@ -145,31 +167,41 @@ export class AuthService {
     `;
 
     const response = await this.makeGraphQLRequest(query, token);
-    
+
     if (!response.ok) {
       await response.text(); // Consume response body
-      logger.error(`UserToCompanies GraphQL request failed: ${response.status} ${response.statusText}`, undefined, {
-        operation: 'getUserToCompanies',
-        httpStatus: response.status,
-        httpStatusText: response.statusText,
-        endpoint: this.graphqlEndpoint,
-        query: 'GetUserToCompanies'
-      });
-      throw new Error(`ACL data fetch failed: ${response.status} ${response.statusText}`);
+      logger.error(
+        `UserToCompanies GraphQL request failed: ${response.status} ${response.statusText}`,
+        undefined,
+        {
+          operation: "getUserToCompanies",
+          httpStatus: response.status,
+          httpStatusText: response.statusText,
+          endpoint: this.graphqlEndpoint,
+          query: "GetUserToCompanies",
+        },
+      );
+      throw new Error(
+        `ACL data fetch failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     const data: UserToCompaniesResponse = await response.json();
-    
-    if (!data.data?.userToCompanies || !Array.isArray(data.data.userToCompanies) || data.data.userToCompanies.length === 0) {
-      logger.error('Invalid user companies response structure', undefined, {
-        operation: 'getUserToCompanies',
+
+    if (
+      !data.data?.userToCompanies ||
+      !Array.isArray(data.data.userToCompanies) ||
+      data.data.userToCompanies.length === 0
+    ) {
+      logger.error("Invalid user companies response structure", undefined, {
+        operation: "getUserToCompanies",
         hasData: !!data.data,
         hasUserToCompanies: !!data.data?.userToCompanies,
         isArray: Array.isArray(data.data?.userToCompanies),
         arrayLength: data.data?.userToCompanies?.length || 0,
-        endpoint: this.graphqlEndpoint
+        endpoint: this.graphqlEndpoint,
       });
-      throw new Error('Invalid user companies response');
+      throw new Error("Invalid user companies response");
     }
 
     // Take the first element from the userToCompanies array
@@ -181,29 +213,35 @@ export class AuthService {
     const query = ME_QUERY;
 
     const response = await this.makeGraphQLRequest(query, token);
-    
+
     if (!response.ok) {
       await response.text(); // Consume response body
-      logger.error(`User details GraphQL request failed: ${response.status} ${response.statusText}`, undefined, {
-        operation: 'getMe',
-        httpStatus: response.status,
-        httpStatusText: response.statusText,
-        endpoint: this.graphqlEndpoint,
-        query: 'ME_QUERY'
-      });
-      throw new Error(`User details fetch failed: ${response.status} ${response.statusText}`);
+      logger.error(
+        `User details GraphQL request failed: ${response.status} ${response.statusText}`,
+        undefined,
+        {
+          operation: "getMe",
+          httpStatus: response.status,
+          httpStatusText: response.statusText,
+          endpoint: this.graphqlEndpoint,
+          query: "ME_QUERY",
+        },
+      );
+      throw new Error(
+        `User details fetch failed: ${response.status} ${response.statusText}`,
+      );
     }
 
-    const data: {data: {me: Me}} = await response.json();
+    const data: { data: { me: Me } } = await response.json();
 
     if (!data.data.me) {
-      logger.error('Invalid user information response structure', undefined, {
-        operation: 'getMe',
+      logger.error("Invalid user information response structure", undefined, {
+        operation: "getMe",
         hasData: !!data.data,
         hasMe: !!data.data?.me,
-        endpoint: this.graphqlEndpoint
+        endpoint: this.graphqlEndpoint,
       });
-      throw new Error('Invalid user information response');
+      throw new Error("Invalid user information response");
     }
 
     return data.data.me;
@@ -215,30 +253,38 @@ export class AuthService {
    * @param token - The bearer token
    * @returns Promise<Response> - The fetch response
    */
-  private async makeGraphQLRequest(query: string, token: string): Promise<Response> {
+  private async makeGraphQLRequest(
+    query: string,
+    token: string,
+  ): Promise<Response> {
     const url = `${this.graphqlEndpoint}`;
-    
+
     const request = {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `${token}`,
-        'Cookie': `accessToken=${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `${token}`,
+        Cookie: `accessToken=${token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ query: query.toString() }),
     };
-    
+
     try {
       const response = await fetch(url, request);
       return response;
     } catch (error) {
-      logger.error('GraphQL request failed', error instanceof Error ? error : undefined, {
-        operation: 'makeGraphQLRequest',
-        endpoint: url,
-        hasToken: !!token,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      logger.error(
+        "GraphQL request failed",
+        error instanceof Error ? error : undefined,
+        {
+          operation: "makeGraphQLRequest",
+          endpoint: url,
+          hasToken: !!token,
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      );
       throw error;
     }
   }
@@ -249,15 +295,15 @@ export class AuthService {
    * @returns string | null - The extracted token or null if invalid
    */
   static extractBearerToken(authHeader: string | undefined): string | null {
-    if (!authHeader || typeof authHeader !== 'string') {
+    if (!authHeader || typeof authHeader !== "string") {
       return null;
     }
 
-    if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    if (!authHeader.toLowerCase().startsWith("bearer ")) {
       return null;
     }
 
     const token = authHeader.slice(7).trim();
     return token.length > 0 ? token : null;
   }
-} 
+}

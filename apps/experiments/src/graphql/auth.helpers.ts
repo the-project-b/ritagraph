@@ -1,7 +1,7 @@
-import { VerifiedUser } from '../auth/types.js';
-import { AuthUtils } from '../auth/auth.utils.js';
-import { GraphQLErrors } from './errors.js';
-import type { GraphQLContext } from '../types/context.js';
+import { VerifiedUser } from "../auth/types.js";
+import { AuthUtils } from "../auth/auth.utils.js";
+import { GraphQLErrors } from "./errors.js";
+import type { GraphQLContext } from "../types/context.js";
 
 /**
  * Ensures the user is authenticated and returns the verified user
@@ -13,7 +13,7 @@ export function requireAuth(context: GraphQLContext): VerifiedUser {
   if (!context.user) {
     throw GraphQLErrors.UNAUTHENTICATED;
   }
-  
+
   return context.user;
 }
 
@@ -25,11 +25,11 @@ export function requireAuth(context: GraphQLContext): VerifiedUser {
  */
 export function requireAdmin(context: GraphQLContext): VerifiedUser {
   const user = requireAuth(context);
-  
+
   if (!AuthUtils.isAdmin(user)) {
     throw GraphQLErrors.UNAUTHORIZED;
   }
-  
+
   return user;
 }
 
@@ -41,11 +41,11 @@ export function requireAdmin(context: GraphQLContext): VerifiedUser {
  */
 export function requireBPOAdmin(context: GraphQLContext): VerifiedUser {
   const user = requireAuth(context);
-  
+
   if (!AuthUtils.isBPOAdmin(user)) {
     throw GraphQLErrors.UNAUTHORIZED;
   }
-  
+
   return user;
 }
 
@@ -56,13 +56,16 @@ export function requireBPOAdmin(context: GraphQLContext): VerifiedUser {
  * @returns VerifiedUser - The authenticated user with required role
  * @throws GraphQLError - If user is not authenticated or doesn't have required role
  */
-export function requireAuth0Role(context: GraphQLContext, roles: string[]): VerifiedUser {
+export function requireAuth0Role(
+  context: GraphQLContext,
+  roles: string[],
+): VerifiedUser {
   const user = requireAuth(context);
-  
+
   if (!AuthUtils.hasAnyAuth0Role(user, roles)) {
     throw GraphQLErrors.UNAUTHORIZED;
   }
-  
+
   return user;
 }
 
@@ -73,13 +76,16 @@ export function requireAuth0Role(context: GraphQLContext, roles: string[]): Veri
  * @returns VerifiedUser - The authenticated user with required role
  * @throws GraphQLError - If user is not authenticated or doesn't have required role
  */
-export function requireACLRole(context: GraphQLContext, roles: string[]): VerifiedUser {
+export function requireACLRole(
+  context: GraphQLContext,
+  roles: string[],
+): VerifiedUser {
   const user = requireAuth(context);
-  
+
   if (!AuthUtils.hasAnyACLRole(user, roles)) {
     throw GraphQLErrors.UNAUTHORIZED;
   }
-  
+
   return user;
 }
 
@@ -90,13 +96,16 @@ export function requireACLRole(context: GraphQLContext, roles: string[]): Verifi
  * @returns VerifiedUser - The authenticated user with company access
  * @throws GraphQLError - If user is not authenticated or doesn't have company access
  */
-export function requireCompanyAccess(context: GraphQLContext, companyId: string): VerifiedUser {
+export function requireCompanyAccess(
+  context: GraphQLContext,
+  companyId: string,
+): VerifiedUser {
   const user = requireAuth(context);
-  
+
   if (!AuthUtils.hasAccessToCompany(user, companyId)) {
     throw GraphQLErrors.UNAUTHORIZED;
   }
-  
+
   return user;
 }
 
@@ -107,4 +116,4 @@ export function requireCompanyAccess(context: GraphQLContext, companyId: string)
  */
 export function getOptionalAuth(context: GraphQLContext): VerifiedUser | null {
   return context.user || null;
-} 
+}

@@ -1,11 +1,11 @@
 // Graph names supported by this evaluator service
-export type GraphName = 'rita';
+export type GraphName = "rita";
 
 // Re-export context types
-export type { GraphQLContext } from './context.js';
+export type { GraphQLContext } from "./context.js";
 
 // Import evaluator types
-import type { ModelIdentifier } from '../evaluators/core/types';
+import type { ModelIdentifier } from "../evaluators/core/types";
 
 export interface EvaluatorInput {
   type: string;
@@ -166,11 +166,11 @@ export interface DeleteExperimentRunsResult {
 
 // Async evaluation types
 export enum EvaluationJobStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED'
+  QUEUED = "QUEUED",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
 }
 
 export interface AsyncEvaluationResult {
@@ -229,7 +229,7 @@ export interface Score {
 }
 
 export interface UsedPromptInfo {
-  type: 'default' | 'custom' | 'langsmith';
+  type: "default" | "custom" | "langsmith";
   content: string;
   source?: string; // For LangSmith prompts, this would be the prompt name
 }

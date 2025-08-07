@@ -1,9 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
-import { createLogger } from '@the-project-b/logging';
-import { AuthService } from './auth.service.js';
-import { AuthError, VerifiedUser } from './types.js';
+import { Request, Response, NextFunction } from "express";
+import { createLogger } from "@the-project-b/logging";
+import { AuthService } from "./auth.service.js";
+import { AuthError } from "./types.js";
 
-const logger = createLogger({ service: 'experiments' }).child({ module: 'AuthMiddleware' });
+const logger = createLogger({ service: "experiments" }).child({
+  module: "AuthMiddleware",
+});
 
 /**
  * Enhanced authentication middleware that verifies tokens against the backend
@@ -12,24 +14,29 @@ const logger = createLogger({ service: 'experiments' }).child({ module: 'AuthMid
 export function authMiddleware(authService?: AuthService) {
   const service = authService || new AuthService();
 
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     // Extract token from Authorization header (outside try block for scope)
     const token = AuthService.extractBearerToken(req.headers.authorization);
-    
+
     try {
       if (!token) {
         res.status(401).json({
-          error: 'Unauthorized: Missing or invalid Authorization header. Expected: "Bearer <token>"',
+          error:
+            'Unauthorized: Missing or invalid Authorization header. Expected: "Bearer <token>"',
         });
         return;
       }
-      
+
       // Verify token and get user data
       const verifiedUser = await service.verifyToken(token);
-      
+
       // Attach user data to request
       req.user = verifiedUser;
-      
+
       next();
     } catch (error) {
       if (error instanceof AuthError) {
@@ -38,18 +45,23 @@ export function authMiddleware(authService?: AuthService) {
         });
         return;
       }
-      
+
       // Handle unexpected errors
-      logger.error('Unexpected error during authentication', error instanceof Error ? error : undefined, {
-        operation: 'authMiddleware',
-        hasToken: !!token,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error),
-        path: req.path,
-        method: req.method
-      });
+      logger.error(
+        "Unexpected error during authentication",
+        error instanceof Error ? error : undefined,
+        {
+          operation: "authMiddleware",
+          hasToken: !!token,
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          path: req.path,
+          method: req.method,
+        },
+      );
       res.status(500).json({
-        error: 'Internal server error during authentication',
+        error: "Internal server error during authentication",
       });
     }
   };
@@ -59,15 +71,20 @@ export function authMiddleware(authService?: AuthService) {
  * Simple middleware that only checks for Bearer token format (no verification)
  * Use this for basic validation without backend calls
  */
-export function basicAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function basicAuthMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
   const token = AuthService.extractBearerToken(req.headers.authorization);
-  
+
   if (!token) {
     res.status(401).json({
-      error: 'Unauthorized: Missing or invalid Authorization header. Expected: "Bearer <token>"',
+      error:
+        'Unauthorized: Missing or invalid Authorization header. Expected: "Bearer <token>"',
     });
     return;
   }
-  
+
   next();
-} 
+}

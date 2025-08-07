@@ -141,7 +141,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     type: "DATA_CHANGE_PROPOSAL",
     name: "Data Change Proposal Verification",
     description:
-      "Verifies that the generated data change proposals match the expected proposal structure and values using deterministic hash comparison",
+      "Verifies that the generated data change proposals match the expected proposal structure and values (including mutationVariables) using deterministic hash comparison",
     defaultModel: "openai:gpt-4o", // Not used but kept for interface compatibility
     supportsCustomPrompt: false, // No LLM involved
     supportsReferenceKey: true,
@@ -224,7 +224,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     // Generate detailed comment about the comparison
     let comment = "";
     if (comparisonResult.matches) {
-      comment = `Perfect match: All ${expectedProposals.length} expected data change proposals were found with exact matching static fields.`;
+      comment = `Perfect match: All ${expectedProposals.length} expected data change proposals were found with exact matching fields (including mutationVariables).`;
     } else {
       const issues: string[] = [];
 
@@ -243,7 +243,14 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
           .filter((p) =>
             comparisonResult.missingInActual.includes(hashProposal(p)),
           )
-          .map((p) => `{field: "${p.changedField}", value: "${p.newValue}"}`)
+          .map((p) => {
+            let detail = `{field: "${p.changedField}", value: "${p.newValue}"`;
+            if (p.mutationVariables) {
+              detail += `, variables: ${JSON.stringify(p.mutationVariables)}`;
+            }
+            detail += "}";
+            return detail;
+          })
           .join(", ");
         issues.push(`Missing proposals: ${missingDetails}`);
       }
@@ -257,7 +264,14 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
           .filter((p) =>
             comparisonResult.unexpectedInActual.includes(hashProposal(p)),
           )
-          .map((p) => `{field: "${p.changedField}", value: "${p.newValue}"}`)
+          .map((p) => {
+            let detail = `{field: "${p.changedField}", value: "${p.newValue}"`;
+            if (p.mutationVariables) {
+              detail += `, variables: ${JSON.stringify(p.mutationVariables)}`;
+            }
+            detail += "}";
+            return detail;
+          })
           .join(", ");
         issues.push(`Unexpected proposals: ${unexpectedDetails}`);
       }
@@ -266,7 +280,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     }
 
     // Include metadata in the comment for visibility
-    const detailedComment = `${comment} [Expected: ${expectedProposals.length} proposals, Actual: ${normalizedActualProposals.length} proposals, Method: MD5 hash comparison]`;
+    const detailedComment = `${comment} [Expected: ${expectedProposals.length} proposals, Actual: ${normalizedActualProposals.length} proposals, Method: MD5 hash comparison with mutationVariables]`;
 
     // Return binary score: 1 for match, 0 for mismatch
     const evaluationResult = {
@@ -282,7 +296,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         missingProposals: comparisonResult.missingInActual.length,
         unexpectedProposals: comparisonResult.unexpectedInActual.length,
         referenceKey,
-        comparisonMethod: "md5_hash",
+        comparisonMethod: "md5_hash_with_mutation_variables",
       },
     };
 
