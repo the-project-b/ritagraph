@@ -15,6 +15,7 @@ COPY apps/experiments/package.json ./apps/experiments/
 COPY apps/rita/package.json ./apps/rita/
 COPY packages/rita-graphs/package.json ./packages/rita-graphs/
 COPY packages/projectb-graphql/package.json ./packages/projectb-graphql/
+COPY packages/logging/package.json ./packages/logging/
 
 # Install all dependencies (including tsx for runtime)
 RUN npm ci
@@ -26,7 +27,7 @@ COPY . .
 RUN find . -name ".env*" -type f -exec sed -i 's|PROJECTB_GRAPHQL_ENDPOINT=.*|PROJECTB_GRAPHQL_ENDPOINT="https://qa4-dashboard.dev.project-b.dev/graphqlapi"|g' {} \;
 
 # Build the local packages first
-RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs
+RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging
 
 # Build the experiments app with esbuild (bundles and resolves all imports properly)
 WORKDIR /app/apps/experiments
