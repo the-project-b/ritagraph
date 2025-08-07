@@ -240,12 +240,16 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       comment = `Mismatch detected: ${issues.join(". ")}`;
     }
 
+    // Include metadata in the comment for visibility
+    const detailedComment = `${comment} [Expected: ${expectedProposals.length} proposals, Actual: ${normalizedActualProposals.length} proposals, Method: MD5 hash comparison]`;
+
     // Return binary score: 1 for match, 0 for mismatch
     const evaluationResult = {
       key: "data_change_proposal_verification",
       score: comparisonResult.matches ? 1 : 0,
-      comment,
-      metadata: {
+      comment: detailedComment,
+      // Store detailed information in the value field as an object
+      value: {
         expectedProposalCount: expectedProposals.length,
         actualProposalCount: normalizedActualProposals.length,
         expectedHashes: Array.from(comparisonResult.expectedHashes),
