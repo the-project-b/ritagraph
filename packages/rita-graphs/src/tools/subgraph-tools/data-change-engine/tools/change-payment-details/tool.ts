@@ -9,6 +9,7 @@ import { DataChangeProposal } from "../../../../../graphs/shared-types/base-anno
 import { randomUUID as uuid } from "crypto";
 import {
   CreateRitaThreadItemMutation,
+  GetPaymentsByContractIdQuery,
   PaymentFrequency,
 } from "../../../../../generated/graphql";
 import {
@@ -19,7 +20,10 @@ import {
 import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "change_payment_details" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "change_payment_details",
+});
 
 function prefixedLog(message: string, data?: any) {
   logger.debug(message, data);
@@ -29,17 +33,15 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
   ctx,
 ) =>
   tool(
-    async (
-      {
+    async (params, config) => {
+      const {
         employeeId,
         paymentId,
         contractId,
         newAmount,
         newFrequency,
         newMonthlyHours,
-      },
-      config,
-    ) => {
+      } = params;
       const { selectedCompanyId, accessToken } = ctx;
       const { thread_id } = config.configurable;
 
@@ -99,7 +101,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
 
       prefixedLog("payment", payment);
 
-      if (newAmount) {
+      if (newAmount && newAmount !== payment.properties.amount) {
         // Amount changes require the monthly hours to be present - race conditions can happen where we schedule the
         // change but at the time that is approved the monthly hours "are silently" changed to a different value.
         // That is why we utilize the dynamic mutation variables
@@ -130,7 +132,10 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
         newProposals.push(dataChangeProposal);
       }
 
-      if (newMonthlyHours) {
+      if (
+        newMonthlyHours &&
+        newMonthlyHours !== payment.properties.monthlyHours
+      ) {
         const dataChangeProposal: DataChangeProposal = {
           ...buildBaseDataChangeProps(),
           description: `Change monthly hours of payment ${payment.userFirstName} ${payment.userLastName} to ${newMonthlyHours}`,
@@ -160,7 +165,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
         newProposals.push(dataChangeProposal);
       }
 
-      if (newFrequency) {
+      if (newFrequency && newFrequency !== payment.frequency) {
         const dataChangeProposal: DataChangeProposal = {
           ...buildBaseDataChangeProps(),
           description: `Change frequency of payment ${payment.userFirstName} ${payment.userLastName} to ${newFrequency}`,
@@ -172,6 +177,11 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
 
         newProposals.push(dataChangeProposal);
       }
+
+      const redundantChanges = determineAndExplainRedundantChanges(
+        { newAmount, newMonthlyHours, newFrequency },
+        payment,
+      );
 
       const newProposalDbUpdateResults = await Promise.all(
         newProposals.map((proposal) =>
@@ -188,13 +198,16 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
 
-        logger.error("Failed to create thread items for the data change proposals", {
-          issues,
-          employeeId,
-          paymentId,
-          contractId,
-          companyId: selectedCompanyId,
-        });
+        logger.error(
+          "Failed to create thread items for the data change proposals",
+          {
+            issues,
+            employeeId,
+            paymentId,
+            contractId,
+            companyId: selectedCompanyId,
+          },
+        );
 
         return {
           error: "Failed to create thread items for the data change proposals.",
@@ -208,6 +221,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
       return {
         instructions: `
 These are the pending data change proposals. You can use them to approve the based on the confirmation of the user.
+${redundantChanges}
 `,
         dataChangeProposals: newProposals.map((proposal) => ({
           id: proposal.id,
@@ -251,4 +265,37 @@ async function createThreadItemForProposal(
   } catch (error) {
     return Result.failure(error as Error);
   }
+}
+
+function determineAndExplainRedundantChanges(
+  params: {
+    newAmount: number;
+    newMonthlyHours: number;
+    newFrequency: PaymentFrequency;
+  },
+  payment: GetPaymentsByContractIdQuery["payments"][number],
+) {
+  const { newAmount, newMonthlyHours, newFrequency } = params;
+  const { properties } = payment;
+  const textToReturn = [];
+
+  if (newAmount && newAmount === properties.amount) {
+    textToReturn.push(
+      `The new payment amount is already the same as the current amount. They do not need to be changed. Please communicate this to the user.`,
+    );
+  }
+
+  if (newMonthlyHours && newMonthlyHours === properties.monthlyHours) {
+    textToReturn.push(
+      `The new monthly hours are already the same as the current monthly hours. They do not need to be changed. Please communicate this to the user.`,
+    );
+  }
+
+  if (newFrequency && newFrequency === payment.frequency) {
+    textToReturn.push(
+      `The new frequency is already the same as the current frequency. They do not need to be changed. Please communicate this to the user.`,
+    );
+  }
+
+  return textToReturn.join("\n");
 }
