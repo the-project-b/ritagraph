@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createHash } from "crypto";
 import { createLogger } from "@the-project-b/logging";
 import {
   EvaluationOptions,
@@ -9,6 +8,12 @@ import {
   TextEvaluationOutputs,
   TypedEvaluator,
 } from "../core/types.js";
+import {
+  NormalizedProposal,
+  compareProposalSets,
+  logProposalDetails,
+} from "../helpers/proposal-comparison.js";
+import { ProposalFormatter } from "../helpers/proposal-formatter.js";
 
 // Create logger instance
 const logger = createLogger({ service: "experiments" }).child({
@@ -54,81 +59,6 @@ interface DataChangeProposalReferenceOutputs {
         relatedUserId?: string;
         mutationVariables?: any;
       };
-}
-
-// Helper type for normalized proposals
-interface NormalizedProposal {
-  changedField: string;
-  newValue: string;
-  mutationQueryPropertyPath?: string;
-  relatedUserId?: string;
-  mutationVariables?: any;
-}
-
-/**
- * Creates an MD5 hash of a normalized proposal for comparison
- */
-function hashProposal(proposal: NormalizedProposal): string {
-  // Create a deterministic string representation with sorted keys
-  const sortedProposal = {
-    changedField: proposal.changedField || "",
-    mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
-    mutationVariables: proposal.mutationVariables || null,
-    newValue: proposal.newValue || "",
-    relatedUserId: proposal.relatedUserId || "",
-  };
-
-  // JSON.stringify with sorted keys
-  const proposalString = JSON.stringify(
-    sortedProposal,
-    Object.keys(sortedProposal).sort(),
-  );
-  const hash = createHash("md5").update(proposalString).digest("hex");
-  return hash;
-}
-
-/**
- * Creates a hash set from an array of proposals
- */
-function createProposalHashSet(proposals: NormalizedProposal[]): Set<string> {
-  return new Set(proposals.map(hashProposal));
-}
-
-/**
- * Compares two sets of proposals using hash comparison
- */
-function compareProposalSets(
-  expected: NormalizedProposal[],
-  actual: NormalizedProposal[],
-): {
-  matches: boolean;
-  expectedHashes: Set<string>;
-  actualHashes: Set<string>;
-  missingInActual: string[];
-  unexpectedInActual: string[];
-} {
-  const expectedHashes = createProposalHashSet(expected);
-  const actualHashes = createProposalHashSet(actual);
-
-  const missingInActual = Array.from(expectedHashes).filter(
-    (hash) => !actualHashes.has(hash),
-  );
-  const unexpectedInActual = Array.from(actualHashes).filter(
-    (hash) => !expectedHashes.has(hash),
-  );
-
-  const matches =
-    expectedHashes.size === actualHashes.size &&
-    missingInActual.length === 0 &&
-    unexpectedInActual.length === 0;
-
-  return {
-    matches,
-    expectedHashes,
-    actualHashes,
-    missingInActual,
-    unexpectedInActual,
-  };
 }
 
 export const dataChangeProposalEvaluator: TypedEvaluator<
@@ -196,208 +126,93 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       ? referenceValue
       : [referenceValue];
 
+    logger.debug("Expected proposals normalized", {
+      operation: "normalize.expected",
+      isArray: Array.isArray(referenceValue),
+      count: expectedProposals.length,
+      firstProposal: expectedProposals[0],
+    });
+
     // Extract actual data change proposals from outputs
     const actualProposals = params.outputs.dataChangeProposals || [];
 
+    // Log the exact structure we receive to understand the data shape
+    if (actualProposals.length > 0) {
+      logger.info("Received actual proposals structure", {
+        operation: "evaluate.actualStructure",
+        firstProposal: actualProposals[0],
+        firstProposalKeys: Object.keys(actualProposals[0] || {}),
+        hasMutationVariables: "mutationVariables" in (actualProposals[0] || {}),
+        hasMutationQuery: "mutationQuery" in (actualProposals[0] || {}),
+      });
+    }
+
     // Extract only the static fields for comparison
     const normalizedActualProposals: NormalizedProposal[] = actualProposals.map(
-      (proposal: any) => {
+      (proposal: any, index: number) => {
+        // The actual proposals from evaluation-job-manager already have mutationVariables at top level
         const normalized = {
           changedField: proposal.changedField,
           newValue: proposal.newValue,
-          mutationQueryPropertyPath:
-            proposal.mutationQueryPropertyPath ||
-            proposal.mutationQuery?.propertyPath,
+          mutationQueryPropertyPath: proposal.mutationQueryPropertyPath,
           relatedUserId: proposal.relatedUserId,
-          mutationVariables: proposal.mutationQuery?.variables,
+          mutationVariables: proposal.mutationVariables, // Already at top level from extraction
         };
+
+        logger.debug(`Normalizing actual proposal [${index}]`, {
+          operation: "normalize.actual",
+          index,
+          original: proposal,
+          normalized,
+          hasMutationVariables: !!proposal.mutationVariables,
+          mutationVariablesType: typeof proposal.mutationVariables,
+        });
+
         return normalized;
       },
     );
+
+    // Comprehensive logging for debugging
+    logger.info("Starting proposal comparison", {
+      operation: "evaluate.start",
+      expectedCount: expectedProposals.length,
+      actualCount: normalizedActualProposals.length,
+      referenceKey: key,
+    });
+
+    // Log detailed information about proposals if debug logging is enabled
+    const isDebugEnabled = process.env.LOG_LEVEL === "debug";
+    if (isDebugEnabled) {
+      logProposalDetails(expectedProposals, "expected", key);
+      logProposalDetails(normalizedActualProposals, "actual", key);
+    }
 
     // Compare the proposal sets using hash comparison
     const comparisonResult = compareProposalSets(
       expectedProposals,
       normalizedActualProposals,
+      isDebugEnabled, // Pass debug flag to enable detailed logging
     );
 
-    // Generate structured JSON-like comment about the comparison
-    let comment = "";
+    // Log comparison results
+    logger.info("Comparison completed", {
+      operation: "evaluate.comparison",
+      matches: comparisonResult.matches,
+      expectedHashCount: comparisonResult.expectedHashes.size,
+      actualHashCount: comparisonResult.actualHashes.size,
+      missingCount: comparisonResult.missingInActual.length,
+      unexpectedCount: comparisonResult.unexpectedInActual.length,
+      missingHashes: comparisonResult.missingInActual,
+      unexpectedHashes: comparisonResult.unexpectedInActual,
+    });
 
-    if (comparisonResult.matches) {
-      comment = [
-        "✅ Evaluation Passed: Data Change Proposals Match",
-        "",
-        "EXPECTED:",
-        "{",
-        "  proposals: [",
-        ...expectedProposals.map((p, i) => {
-          const lines = [
-            "    {",
-            `      field: "${p.changedField}",`,
-            `      value: "${p.newValue}",`,
-          ];
-          if (p.mutationQueryPropertyPath) {
-            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
-          }
-          if (p.relatedUserId) {
-            lines.push(
-              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
-            );
-          }
-          lines.push(`      status: "✅ MATCHED"`);
-          lines.push(`    }${i < expectedProposals.length - 1 ? "," : ""}`);
-          return lines.join("\n");
-        }),
-        "  ]",
-        "}",
-        "",
-        "All proposals matched successfully!",
-      ].join("\n");
-    } else {
-      // Build EXPECTED section with status for each
-      const expectedSection = [
-        "EXPECTED:",
-        "{",
-        "  proposals: [",
-        ...expectedProposals.map((p, i) => {
-          const isMissing = comparisonResult.missingInActual.includes(
-            hashProposal(p),
-          );
-          const lines = [
-            "    {",
-            `      field: "${p.changedField}",`,
-            `      value: "${p.newValue}",`,
-          ];
-          if (p.mutationQueryPropertyPath) {
-            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
-          }
-          if (p.relatedUserId) {
-            lines.push(
-              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
-            );
-          }
-          lines.push(
-            `      status: "${isMissing ? "❌ MISSING" : "✅ FOUND"}"`,
-          );
-          lines.push(`    }${i < expectedProposals.length - 1 ? "," : ""}`);
-          return lines.join("\n");
-        }),
-        "  ]",
-        "}",
-      ];
-
-      // Build ACTUAL section with status for each
-      const actualSection = [
-        "ACTUAL:",
-        "{",
-        "  proposals: [",
-        ...normalizedActualProposals.map((p, i) => {
-          const isUnexpected = comparisonResult.unexpectedInActual.includes(
-            hashProposal(p),
-          );
-
-          // Check if this is a partial match (same field but different value)
-          const expectedWithSameField = expectedProposals.find(
-            (exp) =>
-              exp.changedField === p.changedField &&
-              exp.mutationQueryPropertyPath === p.mutationQueryPropertyPath,
-          );
-          const isPartialMatch =
-            expectedWithSameField &&
-            expectedWithSameField.newValue !== p.newValue;
-
-          const lines = [
-            "    {",
-            `      field: "${p.changedField}",`,
-            `      value: "${p.newValue}",`,
-          ];
-          if (p.mutationQueryPropertyPath) {
-            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
-          }
-          if (p.relatedUserId) {
-            lines.push(
-              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
-            );
-          }
-          if (p.mutationVariables?.data?.id) {
-            lines.push(`      paymentId: "${p.mutationVariables.data.id}",`);
-          }
-
-          let status = "✅ MATCHED";
-          if (isUnexpected && !isPartialMatch) {
-            status = "⚠️ UNEXPECTED";
-          } else if (isPartialMatch) {
-            status = `⚠️ PARTIAL MATCH (wrong value - expected "${expectedWithSameField.newValue}")`;
-          }
-
-          lines.push(`      status: "${status}"`);
-          lines.push(
-            `    }${i < normalizedActualProposals.length - 1 ? "," : ""}`,
-          );
-          return lines.join("\n");
-        }),
-        "  ]",
-        "}",
-      ];
-
-      // Build ISSUES section
-      const issuesList: string[] = [];
-      let issueNum = 1;
-
-      if (comparisonResult.missingInActual.length > 0) {
-        const missingFields = expectedProposals
-          .filter((p) =>
-            comparisonResult.missingInActual.includes(hashProposal(p)),
-          )
-          .map((p) => `${p.changedField} with value "${p.newValue}"`);
-        issuesList.push(
-          `  ${issueNum}. Missing expected ${missingFields.join(", ")}`,
-        );
-        issueNum++;
-      }
-
-      if (comparisonResult.unexpectedInActual.length > 0) {
-        const unexpectedFields = normalizedActualProposals
-          .filter((p) =>
-            comparisonResult.unexpectedInActual.includes(hashProposal(p)),
-          )
-          .map((p) => `"${p.changedField}" field`);
-        issuesList.push(
-          `  ${issueNum}. Unexpected ${unexpectedFields.join(", ")}`,
-        );
-        issueNum++;
-      }
-
-      // Check for value mismatches
-      for (const actual of normalizedActualProposals) {
-        const expected = expectedProposals.find(
-          (e) =>
-            e.changedField === actual.changedField &&
-            e.mutationQueryPropertyPath === actual.mutationQueryPropertyPath,
-        );
-        if (expected && expected.newValue !== actual.newValue) {
-          issuesList.push(
-            `  ${issueNum}. ${actual.changedField} value mismatch: "${actual.newValue}" instead of "${expected.newValue}"`,
-          );
-          issueNum++;
-        }
-      }
-
-      const issuesSection =
-        issuesList.length > 0 ? ["", "ISSUES:", ...issuesList] : [];
-
-      comment = [
-        "❌ Evaluation Failed: Data Change Proposals Don't Match",
-        "",
-        ...expectedSection,
-        "",
-        ...actualSection,
-        ...issuesSection,
-      ].join("\n");
-    }
-
-    const detailedComment = comment;
+    // Use formatter to generate clean, structured output
+    const formatter = new ProposalFormatter();
+    const detailedComment = formatter.format(
+      expectedProposals,
+      normalizedActualProposals,
+      comparisonResult,
+    );
 
     // Return binary score: 1 for match, 0 for mismatch
     const evaluationResult = {
