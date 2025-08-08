@@ -1,0 +1,51 @@
+# Fly.io configuration for experiments app in Turborepo monorepo
+
+app = "project-b-graph-evaluator"
+primary_region = "fra"
+
+[build]
+  # Deploy should be run from monorepo root: fly deploy --config fly.toml
+  # TEST YOUR BUILD AND THE SERVICE BOOTING FIRST USING: "mak experiments:docker-test:"
+  dockerfile = "apps/experiments/Dockerfile"
+
+[env]
+  # Non-sensitive environment variables
+  TZ = "UTC"
+  NODE_ENV = "production"
+  PORT = "3000"
+  NAME = "project-b-graph-evaluator"
+  LANGCHAIN_TRACING_V2 = "true"
+  LANGSMITH_ENDPOINT = "https://eu.api.smith.langchain.com"
+  LANGSMITH_PROJECT = "evaluators"
+  PROJECTB_GRAPHQL_ENDPOINT = "https://qa4-dashboard.dev.project-b.dev/graphqlapi"
+  GRAPHQL_MCP_ENDPOINT = "https://project-b-rita-dev.fly.dev/sse"
+  LOGGING_OUTPUT_FORMAT = "json"
+  LOGGING_SINGLE_LINE = "true"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[http_service.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+[checks]
+  [checks.health]
+    grace_period = "45s"
+    interval = "15s"
+    timeout = "10s"
+    type = "tcp"
+    port = 3000 

@@ -1,15 +1,3 @@
-# Update current branch with latest changes from main branch
-# Usage: make git:update
-git\:update:
-	@echo "🔄 Updating current branch with latest changes from main..."
-	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	echo "Current branch: $$CURRENT_BRANCH"; \
-	git checkout main && \
-	git pull && \
-	git checkout $$CURRENT_BRANCH && \
-	git merge main --no-edit && \
-	echo "✅ Successfully updated '$$CURRENT_BRANCH' with latest changes from main"
-
 # Build and run experiments app locally in Docker to test the full build pipeline
 # Usage: make experiments:docker-test
 experiments\:docker-test:
@@ -27,4 +15,4 @@ experiments\:docker-test:
 %:
 	@:
 
-.PHONY: git\:update experiments\:docker-test
+.PHONY: experiments\:docker-test

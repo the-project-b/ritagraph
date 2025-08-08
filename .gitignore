@@ -27,6 +27,5 @@ pdfs/**
 .cursorrules
 *.toml.turbo
 .claude
-fly.toml
 
 CLAUDE*.md
