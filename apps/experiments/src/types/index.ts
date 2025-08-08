@@ -23,6 +23,7 @@ export interface RunEvaluationInput {
   evaluators: EvaluatorInput[];
   experimentPrefix?: string;
   maxConcurrency?: number; // Max concurrent dataset examples within experiment (default: 10)
+  numRepetitions?: number; // Number of times to run each example (default: 1)
 }
 
 export interface GetDatasetExperimentsInput {

@@ -96,6 +96,7 @@ export class LangSmithService {
       experimentPrefix,
       selectedCompanyId,
       maxConcurrency,
+      numRepetitions,
     } = input;
 
     if (!context.user) {
@@ -282,6 +283,7 @@ export class LangSmithService {
       experimentPrefix: experimentPrefix || `eval-${graphName}`,
       // Set concurrency for concurrent processing of dataset examples
       maxConcurrency: maxConcurrency || 10, // Increased default for better concurrency
+      numRepetitions: numRepetitions || 1, // Number of times to run each example
     };
 
     const experimentResults: any = await evaluate(target as any, {

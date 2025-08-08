@@ -166,6 +166,7 @@ export class EvaluationJobManager {
       datasetName: job.input.datasetName,
       evaluatorCount: job.input.evaluators.length,
       maxConcurrency: job.input.maxConcurrency || 10,
+      numRepetitions: job.input.numRepetitions || 1,
     });
 
     this.updateJobStatus(jobId, EvaluationJobStatus.RUNNING, {
@@ -262,6 +263,7 @@ export class EvaluationJobManager {
         experimentPrefix:
           job.input.experimentPrefix || `eval-${job.input.graphName}`,
         maxConcurrency: job.input.maxConcurrency || 10, // Enable concurrent processing of examples
+        numRepetitions: job.input.numRepetitions || 1, // Number of times to run each example
       };
 
       // Use LangSmith's evaluate function with concurrency
