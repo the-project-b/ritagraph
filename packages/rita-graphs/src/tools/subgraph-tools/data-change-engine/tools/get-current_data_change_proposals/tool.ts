@@ -10,7 +10,10 @@ import { createGraphQLClient } from "../../../../../utils/graphql/client";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_current_data_change_proposals" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "get_current_data_change_proposals",
+});
 
 export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
   ToolContext

@@ -1,5 +1,5 @@
-import { createRitaGraph } from '@the-project-b/rita-graphs';
-import { getAuthUser, auth } from '../../security/auth.js';
+import { createRitaGraph } from "@the-project-b/rita-graphs";
+import { getAuthUser, auth } from "../../security/auth.js";
 
 // Create graph instance with local auth function
 export const graph = createRitaGraph(getAuthUser)();
