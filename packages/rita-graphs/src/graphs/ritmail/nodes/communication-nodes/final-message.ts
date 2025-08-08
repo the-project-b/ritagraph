@@ -1,9 +1,15 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createLogger } from "@the-project-b/logging";
 import { Node } from "../../graph-state.js";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage } from "@langchain/core/messages";
 import { getConversationMessages } from "../../../../utils/format-helpers/message-filters.js";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "RitmailCommunicationNodes",
+  node: "finalNode",
+});
 
 /**
  * This node communicates the results with the user.
@@ -13,7 +19,12 @@ export const finalNode: Node = async ({
   preferredLanguage,
   messages,
 }) => {
-  console.log("💬 Final Response - state:");
+  logger.info("💬 Final Response - state:", {
+    operation: "finalNode",
+    messageCount: messages.length,
+    preferredLanguage,
+    hasDraftResponse: !!workflowEngineResponseDraft,
+  });
   const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.2 });
 
   const finalPrompt = await PromptTemplate.fromTemplate(

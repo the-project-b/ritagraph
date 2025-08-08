@@ -1,4 +1,9 @@
 import { request, RequestDocument, Variables } from "graphql-request";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "GraphQLClient",
+});
 
 interface GraphQLClientContext {
   state?: {
@@ -58,7 +63,12 @@ export class ProjectBGraphQLClient {
     try {
       return await request<T>(this.endpoint, document, variables, headers);
     } catch (error) {
-      console.error("GraphQL request failed:", error);
+      logger.error("GraphQL request failed", error, {
+        operation: "graphqlRequest",
+        endpoint: this.endpoint,
+        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -75,7 +85,12 @@ export class ProjectBGraphQLClient {
     try {
       return await this.request<T>(document, variables, context);
     } catch (error) {
-      console.warn("GraphQL request failed, using fallback:", error.message);
+      logger.warn("GraphQL request failed, using fallback", {
+        operation: "graphqlRequestWithFallback",
+        endpoint: this.endpoint,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        hasFallback: fallbackValue !== undefined,
+      });
       if (fallbackValue !== undefined) {
         return fallbackValue;
       }

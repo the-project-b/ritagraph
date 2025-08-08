@@ -5,6 +5,7 @@ import {
   START,
   StateGraph,
 } from "@langchain/langgraph";
+import { createLogger } from "@the-project-b/logging";
 import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
 import {
   router,
@@ -27,6 +28,11 @@ import {
 import { toolFactory } from "../../tools/tool-factory.js";
 import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
 import { findEmployee } from "../../tools/find-employee/tool.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "GraphInitialization",
+  graph: "rita",
+});
 
 function createFetchTools(getAuthUser: (config: any) => any) {
   return async function fetchTools(
@@ -60,7 +66,6 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     // const filteredMcpTools = mcpTools.filter(
     //   (tool) => !toolsToExclude.includes(tool.name),
     // );
-    // // console.log(filteredMcpTools);
 
     return [...tools];
   };
@@ -69,7 +74,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
 export function createRitaGraph(getAuthUser: (config: any) => any) {
   return async () => {
     try {
-      console.log("Initializing Dynamic Multi-Agent RITA Graph...");
+      logger.info("Initializing Dynamic Multi-Agent RITA Graph...");
 
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
@@ -112,7 +117,11 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
 
       return graph;
     } catch (error) {
-      console.error("Error:", error);
+      logger.error("Failed to initialize Rita graph", error, {
+        operation: "createRitaGraph",
+        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       process.exit(1);
     }
   };

@@ -1,6 +1,12 @@
 import { Auth, HTTPException } from "@langchain/langgraph-sdk/auth";
 import { createDecipheriv, createHash } from 'crypto';
+import { createLogger } from "@the-project-b/logging";
 import { ViewAsValue, AuthUser } from "./types.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Authentication",
+  component: "auth",
+});
 
 export const auth: Auth = new Auth();
 
@@ -57,14 +63,21 @@ auth.authenticate(async (request: Request) => {
       const viewAsData = await verifyEncryptedImpersonationContext(impersonationContext);
       user = applyImpersonationContext(user, viewAsData);
     } catch (error) {
-      console.error("❌ Rita Graph Auth - Failed to decrypt impersonation context:", error);
+      logger.error("❌ Rita Graph Auth - Failed to decrypt impersonation context", error, {
+        operation: "verifyImpersonationContext",
+        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       // Security: Reject requests with invalid impersonation tokens
       throw new HTTPException(401, { 
         message: "Invalid impersonation token" 
       });
     }
   } else {
-    console.log("ℹ️ Rita Graph Auth - No impersonation context found, using original user");
+    logger.info("ℹ️ Rita Graph Auth - No impersonation context found, using original user", {
+      operation: "authenticate",
+      hasImpersonation: false,
+    });
   }
 
   // No token validation for now (accept any token)
@@ -289,11 +302,18 @@ export function createAuthInstance(): Auth {
         const viewAsData = await verifyEncryptedImpersonationContext(impersonationContext);
         user = applyImpersonationContext(user, viewAsData);
       } catch (error) {
-        console.error("❌ Rita Graph Auth - Failed to decrypt impersonation context:", error);
+        logger.error("❌ Rita Graph Auth - Failed to decrypt impersonation context", error, {
+        operation: "verifyImpersonationContext",
+        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
         throw new HTTPException(401, { message: "Invalid impersonation token" });
       }
     } else {
-      console.log("ℹ️ Rita Graph Auth - No impersonation context found, using original user");
+      logger.info("ℹ️ Rita Graph Auth - No impersonation context found, using original user", {
+      operation: "authenticate",
+      hasImpersonation: false,
+    });
     }
 
     // Return standardized auth data

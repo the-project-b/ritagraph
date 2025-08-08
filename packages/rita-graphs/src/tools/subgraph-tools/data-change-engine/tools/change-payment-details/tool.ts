@@ -17,9 +17,12 @@ import {
   updatePayment,
 } from "./queries-defintions";
 import { Result } from "../../../../../utils/types/result";
+import { createLogger } from "@the-project-b/logging";
 
-function prefixedLog(...message: Array<any>) {
-  console.log(`[TOOL > change_payment_details]`, ...message);
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "change_payment_details" });
+
+function prefixedLog(message: string, data?: any) {
+  logger.debug(message, data);
 }
 
 export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
@@ -37,10 +40,16 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
       },
       config,
     ) => {
-      console.log("[TOOL > change_payment_details]");
-
       const { selectedCompanyId, accessToken } = ctx;
       const { thread_id } = config.configurable;
+
+      logger.info("[TOOL > change_payment_details]", {
+        operation: "change_payment_details",
+        employeeId,
+        paymentId,
+        contractId,
+        companyId: selectedCompanyId,
+      });
 
       const client = createGraphQLClient(accessToken);
 
@@ -179,10 +188,13 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
 
-        console.error(
-          "Failed to create thread items for the data change proposals.",
+        logger.error("Failed to create thread items for the data change proposals", {
           issues,
-        );
+          employeeId,
+          paymentId,
+          contractId,
+          companyId: selectedCompanyId,
+        });
 
         return {
           error: "Failed to create thread items for the data change proposals.",

@@ -6,11 +6,17 @@ import {
 import { ToolContext } from "../tool-factory";
 import { Result } from "../../utils/types/result";
 import { GetCurrentUserQuery } from "../../generated/graphql";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_current_user" });
 
 export const getCurrentUser = (ctx: ToolContext) =>
   tool(
     async () => {
-      console.log("[TOOL > get_current_user]", ctx.selectedCompanyId);
+      logger.info("[TOOL > get_current_user]", {
+        operation: "get_current_user",
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       const currentUser = await fetchCurrentUser(client);

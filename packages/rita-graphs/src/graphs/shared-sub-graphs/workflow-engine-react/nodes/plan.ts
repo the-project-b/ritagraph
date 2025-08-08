@@ -10,8 +10,14 @@ import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { AnnotationRoot } from "@langchain/langgraph";
 import { ToolInterface } from "../../../shared-types/node-types.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
+import { createLogger } from "@the-project-b/logging";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "WorkflowEngine",
+  component: "Plan",
+});
 
 export const plan: (
   fetchTools: (
@@ -24,9 +30,13 @@ export const plan: (
     { messages, taskEngineMessages, taskEngineLoopCounter, selectedCompanyId },
     config
   ) => {
-    console.log(
-      "🚀 Plan - Chain of thought length [%s]",
-      taskEngineMessages.length
+    logger.info(
+      `🚀 Plan - Chain of thought length [${taskEngineMessages.length}]`,
+      {
+        operation: "plan",
+        taskEngineMessagesLength: taskEngineMessages.length,
+        taskEngineLoopCounter,
+      }
     );
 
     // Check if the taskEngineLoopCounter is greater than max and then return early (to prevent additonal tool calls)

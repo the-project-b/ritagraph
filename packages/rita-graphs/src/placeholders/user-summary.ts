@@ -1,5 +1,11 @@
+import { createLogger } from "@the-project-b/logging";
 import { PlaceholderResolver, PlaceholderContext } from "./types.js";
 import { userService } from "../utils/user-service.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "PlaceholderManager",
+  component: "user-summary",
+});
 
 export const userSummaryResolver: PlaceholderResolver = {
   name: "auto_user_summary",
@@ -15,7 +21,10 @@ export const userSummaryResolver: PlaceholderResolver = {
 
     // Log cache stats to show caching is working
     const cacheStats = userService.getCacheStats();
-    console.log("UserService cache stats:", cacheStats);
+    logger.debug("UserService cache stats", {
+      operation: "getUserSummary",
+      cacheStats,
+    });
 
     return `${userName} (${userEmail}) works at ${companyName} as a ${userRole}, they prefer speaking in ${userLanguage}`;
   },

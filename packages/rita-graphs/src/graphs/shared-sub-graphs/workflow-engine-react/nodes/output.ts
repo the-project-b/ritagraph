@@ -3,12 +3,22 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "WorkflowEngine",
+  component: "Output",
+});
 
 export const output: WorkflowEngineNode = async ({
   messages,
   taskEngineMessages,
 }) => {
-  console.log("🚀 Outputing the task");
+  logger.info("🚀 Outputing the task", {
+    operation: "output",
+    taskEngineMessagesLength: taskEngineMessages.length,
+    messagesLength: messages.length,
+  });
 
   const lastUserMessages = messages
     .filter((i) => i instanceof HumanMessage)

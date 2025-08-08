@@ -9,6 +9,9 @@ import {
 import { Result } from "../../utils/types/result";
 import { applyFilters, Filter } from "./helper/filter-engine";
 import { fetchAllEmployees } from "./helper/fetch-helper";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_all_employees" });
 
 const filters = z
   .object({
@@ -43,7 +46,10 @@ export type GetAllEmployeesFilter = z.infer<typeof filters>;
 export const getAllEmployees = (ctx: ToolContext) =>
   tool(
     async ({ filters, include }) => {
-      console.log("[TOOL > get_all_employees]", ctx.selectedCompanyId);
+      logger.info("[TOOL > get_all_employees]", {
+        operation: "get_all_employees",
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       const employeesWithContractsResult = await fetchAllEmployees(
@@ -52,7 +58,10 @@ export const getAllEmployees = (ctx: ToolContext) =>
       );
 
       if (Result.isFailure(employeesWithContractsResult)) {
-        console.error(Result.unwrapFailure(employeesWithContractsResult));
+        logger.error("Failed to fetch employees with contracts", {
+          error: Result.unwrapFailure(employeesWithContractsResult),
+          companyId: ctx.selectedCompanyId,
+        });
         return {
           instructions: `Failed to get active employees with contracts. Tool unavailable.`,
         };
