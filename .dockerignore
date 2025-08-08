@@ -1,0 +1,72 @@
+# Node modules and package manager files
+**/node_modules
+**/.pnpm-store
+**/.npm
+**/.yarn
+
+# Build outputs
+**/dist
+**/build
+**/.turbo
+**/.next
+**/out
+
+# Development and test files
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/coverage
+**/.nyc_output
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+!README.md
+!CLAUDE.md
+docs
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+tmp
+temp
+
+# Docker files (we don't need to copy these into the image)
+**/Dockerfile
+**/.dockerignore
+**/docker-compose.yml
+**/docker-compose.yaml
+
+# Fly.io
+fly.toml
+
+# Misc
+*.tgz
+*.zip
+*.tar.gz
