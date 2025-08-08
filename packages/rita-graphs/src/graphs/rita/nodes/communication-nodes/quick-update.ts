@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createLogger } from "@the-project-b/logging";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
   AIMessage,
@@ -10,6 +11,11 @@ import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-r
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "CommunicationNodes",
+  node: "quickUpdate",
+});
+
 /**
  * At the moment just a pass through node
  */
@@ -18,7 +24,12 @@ export const quickUpdate: WorkflowEngineNode = async ({
   taskEngineMessages,
   preferredLanguage,
 }) => {
-  console.log("💬 Quick Update - state:");
+  logger.info("💬 Quick Update - state:", {
+    operation: "quickUpdate",
+    messageCount: messages.length,
+    taskEngineMessageCount: taskEngineMessages.length,
+    preferredLanguage,
+  });
 
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",

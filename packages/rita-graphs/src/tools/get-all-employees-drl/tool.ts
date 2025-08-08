@@ -12,6 +12,9 @@ import {
   DataRepresentationLayerEntity,
   buildRepresentationString,
 } from "../../utils/data-representation-layer";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_all_employees" });
 
 /**
  * Since employees is actually "contracts" the employees will contain the same person multiple times if the person has multiple contracts.
@@ -23,7 +26,10 @@ export const getAllEmployees = (
 ) =>
   tool(
     async () => {
-      console.log("[TOOL > get_all_employees]", ctx.selectedCompanyId);
+      logger.info("[TOOL > get_all_employees]", {
+        operation: "get_all_employees",
+        companyId: ctx.selectedCompanyId,
+      });
       const { addItemToDataRepresentationLayer } = ctx.extendedContext;
       const client = createGraphQLClient(ctx.accessToken);
 
@@ -33,7 +39,10 @@ export const getAllEmployees = (
       );
 
       if (Result.isFailure(employeesResult)) {
-        console.error(Result.unwrapFailure(employeesResult));
+        logger.error("Failed to get all employee IDs", {
+          error: Result.unwrapFailure(employeesResult),
+          companyId: ctx.selectedCompanyId,
+        });
         return {
           instructions: `Failed to get all employees. Tool unavailable.`,
         };
@@ -81,7 +90,10 @@ async function getAllEmployeeIds(
 
     return Result.success(employees.employees);
   } catch (error) {
-    console.error(error);
+    logger.error("Error fetching all employee IDs", {
+      error,
+      companyId,
+    });
     return Result.failure(error);
   }
 }

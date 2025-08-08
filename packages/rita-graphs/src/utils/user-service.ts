@@ -1,3 +1,4 @@
+import { createLogger } from "@the-project-b/logging";
 import { graphqlClient } from "./graphql-client.js";
 import {
   ME_QUERY,
@@ -7,6 +8,10 @@ import {
   EmployeesByCompanyInput,
 } from "./graphql-queries.js";
 import { PlaceholderContext } from "../placeholders/types.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "UserService",
+});
 
 /**
  * User service that caches user data to avoid duplicate GraphQL requests
@@ -48,12 +53,12 @@ class UserService {
 
     // Return cached data if valid
     if (cached && this.isCacheValid(cached.timestamp)) {
-      console.log("UserService: Using cached user data");
+      logger.debug("Using cached user data", { cacheKey });
       return cached.data;
     }
 
     // Fetch fresh data
-    console.log("UserService: Fetching fresh user data");
+    logger.debug("Fetching fresh user data", { cacheKey });
     try {
       const response = await graphqlClient.request<MeResponse>(
         ME_QUERY,
@@ -69,11 +74,14 @@ class UserService {
 
       return response;
     } catch (error) {
-      console.warn("UserService: Failed to fetch user data:", error.message);
+      logger.warn("Failed to fetch user data", {
+        error: error.message,
+        cacheKey,
+      });
 
       // Return cached data even if expired, as fallback
       if (cached) {
-        console.log("UserService: Using expired cache as fallback");
+        logger.debug("Using expired cache as fallback", { cacheKey });
         return cached.data;
       }
 
@@ -89,7 +97,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return `${userData.me.firstName} ${userData.me.lastName}`;
     } catch (error) {
-      console.warn("UserService: Failed to get username, using fallback");
+      logger.warn("Failed to get username, using fallback", {
+        error: error.message,
+        fallback: "John Doe",
+      });
       return "John Doe";
     }
   }
@@ -102,7 +113,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return userData.me.company.name;
     } catch (error) {
-      console.warn("UserService: Failed to get company name, using fallback");
+      logger.warn("Failed to get company name, using fallback", {
+        error: error.message,
+        fallback: "Your Company",
+      });
       return "Your Company";
     }
   }
@@ -115,7 +129,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return userData.me.company.id;
     } catch (error) {
-      console.warn("UserService: Failed to get company id, using fallback");
+      logger.warn("Failed to get company id, using fallback", {
+        error: error.message,
+        fallback: "companyclient4",
+      });
       return "companyclient4";
     }
   }
@@ -128,7 +145,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return userData.me.email;
     } catch (error) {
-      console.warn("UserService: Failed to get user email, using fallback");
+      logger.warn("Failed to get user email, using fallback", {
+        error: error.message,
+        fallback: "user@example.com",
+      });
       return "user@example.com";
     }
   }
@@ -141,7 +161,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return userData.me.role;
     } catch (error) {
-      console.warn("UserService: Failed to get user role, using fallback");
+      logger.warn("Failed to get user role, using fallback", {
+        error: error.message,
+        fallback: "user",
+      });
       return "user";
     }
   }
@@ -154,7 +177,10 @@ class UserService {
       const userData = await this.getUserData(context);
       return userData.me.preferredLanguage;
     } catch (error) {
-      console.warn("UserService: Failed to get user language, using fallback");
+      logger.warn("Failed to get user language, using fallback", {
+        error: error.message,
+        fallback: "en",
+      });
       return "en";
     }
   }
@@ -167,7 +193,7 @@ class UserService {
       const userData = await this.getUserData(context);
       const companyId = userData.me.company.id;
 
-      console.log("UserService: Fetching employees for company:", companyId);
+      logger.info("Fetching employees for company", { companyId });
 
       const response = await graphqlClient.request<EmployeesByCompanyResponse>(
         EMPLOYEES_BY_COMPANY_QUERY,
@@ -191,10 +217,16 @@ class UserService {
         }
       });
 
-      console.log("UserService: Found contract IDs:", contractIds);
+      logger.info("Found contract IDs", {
+        contractCount: contractIds.length,
+        contractIds,
+      });
       return contractIds;
     } catch (error) {
-      console.warn("UserService: Failed to get contract IDs:", error.message);
+      logger.warn("Failed to get contract IDs", {
+        error: error.message,
+        fallback: "empty array",
+      });
       return [];
     }
   }

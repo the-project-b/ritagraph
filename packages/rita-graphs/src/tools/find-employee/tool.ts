@@ -7,11 +7,20 @@ import {
 import { ToolContext } from "../tool-factory";
 import { Result } from "../../utils/types/result";
 import { FindEmployeeByNameQuery } from "../../generated/graphql";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "find_employee",
+});
 
 export const findEmployee = (ctx: ToolContext) =>
   tool(
     async ({ userNameParts }) => {
-      console.log("[TOOL > find_employee]", ctx.selectedCompanyId);
+      logger.info("[TOOL > find_employee]", {
+        operation: "find_employee",
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       const employees = await Promise.all(

@@ -1,8 +1,14 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createLogger } from "@the-project-b/logging";
 import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "RitmailCommunicationNodes",
+  node: "preWorkflowResponse",
+});
 
 /**
  * At the moment just a pass through node
@@ -11,7 +17,11 @@ export const preWorkflowResponse: Node = async ({
   messages,
   preferredLanguage,
 }) => {
-  console.log("💬 Direct Response - state:");
+  logger.info("💬 Direct Response - state:", {
+    operation: "preWorkflowResponse",
+    messageCount: messages.length,
+    preferredLanguage,
+  });
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
