@@ -47,6 +47,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
 
       logger.info("[TOOL > change_payment_details]", {
         operation: "change_payment_details",
+        threadId: thread_id,
         employeeId,
         paymentId,
         contractId,
@@ -198,16 +199,14 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
 
-        logger.error(
-          "Failed to create thread items for the data change proposals",
-          {
-            issues,
-            employeeId,
-            paymentId,
-            contractId,
-            companyId: selectedCompanyId,
-          },
-        );
+        logger.error("Failed to create thread items for the data change proposals", {
+          threadId: thread_id,
+          issues,
+          employeeId,
+          paymentId,
+          contractId,
+          companyId: selectedCompanyId,
+        });
 
         return {
           error: "Failed to create thread items for the data change proposals.",

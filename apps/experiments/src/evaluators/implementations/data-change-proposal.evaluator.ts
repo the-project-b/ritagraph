@@ -221,66 +221,183 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       normalizedActualProposals,
     );
 
-    // Generate detailed comment about the comparison
+    // Generate structured JSON-like comment about the comparison
     let comment = "";
-    if (comparisonResult.matches) {
-      comment = `Perfect match: All ${expectedProposals.length} expected data change proposals were found with exact matching fields (including mutationVariables).`;
-    } else {
-      const issues: string[] = [];
 
-      if (expectedProposals.length !== normalizedActualProposals.length) {
-        issues.push(
-          `Count mismatch: expected ${expectedProposals.length} proposals, got ${normalizedActualProposals.length}`,
-        );
-      }
+    if (comparisonResult.matches) {
+      comment = [
+        "✅ Evaluation Passed: Data Change Proposals Match",
+        "",
+        "EXPECTED:",
+        "{",
+        "  proposals: [",
+        ...expectedProposals.map((p, i) => {
+          const lines = [
+            "    {",
+            `      field: "${p.changedField}",`,
+            `      value: "${p.newValue}",`,
+          ];
+          if (p.mutationQueryPropertyPath) {
+            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
+          }
+          if (p.relatedUserId) {
+            lines.push(
+              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
+            );
+          }
+          lines.push(`      status: "✅ MATCHED"`);
+          lines.push(`    }${i < expectedProposals.length - 1 ? "," : ""}`);
+          return lines.join("\n");
+        }),
+        "  ]",
+        "}",
+        "",
+        "All proposals matched successfully!",
+      ].join("\n");
+    } else {
+      // Build EXPECTED section with status for each
+      const expectedSection = [
+        "EXPECTED:",
+        "{",
+        "  proposals: [",
+        ...expectedProposals.map((p, i) => {
+          const isMissing = comparisonResult.missingInActual.includes(
+            hashProposal(p),
+          );
+          const lines = [
+            "    {",
+            `      field: "${p.changedField}",`,
+            `      value: "${p.newValue}",`,
+          ];
+          if (p.mutationQueryPropertyPath) {
+            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
+          }
+          if (p.relatedUserId) {
+            lines.push(
+              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
+            );
+          }
+          lines.push(
+            `      status: "${isMissing ? "❌ MISSING" : "✅ FOUND"}"`,
+          );
+          lines.push(`    }${i < expectedProposals.length - 1 ? "," : ""}`);
+          return lines.join("\n");
+        }),
+        "  ]",
+        "}",
+      ];
+
+      // Build ACTUAL section with status for each
+      const actualSection = [
+        "ACTUAL:",
+        "{",
+        "  proposals: [",
+        ...normalizedActualProposals.map((p, i) => {
+          const isUnexpected = comparisonResult.unexpectedInActual.includes(
+            hashProposal(p),
+          );
+
+          // Check if this is a partial match (same field but different value)
+          const expectedWithSameField = expectedProposals.find(
+            (exp) =>
+              exp.changedField === p.changedField &&
+              exp.mutationQueryPropertyPath === p.mutationQueryPropertyPath,
+          );
+          const isPartialMatch =
+            expectedWithSameField &&
+            expectedWithSameField.newValue !== p.newValue;
+
+          const lines = [
+            "    {",
+            `      field: "${p.changedField}",`,
+            `      value: "${p.newValue}",`,
+          ];
+          if (p.mutationQueryPropertyPath) {
+            lines.push(`      path: "${p.mutationQueryPropertyPath}",`);
+          }
+          if (p.relatedUserId) {
+            lines.push(
+              `      user: "${p.relatedUserId.slice(0, 8)}...${p.relatedUserId.slice(-8)}",`,
+            );
+          }
+          if (p.mutationVariables?.data?.id) {
+            lines.push(`      paymentId: "${p.mutationVariables.data.id}",`);
+          }
+
+          let status = "✅ MATCHED";
+          if (isUnexpected && !isPartialMatch) {
+            status = "⚠️ UNEXPECTED";
+          } else if (isPartialMatch) {
+            status = `⚠️ PARTIAL MATCH (wrong value - expected "${expectedWithSameField.newValue}")`;
+          }
+
+          lines.push(`      status: "${status}"`);
+          lines.push(
+            `    }${i < normalizedActualProposals.length - 1 ? "," : ""}`,
+          );
+          return lines.join("\n");
+        }),
+        "  ]",
+        "}",
+      ];
+
+      // Build ISSUES section
+      const issuesList: string[] = [];
+      let issueNum = 1;
 
       if (comparisonResult.missingInActual.length > 0) {
-        issues.push(
-          `Missing ${comparisonResult.missingInActual.length} expected proposal(s)`,
-        );
-        // Include details about what's missing
-        const missingDetails = expectedProposals
+        const missingFields = expectedProposals
           .filter((p) =>
             comparisonResult.missingInActual.includes(hashProposal(p)),
           )
-          .map((p) => {
-            let detail = `{field: "${p.changedField}", value: "${p.newValue}"`;
-            if (p.mutationVariables) {
-              detail += `, variables: ${JSON.stringify(p.mutationVariables)}`;
-            }
-            detail += "}";
-            return detail;
-          })
-          .join(", ");
-        issues.push(`Missing proposals: ${missingDetails}`);
+          .map((p) => `${p.changedField} with value "${p.newValue}"`);
+        issuesList.push(
+          `  ${issueNum}. Missing expected ${missingFields.join(", ")}`,
+        );
+        issueNum++;
       }
 
       if (comparisonResult.unexpectedInActual.length > 0) {
-        issues.push(
-          `Found ${comparisonResult.unexpectedInActual.length} unexpected proposal(s)`,
-        );
-        // Include details about what's unexpected
-        const unexpectedDetails = normalizedActualProposals
+        const unexpectedFields = normalizedActualProposals
           .filter((p) =>
             comparisonResult.unexpectedInActual.includes(hashProposal(p)),
           )
-          .map((p) => {
-            let detail = `{field: "${p.changedField}", value: "${p.newValue}"`;
-            if (p.mutationVariables) {
-              detail += `, variables: ${JSON.stringify(p.mutationVariables)}`;
-            }
-            detail += "}";
-            return detail;
-          })
-          .join(", ");
-        issues.push(`Unexpected proposals: ${unexpectedDetails}`);
+          .map((p) => `"${p.changedField}" field`);
+        issuesList.push(
+          `  ${issueNum}. Unexpected ${unexpectedFields.join(", ")}`,
+        );
+        issueNum++;
       }
 
-      comment = `Mismatch detected: ${issues.join(". ")}`;
+      // Check for value mismatches
+      for (const actual of normalizedActualProposals) {
+        const expected = expectedProposals.find(
+          (e) =>
+            e.changedField === actual.changedField &&
+            e.mutationQueryPropertyPath === actual.mutationQueryPropertyPath,
+        );
+        if (expected && expected.newValue !== actual.newValue) {
+          issuesList.push(
+            `  ${issueNum}. ${actual.changedField} value mismatch: "${actual.newValue}" instead of "${expected.newValue}"`,
+          );
+          issueNum++;
+        }
+      }
+
+      const issuesSection =
+        issuesList.length > 0 ? ["", "ISSUES:", ...issuesList] : [];
+
+      comment = [
+        "❌ Evaluation Failed: Data Change Proposals Don't Match",
+        "",
+        ...expectedSection,
+        "",
+        ...actualSection,
+        ...issuesSection,
+      ].join("\n");
     }
 
-    // Include metadata in the comment for visibility
-    const detailedComment = `${comment} [Expected: ${expectedProposals.length} proposals, Actual: ${normalizedActualProposals.length} proposals, Method: MD5 hash comparison with mutationVariables]`;
+    const detailedComment = comment;
 
     // Return binary score: 1 for match, 0 for mismatch
     const evaluationResult = {

@@ -16,7 +16,7 @@ import {
 import { routerEdgeDecision } from "./nodes/router.js";
 import { loadSettings } from "./nodes/load-settings.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
-import { createMcpClient } from "../../mcp/client.js";
+// import { createMcpClient } from "../../mcp/client.js";
 // Remove direct import - getAuthUser will be passed as parameter
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
@@ -136,3 +136,5 @@ export const graph = async () => {
     "Use createRitaGraph() factory function for auth-enabled graphs",
   );
 };
+
+console.log("test")

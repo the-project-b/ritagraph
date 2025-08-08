@@ -61,6 +61,9 @@ export interface LoggingConfig {
 
   // Performance
   sampleRate: number; // 0-1, where 1 means log everything
+
+  // File logging (development only)
+  logToFile?: boolean;
 }
 
 /**

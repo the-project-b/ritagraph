@@ -21,6 +21,7 @@ src/generated/**
 # App specific
 pdfs/**
 .langgraph_api
+logs/*
 
 # System files
 .DS_Store

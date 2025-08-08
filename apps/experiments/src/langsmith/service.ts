@@ -357,6 +357,28 @@ export class LangSmithService {
     };
   }
 
+  /**
+   * Verify if a dataset exists in LangSmith
+   * @param datasetName - The name of the dataset to check
+   * @returns Promise<boolean> - True if dataset exists, false otherwise
+   */
+  public async getDataset(datasetName: string): Promise<boolean> {
+    try {
+      const dataset = await this.client.readDataset({ datasetName });
+      return !!dataset;
+    } catch (error) {
+      // If dataset not found, LangSmith Client throws an error
+      logger.warn(`Dataset "${datasetName}" not found`, {
+        operation: "getDataset",
+        datasetName,
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
+
   public async getDatasetExperiments(
     input: GetDatasetExperimentsInput,
   ): Promise<{

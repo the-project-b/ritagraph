@@ -19,16 +19,17 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 /**
  * At the moment just a pass through node
  */
-export const quickUpdate: WorkflowEngineNode = async ({
-  messages,
-  taskEngineMessages,
-  preferredLanguage,
-}) => {
+export const quickUpdate: WorkflowEngineNode = async (
+  { messages, taskEngineMessages, preferredLanguage, selectedCompanyId },
+  config
+) => {
   logger.info("💬 Quick Update - state:", {
     operation: "quickUpdate",
+    threadId: config?.configurable?.thread_id || "unknown",
     messageCount: messages.length,
     taskEngineMessageCount: taskEngineMessages.length,
     preferredLanguage,
+    companyId: selectedCompanyId,
   });
 
   const llm = new ChatOpenAI({

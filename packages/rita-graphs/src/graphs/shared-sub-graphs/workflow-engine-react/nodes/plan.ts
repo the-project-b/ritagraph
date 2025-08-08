@@ -34,8 +34,10 @@ export const plan: (
       `🚀 Plan - Chain of thought length [${taskEngineMessages.length}]`,
       {
         operation: "plan",
+        threadId: config?.configurable?.thread_id || 'unknown',
         taskEngineMessagesLength: taskEngineMessages.length,
         taskEngineLoopCounter,
+        companyId: selectedCompanyId,
       }
     );
 
