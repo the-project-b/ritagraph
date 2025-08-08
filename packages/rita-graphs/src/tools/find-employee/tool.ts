@@ -10,14 +10,14 @@ import { FindEmployeeByNameQuery } from "../../generated/graphql";
 
 export const findEmployee = (ctx: ToolContext) =>
   tool(
-    async ({ nameParts }) => {
+    async ({ userNameParts }) => {
       console.log("[TOOL > find_employee]", ctx.selectedCompanyId);
       const client = createGraphQLClient(ctx.accessToken);
 
       const employees = await Promise.all(
-        nameParts.map((namePart) =>
-          fetchEmployeeByName(client, ctx.selectedCompanyId, namePart)
-        )
+        userNameParts.map((namePart) =>
+          fetchEmployeeByName(client, ctx.selectedCompanyId, namePart),
+        ),
       );
 
       const unfailedSearchResults = employees.filter(Result.isSuccess);
@@ -30,7 +30,7 @@ export const findEmployee = (ctx: ToolContext) =>
       }
 
       const deduplicatedEmployees = Array.from(
-        new Map(foundEmployees.map(toMappable)).values()
+        new Map(foundEmployees.map(toMappable)).values(),
       );
 
       return {
@@ -44,17 +44,17 @@ These are the employees matching the given name.
       name: "find_employee",
       description: "Find employees by first and/or last name",
       schema: z.object({
-        nameParts: z
+        userNameParts: z
           .array(z.string())
           .describe("Parts of the name of the employee e.g. [John, Doe]"),
       }),
-    }
+    },
   );
 
 async function fetchEmployeeByName(
   client: GraphQLClientType,
   companyId: string,
-  search: string
+  search: string,
 ): Promise<Result<FindEmployeeByNameQuery["employees"]["employees"], Error>> {
   try {
     const { employees } = await client.findEmployeeByName({
@@ -71,7 +71,7 @@ async function fetchEmployeeByName(
 }
 
 function toMappable(
-  employee: FindEmployeeByNameQuery["employees"]["employees"][number]
+  employee: FindEmployeeByNameQuery["employees"]["employees"][number],
 ): [string, FindEmployeeByNameQuery["employees"]["employees"][number]] {
   return [employee.employeeId, employee];
 }

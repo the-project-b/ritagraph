@@ -4,6 +4,7 @@ import { createGraphQLClient } from "../../utils/graphql/client";
 import {
   GetEmployeeByIdQuery,
   GetPaymentsQuery,
+  PaymentStatus,
 } from "../../generated/graphql";
 import { ToolContext } from "../tool-factory";
 
@@ -12,7 +13,7 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
     async ({ employeeId }) => {
       console.log(
         "[TOOL > get_payments_of_employee] for employeeId: %s",
-        employeeId
+        employeeId,
       );
       const client = createGraphQLClient(ctx.accessToken);
 
@@ -20,7 +21,7 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
       try {
         employee = await client.getEmployeeById({
           data: {
-            employeeId: employeeId!,
+            employeeId,
             employeeCompanyId: ctx.selectedCompanyId,
           },
         });
@@ -34,8 +35,13 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
       const payments = await client.getPayments({
         data: {
           companyId: ctx.selectedCompanyId,
+          status: [
+            PaymentStatus.Active,
+            PaymentStatus.Scheduled,
+            PaymentStatus.Paused,
+          ],
           contractIds: employee.employee?.employeeContract?.map(
-            (contract) => contract.id
+            (contract) => contract.id,
           ),
         },
       });
@@ -51,17 +57,20 @@ These are the payments for ${employee.employee?.firstName} ${employee.employee?.
       name: "get_payments_of_employee",
       description: "Get payments of an employee by their id",
       schema: z.object({
-        employeeId: z.string().optional(),
+        employeeId: z.string(),
       }),
-    }
+    },
   );
 
 function formatOutput(payments: GetPaymentsQuery["payments"]) {
-  const paymentsGroupedByContractId = payments.reduce((acc, payment) => {
-    acc[payment.contractId] = acc[payment.contractId] || [];
-    acc[payment.contractId].push(payment);
-    return acc;
-  }, {} as Record<string, GetPaymentsQuery["payments"]>);
+  const paymentsGroupedByContractId = payments.reduce(
+    (acc, payment) => {
+      acc[payment.contractId] = acc[payment.contractId] || [];
+      acc[payment.contractId].push(payment);
+      return acc;
+    },
+    {} as Record<string, GetPaymentsQuery["payments"]>,
+  );
 
   const entries = Object.entries(paymentsGroupedByContractId);
 
@@ -72,7 +81,7 @@ Payments:
 ${JSON.stringify(
   payments.map(({ contractId, ...p }) => p),
   null,
-  2
+  2,
 )}`;
     })
     .join("\n---------\n");
