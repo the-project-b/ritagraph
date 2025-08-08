@@ -48,6 +48,8 @@ export const typeDefs = gql`
     preferredLanguage: String
     "Maximum number of dataset examples to process concurrently within each experiment (default: 10)"
     maxConcurrency: Int
+    "Number of times to run each example in the dataset for more reliable results (default: 1)"
+    numRepetitions: Int
   }
 
   # Input type for getting dataset experiments
