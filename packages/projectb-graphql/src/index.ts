@@ -23,6 +23,8 @@ export function createCodegenConfig(options: CodegenOptions = {}): CodegenConfig
     schemaUrl = defaultSchemaUrl
   } = options;
 
+  console.log("test");
+
   const config: CodegenConfig = {
     schema: `${schemaUrl}/schema`,
     documents,

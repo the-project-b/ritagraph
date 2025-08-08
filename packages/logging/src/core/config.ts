@@ -48,6 +48,9 @@ export function getLoggingConfig(): LoggingConfig {
 
     // Performance
     sampleRate: parseSampleRate(process.env.LOGGING_SAMPLE_RATE),
+
+    // File logging (development only)
+    logToFile: isDevelopment && process.env.LOGGER_LOG_TO_FILE === "true",
   };
 }
 
@@ -68,5 +71,6 @@ export function getDefaultConfig(): LoggingConfig {
     singleLine: false,
     translateTime: "SYS:standard",
     sampleRate: 1,
+    logToFile: false,
   };
 }

@@ -116,6 +116,7 @@ export function buildWorkflowEngineReAct({
     } catch (error) {
       logger.error("🚀 [TOOLS NODE] Error during tool execution", {
         operation: "toolsNode",
+        threadId: config?.configurable?.thread_id || "unknown",
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
         taskEngineMessagesLength: state.taskEngineMessages?.length,

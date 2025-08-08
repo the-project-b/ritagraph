@@ -59,6 +59,21 @@ export class EvaluationJobManager {
     input: RunEvaluationInput,
     context: GraphQLContext,
   ): Promise<AsyncEvaluationResult> {
+    // Verify dataset exists before creating the job
+    const { LangSmithService } = await import("../langsmith/service.js");
+    const langsmithService = new LangSmithService();
+
+    const datasetExists = await langsmithService.getDataset(input.datasetName);
+    if (!datasetExists) {
+      const errorMessage = `Dataset "${input.datasetName}" does not exist in LangSmith. Please verify the dataset name and try again.`;
+      logger.error(errorMessage, {
+        operation: "startEvaluationJob",
+        datasetName: input.datasetName,
+        graphName: input.graphName,
+      });
+      throw new Error(errorMessage);
+    }
+
     const jobId = randomUUID();
     const experimentName = input.experimentPrefix
       ? `${input.experimentPrefix}-${Date.now()}`
@@ -454,6 +469,7 @@ export class EvaluationJobManager {
           `[${ritaThread.id}] Found ${dataChangeProposals.length} data change proposal(s)`,
           {
             threadId: ritaThread.id,
+            lcThreadId: ritaThread.lcThreadId,
             operation: "extractDataChangeProposals",
             proposalCount: dataChangeProposals.length,
             graphName,

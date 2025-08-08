@@ -16,15 +16,17 @@ const logger = createLogger({ service: "rita-graphs" }).child({
  * but still tries to find the right remaining 1%. In this case we abort at some point to prevent
  * recursion limits.
  */
-export const abortOutput: WorkflowEngineNode = async ({
-  messages,
-  taskEngineMessages,
-}) => {
+export const abortOutput: WorkflowEngineNode = async (
+  { messages, taskEngineMessages, selectedCompanyId },
+  config
+) => {
   logger.info("🚀 Outputing the task (abort case)", {
     operation: "abortOutput",
+    threadId: config?.configurable?.thread_id || "unknown",
     taskEngineMessagesLength: taskEngineMessages.length,
     messagesLength: messages.length,
     reason: "max_loops_reached",
+    companyId: selectedCompanyId,
   });
 
   const lastUserMessages = messages

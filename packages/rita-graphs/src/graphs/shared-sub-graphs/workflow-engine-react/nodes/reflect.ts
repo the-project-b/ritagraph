@@ -17,11 +17,13 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   component: "Reflect",
 });
 
-export const reflect: WorkflowEngineNode = async (state) => {
+export const reflect: WorkflowEngineNode = async (state, config) => {
   logger.info("🚀 Reflecting on the task", {
     operation: "reflect",
+    threadId: config?.configurable?.thread_id || "unknown",
     reflectionStepCount: state.reflectionStepCount,
     maxReflectionSteps: MAX_REFLECTION_STEPS,
+    companyId: state.selectedCompanyId,
   });
 
   if (state.reflectionStepCount >= MAX_REFLECTION_STEPS) {

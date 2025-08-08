@@ -10,14 +10,16 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   component: "Output",
 });
 
-export const output: WorkflowEngineNode = async ({
-  messages,
-  taskEngineMessages,
-}) => {
+export const output: WorkflowEngineNode = async (
+  { messages, taskEngineMessages, selectedCompanyId },
+  config
+) => {
   logger.info("🚀 Outputing the task", {
     operation: "output",
+    threadId: config?.configurable?.thread_id || "unknown",
     taskEngineMessagesLength: taskEngineMessages.length,
     messagesLength: messages.length,
+    companyId: selectedCompanyId,
   });
 
   const lastUserMessages = messages
