@@ -10,14 +10,17 @@ import {
   GetActiveEmployeesWithContractsQuery,
 } from "../../generated/graphql";
 import { Result } from "../../utils/types/result";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_active_employees_with_contracts" });
 
 export const getActiveEmployeesWithContracts = (ctx: ToolContext) =>
   tool(
     async () => {
-      console.log(
-        "[TOOL > get_active_employees_with_contracts]",
-        ctx.selectedCompanyId
-      );
+      logger.info("[TOOL > get_active_employees_with_contracts]", {
+        operation: "get_active_employees_with_contracts",
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       const employeesWithContracts = await fetchActiveEmployeesWithContracts(
@@ -26,7 +29,10 @@ export const getActiveEmployeesWithContracts = (ctx: ToolContext) =>
       );
 
       if (Result.isFailure(employeesWithContracts)) {
-        console.error(Result.unwrapFailure(employeesWithContracts));
+        logger.error("Failed to get active employees with contracts", {
+          error: Result.unwrapFailure(employeesWithContracts),
+          companyId: ctx.selectedCompanyId,
+        });
         return {
           instructions: `Failed to get active employees with contracts. Tool unavailable.`,
         };

@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createLogger } from "@the-project-b/logging";
 import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
@@ -6,11 +7,20 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "CommunicationNodes",
+  node: "quickResponse",
+});
+
 /**
  * At the moment just a pass through node
  */
 export const quickResponse: Node = async ({ messages, preferredLanguage }) => {
-  console.log("💬 Direct Response");
+  logger.info("💬 Direct Response", {
+    operation: "quickResponse",
+    messageCount: messages.length,
+    preferredLanguage,
+  });
 
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",

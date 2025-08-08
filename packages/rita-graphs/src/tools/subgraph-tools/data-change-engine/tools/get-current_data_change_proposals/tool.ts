@@ -8,16 +8,22 @@ import { Result } from "../../../../../utils/types/result";
 import { GetThreadItemsByLanggraphThreadIdQuery } from "../../../../../generated/graphql";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_current_data_change_proposals" });
 
 export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
   ToolContext
 > = (ctx) =>
   tool(
     async (_, { configurable }) => {
-      console.log("[TOOL > get_current_data_change_proposals]");
-
       const { thread_id } = configurable;
       const { accessToken } = ctx;
+
+      logger.info("[TOOL > get_current_data_change_proposals]", {
+        operation: "get_current_data_change_proposals",
+        threadId: thread_id,
+      });
 
       const threadItemsResult = await getThreadItemsByLanggraphThreadId(
         thread_id,

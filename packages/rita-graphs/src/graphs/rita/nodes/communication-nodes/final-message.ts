@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createLogger } from "@the-project-b/logging";
 import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
@@ -6,6 +7,11 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "CommunicationNodes",
+  node: "finalMessage",
+});
 
 /**
  * At the moment just a pass through node
@@ -15,7 +21,12 @@ export const finalMessage: Node = async ({
   preferredLanguage,
   messages,
 }) => {
-  console.log("💬 Final Response");
+  logger.info("💬 Final Response", {
+    operation: "finalMessage",
+    messageCount: messages.length,
+    preferredLanguage,
+    hasDraftResponse: !!workflowEngineResponseDraft,
+  });
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
     tags: [Tags.COMMUNICATION],

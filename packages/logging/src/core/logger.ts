@@ -81,12 +81,20 @@ export class Logger {
       };
     }
 
-    if (shouldPrettyPrint) {
+    // Check if we're running in langgraph environment where worker threads cause issues
+    const isLanggraph = process.env.LANGGRAPH_API_URL || process.argv.some(arg => arg.includes('langgraph'));
+    
+    // Disable pretty printing in langgraph to avoid worker thread JSON parse errors
+    const usePrettyPrint = shouldPrettyPrint && !isLanggraph;
+    
+    if (usePrettyPrint) {
+      // Use pretty transport with worker threads for better performance
       this.pinoInstance = pino({
         ...options,
         transport: createPrettyTransport(this.config),
       });
     } else {
+      // Use standard JSON output (for production or langgraph environments)
       this.pinoInstance = pino(options);
     }
   }

@@ -1,4 +1,7 @@
 import { ToolInterface } from "@langchain/core/tools";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "tool_factory" });
 
 export type ToolContext<T = undefined> = {
   accessToken: string;
@@ -23,10 +26,10 @@ export function toolFactory<T>({
   ctx,
 }: Params<T>): Array<ToolInterface> {
   const tools = toolDefintions.map((toolDefinition) => toolDefinition(ctx));
-  // console.log(
-  //   "[TOOL FACTORY] Initialized tools:",
-  //   tools.map((i) => i.name).join(", "),
-  // );
+  logger.debug("[TOOL FACTORY] Initialized tools", {
+    operation: "tool_factory_initialization",
+    toolNames: tools.map((i) => i.name),
+  });
 
   return tools;
 }
