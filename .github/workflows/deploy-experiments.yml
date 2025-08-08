@@ -1,0 +1,68 @@
+name: Deploy Experiments to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Source code changes
+      - '**/src/**/*.ts'
+      - '**/src/**/*.tsx'
+      - '**/src/**/*.js'
+      - '**/src/**/*.jsx'
+      - '**/src/**/*.gql'
+      - '**/src/**/*.graphql'
+      
+      # Configuration and dependency changes
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '**/tsconfig.json'
+      - 'turbo.json'
+      
+      # Build and deployment files
+      - 'apps/experiments/Dockerfile'
+      - 'apps/experiments/fly.toml'
+      - 'apps/experiments/esbuild.config.js'
+      - '.dockerignore'
+      
+      # Workflow itself
+      - '.github/workflows/deploy-experiments.yml'
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    
+    # Only run on the main repository, not on forks
+    if: github.repository == 'the-project-b/ritagraph'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build packages
+        run: npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging
+      
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      
+      - name: Deploy to Fly.io
+        run: flyctl deploy --config apps/experiments/fly.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      
+      - name: Verify deployment
+        run: |
+          flyctl status --app project-b-graph-evaluator
+          echo "Deployment completed successfully!"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

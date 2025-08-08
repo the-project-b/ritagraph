@@ -45,8 +45,14 @@ COPY --from=builder /app/apps/experiments/package.json ./package.json
 # Copy node_modules for external dependencies (not bundled by esbuild)
 COPY --from=builder /app/node_modules ./node_modules
 
+# Production environment configuration
+# - JSON logging for structured logs (Datadog/CloudWatch compatible)
+# - No pretty printing to avoid worker thread issues
+# - Production mode for optimized performance
 ENV NODE_ENV=production \
-    PORT=4000
+    PORT=4000 \
+    LOGGING_OUTPUT_FORMAT=json \
+    LOGGING_SINGLE_LINE=true
 
 EXPOSE 4000
 
