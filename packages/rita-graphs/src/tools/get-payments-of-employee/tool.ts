@@ -6,14 +6,18 @@ import {
   GetPaymentsQuery,
 } from "../../generated/graphql";
 import { ToolContext } from "../tool-factory";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_payments_of_employee" });
 
 export const getPaymentsOfEmployee = (ctx: ToolContext) =>
   tool(
     async ({ employeeId }) => {
-      console.log(
-        "[TOOL > get_payments_of_employee] for employeeId: %s",
-        employeeId
-      );
+      logger.info("[TOOL > get_payments_of_employee]", {
+        operation: "get_payments_of_employee",
+        employeeId,
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       let employee: GetEmployeeByIdQuery;
@@ -25,7 +29,11 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Failed to get employee by ID", {
+          error: e,
+          employeeId,
+          companyId: ctx.selectedCompanyId,
+        });
         return {
           error: "Failed to get payments",
         };

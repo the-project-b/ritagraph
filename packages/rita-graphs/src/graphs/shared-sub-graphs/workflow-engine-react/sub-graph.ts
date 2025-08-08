@@ -20,6 +20,7 @@ import {
 } from "../../shared-types/base-annotation.js";
 import { abortOutput } from "./nodes/abort-output.js";
 import { isAIMessage } from "@langchain/core/messages";
+import { createLogger } from "@the-project-b/logging";
 
 export const workflowEngineState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
@@ -50,6 +51,11 @@ export function buildWorkflowEngineReAct({
   configAnnotation,
   quickUpdateNode,
 }: BuildWorkflowEngineReActParams) {
+  const logger = createLogger({ service: "rita-graphs" }).child({
+    module: "WorkflowEngine",
+    component: "SubGraph",
+  });
+
   // Updated toolsNode to fetch authenticated tools at runtime
 
   const toolsNode: WorkflowEngineNode = async (state, config) => {
@@ -72,7 +78,6 @@ export function buildWorkflowEngineReAct({
       });
 
       // The result of the tool node is a bit messy.
-      // console.log("🚀 ~ toolsNode: ~ result:", result);
 
       // Handle mixed Command and non-Command outputs
       if (Array.isArray(result)) {
@@ -84,16 +89,6 @@ export function buildWorkflowEngineReAct({
           updates.push(item.update);
         });
 
-        // console.log("🚀 [TOOLS NODE] ~ updates:", {
-        //   taskEngineMessages: updates.map((update) => update.messages).flat(),
-        //   dataRepresentationLayerStorage: updates.reduce(
-        //     (acc, update) => ({
-        //       ...acc,
-        //       ...update.dataRepresentationLayerStorage,
-        //     }),
-        //     {},
-        //   ),
-        // });
 
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
@@ -119,7 +114,13 @@ export function buildWorkflowEngineReAct({
         taskEngineMessages: result.messages,
       };
     } catch (error) {
-      console.error("[TOOLS NODE] Error:", error);
+      logger.error("🚀 [TOOLS NODE] Error during tool execution", {
+        operation: "toolsNode",
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        taskEngineMessagesLength: state.taskEngineMessages?.length,
+        selectedCompanyId: state.selectedCompanyId,
+      });
       return {};
     }
   };

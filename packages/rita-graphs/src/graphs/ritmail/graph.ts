@@ -12,6 +12,7 @@ import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-r
 import { ToolInterface } from "../shared-types/node-types.js";
 import { createMcpClient } from "../../mcp/client.js";
 import { getAuthUser } from "../../security/auth.js";
+import { createLogger } from "@the-project-b/logging";
 
 async function fetchTools(
   companyId: string,
@@ -26,9 +27,13 @@ async function fetchTools(
   return tools;
 }
 
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "RitmailGraph",
+});
+
 const graph = async () => {
   try {
-    console.log("Initializing Dynamic Multi-Agent RITA Graph...");
+    logger.info("Initializing Dynamic Multi-Agent RITA Graph...");
 
     const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
       // => Nodes
@@ -58,7 +63,10 @@ const graph = async () => {
 
     return graph;
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Failed to initialize Dynamic Multi-Agent RITA Graph", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     process.exit(1);
   }
 };

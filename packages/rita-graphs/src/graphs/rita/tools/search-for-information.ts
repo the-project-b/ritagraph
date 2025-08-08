@@ -7,6 +7,7 @@ import { z } from "zod";
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { createLogger } from "@the-project-b/logging";
 
 // Define the state for the query subgraph
 interface QueryState {
@@ -16,9 +17,15 @@ interface QueryState {
   error?: string;
 }
 
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "SearchTool",
+});
+
 // Node 1: Query Builder - generates SQL queries from natural language
 const queryBuilder = async (state: QueryState) => {
-  console.log("🔧 Query Builder - Generating SQL query");
+  logger.info("🔧 Query Builder - Generating SQL query", {
+    userRequest: state.userRequest
+  });
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
@@ -47,7 +54,9 @@ Generate a valid SQL query that answers the user's request.
 
 // Node 2: Query Executor - executes the generated query
 const queryExecutor = async (state: QueryState) => {
-  console.log("⚡ Query Executor - Executing query");
+  logger.info("⚡ Query Executor - Executing query", {
+    generatedQuery: state.generatedQuery
+  });
 
   try {
     // Mock database execution - in real scenario this would connect to actual DB
@@ -100,7 +109,9 @@ const querySubgraph = new StateGraph<QueryState>({
 // Tool that wraps the subgraph
 const searchForInformation = tool(
   async (input: { userRequest: string }) => {
-    console.log("🔍 Search for Information Tool - Starting query subgraph");
+    logger.info("🔍 Search for Information Tool - Starting query subgraph", {
+      userRequest: input.userRequest
+    });
 
     const result = await querySubgraph.invoke({
       userRequest: input.userRequest,

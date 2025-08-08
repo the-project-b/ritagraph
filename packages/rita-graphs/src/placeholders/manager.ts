@@ -1,4 +1,10 @@
+import { createLogger } from "@the-project-b/logging";
 import { PlaceholderResolver, PlaceholderRegistry, PlaceholderContext } from "./types.js";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "PlaceholderManager",
+  component: "manager",
+});
 
 export class PlaceholderManager {
   private registry: PlaceholderRegistry = {};
@@ -64,7 +70,11 @@ export class PlaceholderManager {
           const value = await resolver.resolve(context);
           invokeObject[placeholderName] = value;
         } catch (error) {
-          console.warn(`Failed to resolve placeholder '${placeholderName}':`, error);
+          logger.warn(`Failed to resolve placeholder '${placeholderName}'`, {
+            operation: "resolvePlaceholder",
+            placeholderName,
+            error: error instanceof Error ? error.message : String(error),
+          });
           // Keep the placeholder unresolved rather than breaking
         }
       }
@@ -96,12 +106,20 @@ export class PlaceholderManager {
             const value = await resolver.resolve(context);
             invokeObject[varName] = value;
           } catch (error) {
-            console.warn(`Failed to resolve required variable '${varName}':`, error);
+            logger.warn(`Failed to resolve required variable '${varName}'`, {
+              operation: "resolveRequiredVariable",
+              variableName: varName,
+              error: error instanceof Error ? error.message : String(error),
+            });
             // Set a default value to prevent errors
             invokeObject[varName] = `[${varName}]`;
           }
         } else {
-          console.warn(`No resolver found for required variable '${varName}', using placeholder`);
+          logger.warn(`No resolver found for required variable '${varName}', using placeholder`, {
+            operation: "resolveRequiredVariable",
+            variableName: varName,
+            fallback: `[${varName}]`,
+          });
           invokeObject[varName] = `[${varName}]`;
         }
       }

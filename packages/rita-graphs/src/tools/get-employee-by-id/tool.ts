@@ -8,11 +8,17 @@ import {
   extractPaymentInformation,
 } from "./format-helper";
 import { fetchEmployeeById, fetchPaymentsOfEmployee } from "./fetch-helper";
+import { createLogger } from "@the-project-b/logging";
+
+const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_employee_by_id" });
 
 export const getEmployeeById = (ctx: ToolContext) =>
   tool(
     async ({ employeeId, includePaymentInfo, includeContractInfo }) => {
-      console.log("[TOOL > get_employee_by_id]", ctx.selectedCompanyId);
+      logger.info("[TOOL > get_employee_by_id]", {
+        operation: "get_employee_by_id",
+        companyId: ctx.selectedCompanyId,
+      });
       const client = createGraphQLClient(ctx.accessToken);
 
       const employee = await fetchEmployeeById(

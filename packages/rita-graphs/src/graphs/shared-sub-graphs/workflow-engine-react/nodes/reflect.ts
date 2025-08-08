@@ -8,11 +8,21 @@ import {
 } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
+import { createLogger } from "@the-project-b/logging";
 
 const MAX_REFLECTION_STEPS = 3;
 
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "WorkflowEngine",
+  component: "Reflect",
+});
+
 export const reflect: WorkflowEngineNode = async (state) => {
-  console.log("🚀 Reflecting on the task");
+  logger.info("🚀 Reflecting on the task", {
+    operation: "reflect",
+    reflectionStepCount: state.reflectionStepCount,
+    maxReflectionSteps: MAX_REFLECTION_STEPS,
+  });
 
   if (state.reflectionStepCount >= MAX_REFLECTION_STEPS) {
     return {
