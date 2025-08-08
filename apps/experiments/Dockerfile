@@ -29,8 +29,11 @@ RUN find . -name ".env*" -type f -exec sed -i 's|PROJECTB_GRAPHQL_ENDPOINT=.*|PR
 # Build the local packages first
 RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging
 
-# Build the experiments app with esbuild (bundles and resolves all imports properly)
+# Generate GraphQL types for experiments app
 WORKDIR /app/apps/experiments
+RUN npm run codegen
+
+# Build the experiments app with esbuild (bundles and resolves all imports properly)
 RUN NODE_ENV=production npm run build:docker
 
 ########### Runtime stage ###########
