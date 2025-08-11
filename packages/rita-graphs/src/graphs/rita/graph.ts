@@ -48,6 +48,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     const toolContext = {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
+      appdataHeader: authUser.appdataHeader, // Pass appdata header for impersonation
     };
 
     const tools = toolFactory<undefined>({
@@ -119,7 +120,8 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
     } catch (error) {
       logger.error("Failed to initialize Rita graph", error, {
         operation: "createRitaGraph",
-        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       process.exit(1);
@@ -137,4 +139,4 @@ export const graph = async () => {
   );
 };
 
-console.log("test")
+console.log("test");

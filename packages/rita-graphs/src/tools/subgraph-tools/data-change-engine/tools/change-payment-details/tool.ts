@@ -1,10 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
-import {
-  ToolContext,
-  ToolFactoryToolDefintion,
-} from "../../../../tool-factory";
+import { ToolFactoryToolDefintion } from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
 import {
@@ -29,9 +26,7 @@ function prefixedLog(message: string, data?: any) {
   logger.debug(message, data);
 }
 
-export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
-  ctx,
-) =>
+export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
   tool(
     async (params, config) => {
       const {
@@ -54,7 +49,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
         companyId: selectedCompanyId,
       });
 
-      const client = createGraphQLClient(accessToken);
+      const client = createGraphQLClient(ctx);
 
       // 1) Get how many contracts the employee has
 
@@ -186,7 +181,12 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
 
       const newProposalDbUpdateResults = await Promise.all(
         newProposals.map((proposal) =>
-          createThreadItemForProposal(proposal, thread_id, accessToken),
+          createThreadItemForProposal(
+            proposal,
+            thread_id,
+            accessToken,
+            ctx.appdataHeader,
+          ),
         ),
       );
 
@@ -199,14 +199,17 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
 
-        logger.error("Failed to create thread items for the data change proposals", {
-          threadId: thread_id,
-          issues,
-          employeeId,
-          paymentId,
-          contractId,
-          companyId: selectedCompanyId,
-        });
+        logger.error(
+          "Failed to create thread items for the data change proposals",
+          {
+            threadId: thread_id,
+            issues,
+            employeeId,
+            paymentId,
+            contractId,
+            companyId: selectedCompanyId,
+          },
+        );
 
         return {
           error: "Failed to create thread items for the data change proposals.",
@@ -247,9 +250,10 @@ async function createThreadItemForProposal(
   proposal: DataChangeProposal,
   threadId: string,
   accessToken: string,
+  appdataHeader?: string,
 ): Promise<Result<CreateRitaThreadItemMutation>> {
   try {
-    const client = createGraphQLClient(accessToken);
+    const client = createGraphQLClient({ accessToken, appdataHeader });
     const threadItem = await client.createRitaThreadItem({
       input: {
         ritaThreadId: threadId,

@@ -9,7 +9,10 @@ import { Result } from "../../../../../utils/types/result";
 import { FindEmployeeByNameWithContractQuery } from "../../../../../generated/graphql";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "find_employee_by_name_with_contract" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "find_employee_by_name_with_contract",
+});
 
 export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
   tool(
@@ -18,7 +21,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
         operation: "find_employee_by_name_with_contract",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const employees = await Promise.all(
         nameParts.map((namePart) =>
