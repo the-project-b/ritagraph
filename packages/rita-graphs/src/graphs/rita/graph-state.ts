@@ -26,10 +26,22 @@ export type GraphStateType = typeof GraphState.State;
 
 type NodeReturn<State = GraphStateType> = Command | Partial<State> | null;
 
+export function getContextFromConfig(
+  config: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
+): typeof ConfigurableAnnotation.State {
+  // for some reason config does not populate context correctly
+  const context = config as typeof ConfigurableAnnotation.State;
+
+  return context;
+}
+
 // LangGraph passes a RunnableConfig that includes our custom config
 export type Node<State = GraphStateType> = (
   state: State,
   config?: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
+  getAuthUser?: (
+    config: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
+  ) => any,
 ) => Promise<NodeReturn<State>> | NodeReturn<State>;
 
 export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {

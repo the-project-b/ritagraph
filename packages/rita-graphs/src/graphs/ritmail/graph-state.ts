@@ -26,7 +26,7 @@ export type GraphStateType = typeof GraphState.State;
 
 export type Node<
   State = GraphStateType,
-  Config = typeof ConfigurableAnnotation.State
+  Config = typeof ConfigurableAnnotation.State,
 > = NodeType<State, Config>;
 
 export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
@@ -39,7 +39,7 @@ export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
 export type AgentNode<
   TInput = any,
   TOutput = any,
-  TTools extends ToolDefinition[] = ToolDefinition[]
+  TTools extends ToolDefinition[] = ToolDefinition[],
 > = Runnable<TInput, TOutput> & {
   displayName: string;
   config: {

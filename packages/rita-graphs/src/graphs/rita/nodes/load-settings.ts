@@ -1,15 +1,30 @@
-import { Node } from "../graph-state.js";
+import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
+import { getContextFromConfig, Node } from "../graph-state";
+
+type AssumedConfigurableType = {
+  thread_id: string;
+};
 
 /**
  * Responsible for initializing the settings for the graph.
  */
-export const loadSettings = (state: any, config: any, getAuthUser: (config: any) => any) => {
-  const { user } = getAuthUser(config);
+export const loadSettings: Node = async (state, config, getAuthUser) => {
+  const { user, token } = getAuthUser(config);
+  const { backupCompanyId } = getContextFromConfig(config);
+  const { thread_id } =
+    config.configurable as unknown as AssumedConfigurableType;
+
+  await appendMessageAsThreadItem({
+    message: state.messages.at(-1),
+    langgraphThreadId: thread_id,
+    accessToken: token,
+  });
 
   return {
-    preferredLanguage: user.preferredLanguage ?? "DE",
+    preferredLanguage:
+      state.preferredLanguage ?? user.preferredLanguage ?? "DE",
     // Just for development we are using a backup company id based on the config
     selectedCompanyId:
-      state.selectedCompanyId ?? user.company.id ?? config.backupCompanyId,
+      state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
   };
 };

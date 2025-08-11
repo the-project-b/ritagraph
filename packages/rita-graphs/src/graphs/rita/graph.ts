@@ -40,11 +40,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     config: AnnotationRoot<any>,
   ): Promise<Array<ToolInterface>> {
     const authUser = getAuthUser(config);
-    // const mcpClient = createMcpClient({
-    //   accessToken: authUser.token,
-    //   companyId,
-    // });
-    // const mcpTools = await mcpClient.getTools();
+
     const toolContext = {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
@@ -60,12 +56,6 @@ function createFetchTools(getAuthUser: (config: any) => any) {
       ],
       ctx: toolContext,
     });
-
-    // const toolsToExclude = ["find-employee-by-name", "get-current-user"];
-
-    // const filteredMcpTools = mcpTools.filter(
-    //   (tool) => !toolsToExclude.includes(tool.name),
-    // );
 
     return [...tools];
   };
@@ -119,7 +109,8 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
     } catch (error) {
       logger.error("Failed to initialize Rita graph", error, {
         operation: "createRitaGraph",
-        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       process.exit(1);
@@ -136,5 +127,3 @@ export const graph = async () => {
     "Use createRitaGraph() factory function for auth-enabled graphs",
   );
 };
-
-console.log("test")
