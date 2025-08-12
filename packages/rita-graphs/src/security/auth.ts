@@ -1,5 +1,5 @@
 import { Auth, HTTPException } from "@langchain/langgraph-sdk/auth";
-import { createDecipheriv, createHash } from 'crypto';
+import { createDecipheriv, createHash } from "crypto";
 import { createLogger } from "@the-project-b/logging";
 import { ViewAsValue, AuthUser } from "./types.js";
 
@@ -13,8 +13,8 @@ export const auth: Auth = new Auth();
 auth.authenticate(async (request: Request) => {
   // Extract the Authorization header from the request (Headers instance)
   let authorization: string | undefined = undefined;
-  let impersonationContext: string | undefined = undefined;
-  
+  let appdataHeader: string | undefined = undefined;
+
   if (request.headers && typeof request.headers.get === "function") {
     // Log all headers as an object
     const allHeaders: Record<string, string> = {};
@@ -25,23 +25,22 @@ auth.authenticate(async (request: Request) => {
     authorization =
       request.headers.get("authorization") ||
       request.headers.get("Authorization");
-    impersonationContext =
-      request.headers.get("x-impersonation-context") ||
-      request.headers.get("X-Impersonation-Context");
+    appdataHeader =
+      request.headers.get("x-appdata") || request.headers.get("X-Appdata");
   } else if (request.headers) {
     // fallback for plain object
     authorization =
       (request.headers as any).authorization ||
       (request.headers as any).Authorization;
-    impersonationContext =
-      (request.headers as any)["x-impersonation-context"] ||
-      (request.headers as any)["X-Impersonation-Context"];
+    appdataHeader =
+      (request.headers as any)["x-appdata"] ||
+      (request.headers as any)["X-Appdata"];
   }
-  
+
   if (!authorization || typeof authorization !== "string") {
     throw new HTTPException(401, { message: "Missing Authorization header" });
   }
-  
+
   // At this point, authorization is a string
   const authHeader: string = authorization;
   let token = "";
@@ -58,26 +57,44 @@ auth.authenticate(async (request: Request) => {
 
   let user = await fetchUserDataFromBackend(token);
 
-  if (impersonationContext) {
+  // Handle X-Appdata header for impersonation (replaces old X-Impersonation-Context)
+  if (appdataHeader) {
     try {
-      const viewAsData = await verifyEncryptedImpersonationContext(impersonationContext);
+      const viewAsData = await decryptAppdataHeader(appdataHeader);
       user = applyImpersonationContext(user, viewAsData);
+      logger.info(
+        "✅ Rita Graph Auth - Applied impersonation context from X-Appdata",
+        {
+          operation: "authenticate",
+          hasImpersonation: true,
+          targetRole: viewAsData.role,
+          targetCompanyId: viewAsData.companyId,
+        },
+      );
     } catch (error) {
-      logger.error("❌ Rita Graph Auth - Failed to decrypt impersonation context", error, {
-        operation: "verifyImpersonationContext",
-        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-      // Security: Reject requests with invalid impersonation tokens
-      throw new HTTPException(401, { 
-        message: "Invalid impersonation token" 
-      });
+      logger.error(
+        "❌ Rita Graph Auth - Failed to decrypt appdata header",
+        error,
+        {
+          operation: "decryptAppdata",
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      );
+      // Continue without impersonation if decryption fails
+      logger.warn(
+        "⚠️ Rita Graph Auth - Continuing without impersonation due to decryption failure",
+      );
     }
   } else {
-    logger.info("ℹ️ Rita Graph Auth - No impersonation context found, using original user", {
-      operation: "authenticate",
-      hasImpersonation: false,
-    });
+    logger.info(
+      "ℹ️ Rita Graph Auth - No impersonation context found, using original user",
+      {
+        operation: "authenticate",
+        hasImpersonation: false,
+      },
+    );
   }
 
   // No token validation for now (accept any token)
@@ -85,84 +102,61 @@ auth.authenticate(async (request: Request) => {
     identity: "Project-B Backend",
     name: "authenticated-user",
     token, // Pass the token so it is available in config.user.token
+    appdataHeader, // Pass the appdata header for impersonation context
     permissions: [], // Required by BaseAuthReturn
     user: user.data.me,
   };
 });
 
-
 /**
- * Decrypt and verify encrypted impersonation context
- * Uses the same encryption approach as the backend EncryptionService
+ * Decrypt appdata header using the same encryption as backend
+ * This matches the backend's EncryptionService.decryptJson method
  */
-export async function verifyEncryptedImpersonationContext(encryptedToken: string): Promise<ViewAsValue> {
+export async function decryptAppdataHeader(
+  encryptedData: string,
+): Promise<ViewAsValue> {
   const appSecret = process.env.APP_SECRET;
-  
+
   if (!appSecret) {
-    throw new Error('APP_SECRET environment variable is required for impersonation token decryption');
+    throw new Error(
+      "APP_SECRET environment variable is required for appdata decryption",
+    );
   }
 
   try {
-    // Decrypt the token using the same algorithm as backend EncryptionService
-    const decryptedPayload = decryptJson<{
-      originalUserId: string;
-      viewAsData: ViewAsValue;
-      type: string;
-      issuedAt: string;
-      expiresAt: string;
-      tokenId: string;
-    }>(encryptedToken, appSecret);
+    // First decode from base64 (the appdata cookie is base64-encoded)
+    const decodedData = Buffer.from(encryptedData, "base64").toString();
 
-    // Validate payload structure
-    if (!decryptedPayload.viewAsData || decryptedPayload.type !== 'impersonation_context') {
-      throw new Error('Invalid impersonation token payload structure');
+    // Parse the encrypted appdata (same format as backend's appdata cookie)
+    const parsedData = JSON.parse(decodedData);
+
+    if (!parsedData.iv || !parsedData.encrypted) {
+      throw new Error("Invalid appdata format");
     }
 
-    // Check expiration
-    const expiresAt = new Date(decryptedPayload.expiresAt);
-    if (expiresAt < new Date()) {
-      throw new Error('Impersonation token has expired');
-    }
-
-    // Validate ViewAsValue structure
-    validateViewAsData(decryptedPayload.viewAsData);
-
-    return decryptedPayload.viewAsData;
-  } catch (error) {
-    const errorMessage = error?.message || String(error) || 'Unknown error';
-    if (errorMessage.includes('expired')) {
-      throw new Error('Impersonation token has expired');
-    }
-    if (errorMessage.includes('Decryption failed') || errorMessage.includes('decrypt')) {
-      throw new Error('Invalid impersonation token');
-    }
-    throw error;
-  }
-}
-
-/**
- * Decrypt JSON using AES-256-CBC (matches backend EncryptionService)
- */
-function decryptJson<T>(encryptedData: string, appSecret: string): T {
-  try {
-    // Parse the encrypted payload (base64 -> JSON -> {encrypted, iv})
-    const parsedEncrypted = JSON.parse(Buffer.from(encryptedData, 'base64').toString());
-    
     // Get the secret key using the same method as backend
     const secretKey = getSecretKey(appSecret);
-    
+
     // Decrypt using the same method as backend
     const decrypted = decrypt(
-      Buffer.from(parsedEncrypted.encrypted, 'hex'),
-      Buffer.from(parsedEncrypted.iv, 'hex'),
-      secretKey
+      Buffer.from(parsedData.encrypted, "hex"),
+      Buffer.from(parsedData.iv, "hex"),
+      secretKey,
     );
 
+    // The decrypted value is base64-encoded JSON (matching backend's encryptJson logic)
+    const decodedJson = Buffer.from(decrypted, "base64").toString();
+
     // Parse the decrypted JSON
-    return JSON.parse(Buffer.from(decrypted, 'base64').toString());
+    const viewAsData = JSON.parse(decodedJson) as ViewAsValue;
+
+    // Validate ViewAsValue structure
+    validateViewAsData(viewAsData);
+
+    return viewAsData;
   } catch (error) {
-    const errorMessage = error?.message || String(error) || 'Unknown error';
-    throw new Error(`Decryption failed: ${errorMessage}`);
+    const errorMessage = error?.message || String(error) || "Unknown error";
+    throw new Error(`Appdata decryption failed: ${errorMessage}`);
   }
 }
 
@@ -170,7 +164,7 @@ function decryptJson<T>(encryptedData: string, appSecret: string): T {
  * Decrypt using AES-256-CBC (matches backend EncryptionService.decrypt)
  */
 function decrypt(ciphertext: Buffer, iv: Buffer, key: string): string {
-  const decipher = createDecipheriv('aes-256-cbc', key, iv);
+  const decipher = createDecipheriv("aes-256-cbc", key, iv);
   const decrypted = decipher.update(ciphertext);
   const final = decipher.final();
   return Buffer.concat([decrypted, final]).toString();
@@ -180,14 +174,14 @@ function decrypt(ciphertext: Buffer, iv: Buffer, key: string): string {
  * Get secret key using the same method as backend EncryptionService.getSecretKey
  */
 function getSecretKey(appSecret: string): string {
-  const key = createHash('sha256').update(appSecret).digest('hex');
-  
+  const key = createHash("sha256").update(appSecret).digest("hex");
+
   if (key.length > 32) {
     return key.substring(0, 32);
   }
-  
+
   if (key.length === 32) return key;
-  
+
   throw new Error(`Invalid key length. Expected 32, got: ${key.length}`);
 }
 
@@ -201,18 +195,18 @@ function validateViewAsData(viewAsData: ViewAsValue): void {
     !viewAsData.userId ||
     !viewAsData.companyId
   ) {
-    throw new Error('Invalid ViewAsValue structure: missing required fields');
+    throw new Error("Invalid ViewAsValue structure: missing required fields");
   }
 
-  if (typeof viewAsData.userRoleId !== 'number') {
+  if (typeof viewAsData.userRoleId !== "number") {
     throw new Error(
-      'Invalid ViewAsValue structure: userRoleId must be a number'
+      "Invalid ViewAsValue structure: userRoleId must be a number",
     );
   }
 
-  if (typeof viewAsData.clientImpersonated !== 'boolean') {
+  if (typeof viewAsData.clientImpersonated !== "boolean") {
     throw new Error(
-      'Invalid ViewAsValue structure: clientImpersonated must be a boolean'
+      "Invalid ViewAsValue structure: clientImpersonated must be a boolean",
     );
   }
 
@@ -223,10 +217,10 @@ function validateViewAsData(viewAsData: ViewAsValue): void {
       !wanted.userId ||
       !wanted.companyId ||
       !wanted.role ||
-      typeof wanted.userRoleId !== 'number'
+      typeof wanted.userRoleId !== "number"
     ) {
       throw new Error(
-        'Invalid ViewAsValue structure: viewAs.wanted has invalid structure'
+        "Invalid ViewAsValue structure: viewAs.wanted has invalid structure",
       );
     }
   }
@@ -239,7 +233,11 @@ function validateViewAsData(viewAsData: ViewAsValue): void {
 export function getAuthUser(config: any): AuthUser {
   const authUser = (config as any).configurable.langgraph_auth_user;
 
-  return { ...authUser, token: authUser.token || config.backupAccessToken };
+  return {
+    ...authUser,
+    token: authUser.token || config.backupAccessToken,
+    appdataHeader: authUser.appdataHeader, // Include appdata header if present
+  };
 }
 
 // Auth utilities are now exported individually above
@@ -251,35 +249,35 @@ export function getAuthUser(config: any): AuthUser {
  */
 export function createAuthInstance(): Auth {
   const authInstance = new Auth();
-  
+
   authInstance.authenticate(async (request: Request) => {
     // Extract the Authorization header from the request (Headers instance)
     let authorization: string | undefined = undefined;
-    let impersonationContext: string | undefined = undefined;
-    
+    let appdataHeader: string | undefined = undefined;
+
     if (request.headers && typeof request.headers.get === "function") {
       authorization =
         request.headers.get("authorization") ||
         request.headers.get("Authorization") ||
         undefined;
-      impersonationContext =
-        request.headers.get("x-impersonation-context") ||
-        request.headers.get("X-Impersonation-Context") ||
+      appdataHeader =
+        request.headers.get("x-appdata") ||
+        request.headers.get("X-Appdata") ||
         undefined;
     } else if (request.headers) {
       // fallback for plain object
       authorization =
         (request.headers as any).authorization ||
         (request.headers as any).Authorization;
-      impersonationContext =
-        (request.headers as any)["x-impersonation-context"] ||
-        (request.headers as any)["X-Impersonation-Context"];
+      appdataHeader =
+        (request.headers as any)["x-appdata"] ||
+        (request.headers as any)["X-Appdata"];
     }
-    
+
     if (!authorization || typeof authorization !== "string") {
       throw new HTTPException(401, { message: "Missing Authorization header" });
     }
-    
+
     // At this point, authorization is a string
     const authHeader: string = authorization;
     let token = "";
@@ -297,23 +295,45 @@ export function createAuthInstance(): Auth {
     // Use shared utilities
     let user = await fetchUserDataFromBackend(token);
 
-    if (impersonationContext) {
+    // Handle X-Appdata header for impersonation
+    if (appdataHeader) {
       try {
-        const viewAsData = await verifyEncryptedImpersonationContext(impersonationContext);
+        const viewAsData = await decryptAppdataHeader(appdataHeader);
         user = applyImpersonationContext(user, viewAsData);
+        logger.info(
+          "✅ Rita Graph Auth - Applied impersonation context from X-Appdata",
+          {
+            operation: "authenticate",
+            hasImpersonation: true,
+            targetRole: viewAsData.role,
+            targetCompanyId: viewAsData.companyId,
+          },
+        );
       } catch (error) {
-        logger.error("❌ Rita Graph Auth - Failed to decrypt impersonation context", error, {
-        operation: "verifyImpersonationContext",
-        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-        throw new HTTPException(401, { message: "Invalid impersonation token" });
+        logger.error(
+          "❌ Rita Graph Auth - Failed to decrypt appdata header",
+          error,
+          {
+            operation: "decryptAppdata",
+            errorType:
+              error instanceof Error ? error.constructor.name : "UnknownError",
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+          },
+        );
+        // Continue without impersonation if decryption fails
+        logger.warn(
+          "⚠️ Rita Graph Auth - Continuing without impersonation due to decryption failure",
+        );
       }
     } else {
-      logger.info("ℹ️ Rita Graph Auth - No impersonation context found, using original user", {
-      operation: "authenticate",
-      hasImpersonation: false,
-    });
+      logger.info(
+        "ℹ️ Rita Graph Auth - No impersonation context found, using original user",
+        {
+          operation: "authenticate",
+          hasImpersonation: false,
+        },
+      );
     }
 
     // Return standardized auth data
@@ -321,6 +341,7 @@ export function createAuthInstance(): Auth {
       identity: "Project-B Backend",
       role: "authenticated-user",
       token, // Pass the token so it is available in config.user.token
+      appdataHeader, // Pass the appdata header for impersonation context
       permissions: [], // Required by BaseAuthReturn
       user: user.data.me,
     };
@@ -360,12 +381,12 @@ fragment MeFieldsHr on OnboardingHrManager {
       },
       method: "POST",
       body: JSON.stringify({ query }),
-    }
+    },
   );
 
   if (!response.ok) {
     throw new Error(
-      `GraphQL request failed: ${response.status} ${response.statusText}`
+      `GraphQL request failed: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -374,9 +395,12 @@ fragment MeFieldsHr on OnboardingHrManager {
   return data;
 }
 
-export function applyImpersonationContext(userData: any, viewAsData: ViewAsValue) {
+export function applyImpersonationContext(
+  userData: any,
+  viewAsData: ViewAsValue,
+) {
   const transformedData = JSON.parse(JSON.stringify(userData));
-  
+
   transformedData.data.me = {
     ...transformedData.data.me,
     role: viewAsData.role, // This comes as UserRole enum
@@ -388,7 +412,7 @@ export function applyImpersonationContext(userData: any, viewAsData: ViewAsValue
 
   if (viewAsData.viewAs?.wanted) {
     const wanted = viewAsData.viewAs.wanted;
-    
+
     transformedData.data.me = {
       ...transformedData.data.me,
       id: wanted.userId,
@@ -398,7 +422,6 @@ export function applyImpersonationContext(userData: any, viewAsData: ViewAsValue
         id: wanted.companyId,
       },
     };
-    
   }
 
   return transformedData;

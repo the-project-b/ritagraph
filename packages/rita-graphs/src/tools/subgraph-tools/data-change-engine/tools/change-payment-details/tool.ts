@@ -1,10 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createGraphQLClient } from "../../../../../utils/graphql/client";
-import {
-  ToolContext,
-  ToolFactoryToolDefintion,
-} from "../../../../tool-factory";
+import { ToolFactoryToolDefintion } from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
 import {
@@ -29,9 +26,7 @@ function prefixedLog(message: string, data?: any) {
   logger.debug(message, data);
 }
 
-export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
-  ctx,
-) =>
+export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
   tool(
     async (params, config) => {
       const {
@@ -54,7 +49,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion<ToolContext> = (
         companyId: selectedCompanyId,
       });
 
-      const client = createGraphQLClient(accessToken);
+      const client = createGraphQLClient(ctx);
 
       // 1) Get how many contracts the employee has
 

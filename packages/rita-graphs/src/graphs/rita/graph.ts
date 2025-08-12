@@ -44,6 +44,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     const toolContext = {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
+      appdataHeader: authUser.appdataHeader, // Pass appdata header for impersonation
     };
 
     const tools = toolFactory<undefined>({

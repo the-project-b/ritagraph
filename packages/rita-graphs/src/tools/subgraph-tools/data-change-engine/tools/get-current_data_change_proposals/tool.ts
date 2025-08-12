@@ -15,13 +15,11 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   tool: "get_current_data_change_proposals",
 });
 
-export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
-  ToolContext
-> = (ctx) =>
+export const getCurrentDataChangeProposals: ToolFactoryToolDefintion = (ctx) =>
   tool(
     async (_, { configurable }) => {
       const { thread_id } = configurable;
-      const { accessToken } = ctx;
+      // const { accessToken } = ctx;
 
       logger.info("[TOOL > get_current_data_change_proposals]", {
         operation: "get_current_data_change_proposals",
@@ -30,7 +28,7 @@ export const getCurrentDataChangeProposals: ToolFactoryToolDefintion<
 
       const threadItemsResult = await getThreadItemsByLanggraphThreadId(
         thread_id,
-        accessToken,
+        ctx,
       );
 
       if (Result.isFailure(threadItemsResult)) {
@@ -66,14 +64,14 @@ These are the pending data change proposals. You can use them to approve the bas
 
 async function getThreadItemsByLanggraphThreadId(
   threadId: string,
-  accessToken: string,
+  ctx: ToolContext,
 ): Promise<
   Result<
     GetThreadItemsByLanggraphThreadIdQuery["threadByLanggraphId"]["threadItems"]
   >
 > {
   try {
-    const client = createGraphQLClient(accessToken);
+    const client = createGraphQLClient(ctx);
     const threadItems = await client.getThreadItemsByLanggraphThreadId({
       langgraphId: threadId,
     });

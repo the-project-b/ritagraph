@@ -1,11 +1,15 @@
 import { ToolInterface } from "@langchain/core/tools";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "tool_factory" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "tool_factory",
+});
 
 export type ToolContext<T = undefined> = {
   accessToken: string;
   selectedCompanyId: string;
+  appdataHeader?: string; // Optional appdata header for impersonation context
   extendedContext?: T;
 };
 

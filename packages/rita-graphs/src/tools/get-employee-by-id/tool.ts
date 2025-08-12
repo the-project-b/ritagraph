@@ -10,7 +10,10 @@ import {
 import { fetchEmployeeById, fetchPaymentsOfEmployee } from "./fetch-helper";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_employee_by_id" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "get_employee_by_id",
+});
 
 export const getEmployeeById = (ctx: ToolContext) =>
   tool(
@@ -19,12 +22,12 @@ export const getEmployeeById = (ctx: ToolContext) =>
         operation: "get_employee_by_id",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const employee = await fetchEmployeeById(
         client,
         ctx.selectedCompanyId,
-        employeeId
+        employeeId,
       );
 
       if (Result.isFailure(employee)) {
@@ -51,7 +54,7 @@ export const getEmployeeById = (ctx: ToolContext) =>
         const paymentsResult = await fetchPaymentsOfEmployee(
           client,
           ctx.selectedCompanyId,
-          employeeInfo.employeeContract
+          employeeInfo.employeeContract,
         );
         if (Result.isFailure(paymentsResult)) {
           return {
@@ -60,7 +63,7 @@ export const getEmployeeById = (ctx: ToolContext) =>
         }
 
         paymentInformation = extractPaymentInformation(
-          Result.unwrap(paymentsResult)
+          Result.unwrap(paymentsResult),
         );
       }
 
@@ -80,5 +83,5 @@ export const getEmployeeById = (ctx: ToolContext) =>
         includePaymentInfo: z.boolean().optional(),
         includeContractInfo: z.boolean().optional(),
       }),
-    }
+    },
   );

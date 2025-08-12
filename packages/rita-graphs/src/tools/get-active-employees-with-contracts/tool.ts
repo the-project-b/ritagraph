@@ -12,7 +12,10 @@ import {
 import { Result } from "../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_active_employees_with_contracts" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "get_active_employees_with_contracts",
+});
 
 export const getActiveEmployeesWithContracts = (ctx: ToolContext) =>
   tool(
@@ -21,11 +24,11 @@ export const getActiveEmployeesWithContracts = (ctx: ToolContext) =>
         operation: "get_active_employees_with_contracts",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const employeesWithContracts = await fetchActiveEmployeesWithContracts(
         client,
-        ctx.selectedCompanyId
+        ctx.selectedCompanyId,
       );
 
       if (Result.isFailure(employeesWithContracts)) {
@@ -51,12 +54,12 @@ These are the active employees with contracts.
       schema: z.object({
         employeeId: z.string().optional(),
       }),
-    }
+    },
   );
 
 async function fetchActiveEmployeesWithContracts(
   client: GraphQLClientType,
-  companyId: string
+  companyId: string,
 ): Promise<
   Result<GetActiveEmployeesWithContractsQuery["employeesByCompany"], Error>
 > {
@@ -67,7 +70,7 @@ async function fetchActiveEmployeesWithContracts(
           companyId,
           status: [EmployeeAdvancedFilterStatus.Active],
         },
-      }
+      },
     );
     return Result.success(employeesByCompany);
   } catch (e) {
