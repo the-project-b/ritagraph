@@ -33,7 +33,7 @@ export const finalMessage: Node = async (
     preferredLanguage,
     hasDraftResponse: !!workflowEngineResponseDraft,
   });
-  const { token: accessToken } = getAuthUser(config);
+  const { token, appdataHeader } = getAuthUser(config);
 
   const { thread_id: langgraphThreadId } =
     config.configurable as unknown as AssumedConfigType;
@@ -87,7 +87,7 @@ Drafted Response: {draftedResponse}
   const appendMessageResult = await appendMessageAsThreadItem({
     message: responseMessage,
     langgraphThreadId,
-    accessToken,
+    ctx: { accessToken: token, appdataHeader },
   });
 
   if (Result.isFailure(appendMessageResult)) {

@@ -14,13 +14,10 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
   const { thread_id } =
     config.configurable as unknown as AssumedConfigurableType;
 
-  const selectedCompanyId =
-    state.selectedCompanyId ?? user.company.id ?? backupCompanyId;
-
   await appendMessageAsThreadItem({
     message: state.messages.at(-1),
     langgraphThreadId: thread_id,
-    ctx: { accessToken: token, selectedCompanyId, appdataHeader },
+    ctx: { accessToken: token, appdataHeader },
   });
 
   return {

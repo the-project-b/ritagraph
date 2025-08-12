@@ -5,11 +5,11 @@
 
 // UserRole enum to match backend exactly
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  EMPLOYEE = 'EMPLOYEE',
-  HRMANAGER = 'HRMANAGER',
-  HR = 'HR',
-  BPO = 'BPO',
+  ADMIN = "ADMIN",
+  EMPLOYEE = "EMPLOYEE",
+  HRMANAGER = "HRMANAGER",
+  HR = "HR",
+  BPO = "BPO",
 }
 
 // UserAccessGrant type to match backend UserAccessGrant structure
@@ -47,6 +47,7 @@ export interface AuthUser {
   role: string;
   token: string;
   permissions: string[];
+  appdataHeader: string;
   user: {
     id: string;
     role: string;

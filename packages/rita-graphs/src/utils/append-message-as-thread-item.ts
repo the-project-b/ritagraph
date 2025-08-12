@@ -54,7 +54,7 @@ export async function appendDataChangeProposalsAsThreadItems({
 type AppendMessageAsThreadItemParams = {
   message: BaseMessage;
   langgraphThreadId: string;
-  ctx: ToolContext;
+  ctx: Omit<ToolContext, "selectedCompanyId">;
   orderOffset?: number;
 };
 

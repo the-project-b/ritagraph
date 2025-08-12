@@ -32,7 +32,7 @@ export const quickResponse: Node = async (
     preferredLanguage,
   });
 
-  const { token: accessToken } = getAuthUser(config);
+  const { token, appdataHeader } = getAuthUser(config);
   const { thread_id: langgraphThreadId } =
     config.configurable as unknown as AssumedConfigType;
 
@@ -67,7 +67,7 @@ Speak in {language}.
   const appendMessageResult = await appendMessageAsThreadItem({
     message: responseMessage,
     langgraphThreadId,
-    accessToken,
+    ctx: { accessToken: token, appdataHeader },
   });
 
   if (Result.isFailure(appendMessageResult)) {
