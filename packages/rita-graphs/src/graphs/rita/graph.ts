@@ -6,7 +6,7 @@ import {
   StateGraph,
 } from "@langchain/langgraph";
 import { createLogger } from "@the-project-b/logging";
-import { ConfigurableAnnotation, GraphState } from "./graph-state.js";
+import { ConfigurableAnnotation, GraphState, Node } from "./graph-state.js";
 import {
   router,
   finalMessage,
@@ -67,13 +67,17 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
     try {
       logger.info("Initializing Dynamic Multi-Agent RITA Graph...");
 
+      const wrapNodeWithAuth = (node: Node) => {
+        return async (state, config) => {
+          return node(state, config, getAuthUser);
+        };
+      };
+
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
-        .addNode("loadSettings", (state, config) =>
-          loadSettings(state, config, getAuthUser),
-        )
-        .addNode("router", router)
-        .addNode("quickResponse", quickResponse)
+        .addNode("loadSettings", wrapNodeWithAuth(loadSettings))
+        .addNode("router", wrapNodeWithAuth(router))
+        .addNode("quickResponse", wrapNodeWithAuth(quickResponse))
         .addNode(
           "workflowEngine",
           buildWorkflowEngineReAct({
@@ -86,7 +90,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
             ends: ["finalMessage"],
           },
         )
-        .addNode("finalMessage", finalMessage)
+        .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
         // => Edges
         .addEdge(START, "loadSettings")
         .addEdge("loadSettings", "router")
