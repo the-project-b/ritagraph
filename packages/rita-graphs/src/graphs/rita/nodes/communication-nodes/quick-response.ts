@@ -6,21 +6,35 @@ import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
+import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
+import { Result } from "../../../../utils/types/result.js";
+import { getAuthUser } from "../../../../security/auth.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
   node: "quickResponse",
 });
 
+type AssumedConfigType = {
+  thread_id: string;
+};
+
 /**
  * At the moment just a pass through node
  */
-export const quickResponse: Node = async ({ messages, preferredLanguage }) => {
+export const quickResponse: Node = async (
+  { messages, preferredLanguage },
+  config,
+) => {
   logger.info("💬 Direct Response", {
     operation: "quickResponse",
     messageCount: messages.length,
     preferredLanguage,
   });
+
+  const { token: accessToken } = getAuthUser(config);
+  const { thread_id: langgraphThreadId } =
+    config.configurable as unknown as AssumedConfigType;
 
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
@@ -48,8 +62,21 @@ Speak in {language}.
   ]).invoke({});
 
   const response = await llm.invoke(prompt);
+  const responseMessage = new AIMessage(response.content.toString());
+
+  const appendMessageResult = await appendMessageAsThreadItem({
+    message: responseMessage,
+    langgraphThreadId,
+    accessToken,
+  });
+
+  if (Result.isFailure(appendMessageResult)) {
+    logger.error("Failed to append message as thread item", {
+      error: Result.unwrapFailure(appendMessageResult),
+    });
+  }
 
   return {
-    messages: [...messages, new AIMessage(response.content.toString())],
+    messages: [...messages, responseMessage],
   };
 };

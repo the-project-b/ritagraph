@@ -89,7 +89,6 @@ export function buildWorkflowEngineReAct({
           updates.push(item.update);
         });
 
-
         return {
           taskEngineMessages: updates.map((update) => update.messages).flat(),
           dataRepresentationLayerStorage: updates.reduce(
@@ -97,7 +96,7 @@ export function buildWorkflowEngineReAct({
               ...acc,
               ...update.dataRepresentationLayerStorage,
             }),
-            {},
+            state.dataRepresentationLayerStorage ?? {},
           ),
         };
       }

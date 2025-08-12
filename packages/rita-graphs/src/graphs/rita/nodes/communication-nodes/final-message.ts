@@ -7,26 +7,37 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
+import { getAuthUser } from "../../../../security/auth.js";
+import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
+import { Result } from "../../../../utils/types/result.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
   node: "finalMessage",
 });
 
+type AssumedConfigType = {
+  thread_id: string;
+};
+
 /**
  * At the moment just a pass through node
  */
-export const finalMessage: Node = async ({
-  workflowEngineResponseDraft,
-  preferredLanguage,
-  messages,
-}) => {
+export const finalMessage: Node = async (
+  { workflowEngineResponseDraft, preferredLanguage, messages },
+  config,
+) => {
   logger.info("💬 Final Response", {
     operation: "finalMessage",
     messageCount: messages.length,
     preferredLanguage,
     hasDraftResponse: !!workflowEngineResponseDraft,
   });
+  const { token: accessToken } = getAuthUser(config);
+
+  const { thread_id: langgraphThreadId } =
+    config.configurable as unknown as AssumedConfigType;
+
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
     tags: [Tags.COMMUNICATION],
@@ -72,7 +83,20 @@ Drafted Response: {draftedResponse}
 
   const response = await llm.invoke(prompt);
 
+  const responseMessage = new AIMessage(response.content.toString());
+  const appendMessageResult = await appendMessageAsThreadItem({
+    message: responseMessage,
+    langgraphThreadId,
+    accessToken,
+  });
+
+  if (Result.isFailure(appendMessageResult)) {
+    logger.error("Failed to append message as thread item", {
+      error: Result.unwrapFailure(appendMessageResult),
+    });
+  }
+
   return {
-    messages: [...messages, new AIMessage(response.content.toString())],
+    messages: [...messages, responseMessage],
   };
 };

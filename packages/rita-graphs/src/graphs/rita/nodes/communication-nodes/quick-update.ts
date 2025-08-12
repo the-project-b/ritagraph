@@ -21,7 +21,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
  */
 export const quickUpdate: WorkflowEngineNode = async (
   { messages, taskEngineMessages, preferredLanguage, selectedCompanyId },
-  config
+  config,
 ) => {
   logger.info("💬 Quick Update - state:", {
     operation: "quickUpdate",

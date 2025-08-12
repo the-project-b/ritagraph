@@ -24,7 +24,7 @@ respond in JSON with:
 
 Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
 If the user is approving of something you should use the WORKFLOW_ENGINE.
-  `
+  `,
   ).format({});
 
   const prompt = await ChatPromptTemplate.fromMessages([
@@ -37,7 +37,7 @@ If the user is approving of something you should use the WORKFLOW_ENGINE.
       z.object({
         reasoning: z.string(),
         response: z.enum(["CASUAL_RESPONSE_WITHOUT_DATA", "WORKFLOW_ENGINE"]),
-      })
+      }),
     )
     .invoke(prompt);
 
