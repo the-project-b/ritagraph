@@ -1,6 +1,7 @@
 // GraphQL schema and resolvers
 export { typeDefs } from "./typeDefs.js";
 export { resolvers } from "./resolvers.js";
+export { createGraphQLClient } from "./client.js";
 
 // Auth helpers
 export {
