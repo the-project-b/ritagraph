@@ -8,7 +8,6 @@ import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
-import { getAuthUser } from "../../../../security/auth.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -23,8 +22,9 @@ type AssumedConfigType = {
  * At the moment just a pass through node
  */
 export const quickResponse: Node = async (
-  { messages, preferredLanguage },
+  { messages, preferredLanguage, selectedCompanyId },
   config,
+  getAuthUser,
 ) => {
   logger.info("💬 Direct Response", {
     operation: "quickResponse",
@@ -32,7 +32,7 @@ export const quickResponse: Node = async (
     preferredLanguage,
   });
 
-  const { token: accessToken } = getAuthUser(config);
+  const { token: accessToken, appdataHeader } = getAuthUser(config);
   const { thread_id: langgraphThreadId } =
     config.configurable as unknown as AssumedConfigType;
 
@@ -67,7 +67,11 @@ Speak in {language}.
   const appendMessageResult = await appendMessageAsThreadItem({
     message: responseMessage,
     langgraphThreadId,
-    accessToken,
+    context: {
+      accessToken,
+      selectedCompanyId,
+      appdataHeader,
+    },
   });
 
   if (Result.isFailure(appendMessageResult)) {

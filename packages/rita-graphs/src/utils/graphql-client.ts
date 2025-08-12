@@ -36,9 +36,11 @@ export class ProjectBGraphQLClient {
 
   constructor(endpoint?: string) {
     this.endpoint = endpoint || process.env.PROJECTB_GRAPHQL_ENDPOINT!;
-    
+
     if (!this.endpoint) {
-      throw new Error("GraphQL endpoint not configured. Set PROJECTB_GRAPHQL_ENDPOINT environment variable.");
+      throw new Error(
+        "GraphQL endpoint not configured. Set PROJECTB_GRAPHQL_ENDPOINT environment variable.",
+      );
     }
   }
 
@@ -48,10 +50,10 @@ export class ProjectBGraphQLClient {
   async request<T = any>(
     document: RequestDocument,
     variables?: Variables,
-    context?: GraphQLClientContext
+    context?: GraphQLClientContext,
   ): Promise<T> {
     const accessToken = context ? extractAccessToken(context) : undefined;
-    
+
     if (!accessToken) {
       throw new Error("No access token available for GraphQL request");
     }
@@ -66,7 +68,8 @@ export class ProjectBGraphQLClient {
       logger.error("GraphQL request failed", error, {
         operation: "graphqlRequest",
         endpoint: this.endpoint,
-        errorType: error instanceof Error ? error.constructor.name : "UnknownError",
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -80,7 +83,7 @@ export class ProjectBGraphQLClient {
     document: RequestDocument,
     variables?: Variables,
     context?: GraphQLClientContext,
-    fallbackValue?: T
+    fallbackValue?: T,
   ): Promise<T> {
     try {
       return await this.request<T>(document, variables, context);
@@ -100,4 +103,4 @@ export class ProjectBGraphQLClient {
 }
 
 // Export a default instance
-export const graphqlClient = new ProjectBGraphQLClient(); 
+export const graphqlClient = new ProjectBGraphQLClient();

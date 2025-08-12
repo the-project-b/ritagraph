@@ -7,7 +7,6 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
-import { getAuthUser } from "../../../../security/auth.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
 
@@ -24,8 +23,14 @@ type AssumedConfigType = {
  * At the moment just a pass through node
  */
 export const finalMessage: Node = async (
-  { workflowEngineResponseDraft, preferredLanguage, messages },
+  {
+    workflowEngineResponseDraft,
+    preferredLanguage,
+    messages,
+    selectedCompanyId,
+  },
   config,
+  getAuthUser,
 ) => {
   logger.info("💬 Final Response", {
     operation: "finalMessage",
@@ -33,7 +38,7 @@ export const finalMessage: Node = async (
     preferredLanguage,
     hasDraftResponse: !!workflowEngineResponseDraft,
   });
-  const { token: accessToken } = getAuthUser(config);
+  const { token: accessToken, appdataHeader } = getAuthUser(config);
 
   const { thread_id: langgraphThreadId } =
     config.configurable as unknown as AssumedConfigType;
@@ -84,10 +89,15 @@ Drafted Response: {draftedResponse}
   const response = await llm.invoke(prompt);
 
   const responseMessage = new AIMessage(response.content.toString());
+
   const appendMessageResult = await appendMessageAsThreadItem({
     message: responseMessage,
     langgraphThreadId,
-    accessToken,
+    context: {
+      accessToken,
+      selectedCompanyId,
+      appdataHeader,
+    },
   });
 
   if (Result.isFailure(appendMessageResult)) {

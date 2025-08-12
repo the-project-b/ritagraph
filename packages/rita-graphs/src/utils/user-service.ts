@@ -5,7 +5,6 @@ import {
   MeResponse,
   EMPLOYEES_BY_COMPANY_QUERY,
   EmployeesByCompanyResponse,
-  EmployeesByCompanyInput,
 } from "./graphql-queries.js";
 import { PlaceholderContext } from "../placeholders/types.js";
 
@@ -63,7 +62,7 @@ class UserService {
       const response = await graphqlClient.request<MeResponse>(
         ME_QUERY,
         {},
-        context
+        context,
       );
 
       // Cache the response
@@ -198,7 +197,7 @@ class UserService {
       const response = await graphqlClient.request<EmployeesByCompanyResponse>(
         EMPLOYEES_BY_COMPANY_QUERY,
         { data: { companyId } },
-        context
+        context,
       );
 
       const contractIds: string[] = [];
