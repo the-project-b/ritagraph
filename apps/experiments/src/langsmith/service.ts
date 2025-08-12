@@ -117,7 +117,6 @@ export class LangSmithService {
 
     const threadResult = await graphqlClient.createRitaThread({
       input: {
-        title: `Evaluation - ${experimentPrefix || graphName}`,
         triggerType: RitaThreadTriggerType.Evaluation,
         hrCompanyId: selectedCompanyId,
         status: RitaThreadStatus.Received,

@@ -365,7 +365,6 @@ export class EvaluationJobManager {
 
       const threadResult = await graphqlClient.createRitaThread({
         input: {
-          title: `Evaluation - ${question.substring(0, 50)}...`,
           triggerType: RitaThreadTriggerType.Evaluation,
           hrCompanyId: selectedCompanyId,
           status: RitaThreadStatus.Received,
