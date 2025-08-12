@@ -8,7 +8,10 @@ import { Result } from "../../utils/types/result";
 import { GetCurrentUserQuery } from "../../generated/graphql";
 import { createLogger } from "@the-project-b/logging";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_current_user" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "get_current_user",
+});
 
 export const getCurrentUser = (ctx: ToolContext) =>
   tool(
@@ -17,7 +20,7 @@ export const getCurrentUser = (ctx: ToolContext) =>
         operation: "get_current_user",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const currentUser = await fetchCurrentUser(client);
 
@@ -37,11 +40,11 @@ These are the information about the person you are talking to.
     {
       name: "get_current_user",
       description: "Get information about the person you are talking to",
-    }
+    },
   );
 
 async function fetchCurrentUser(
-  client: GraphQLClientType
+  client: GraphQLClientType,
 ): Promise<Result<GetCurrentUserQuery["me"], Error>> {
   try {
     const { me } = await client.getCurrentUser();

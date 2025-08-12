@@ -1,35 +1,35 @@
 import { tool } from "@langchain/core/tools";
-import { z } from "zod";
-import { createGraphQLClient } from "../../utils/graphql/client";
-import { ToolContext } from "../tool-factory";
-import {
-  EmployeeAdvancedFilterStatus,
-  GetActiveEmployeesWithContractsQuery,
-} from "../../generated/graphql";
-import { Result } from "../../utils/types/result";
-import { applyFilters, Filter } from "./helper/filter-engine";
-import { fetchAllEmployees } from "./helper/fetch-helper";
 import { createLogger } from "@the-project-b/logging";
+import { z } from "zod";
+import { EmployeeAdvancedFilterStatus } from "../../generated/graphql";
+import { createGraphQLClient } from "../../utils/graphql/client";
+import { Result } from "../../utils/types/result";
+import { ToolContext } from "../tool-factory";
+import { fetchAllEmployees } from "./helper/fetch-helper";
+import { applyFilters, Filter } from "./helper/filter-engine";
 
-const logger = createLogger({ service: "rita-graphs" }).child({ module: "Tools", tool: "get_all_employees" });
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Tools",
+  tool: "get_all_employees",
+});
 
 const filters = z
   .object({
     status: Filter(
       ["eq", "ne"],
       z.enum(
-        Object.values(EmployeeAdvancedFilterStatus) as [string, ...string[]]
-      )
+        Object.values(EmployeeAdvancedFilterStatus) as [string, ...string[]],
+      ),
     ).optional(),
     email: Filter(["contains", "startsWith", "endsWith"]).optional(),
     incomeSum: Filter(["eq", "ne", "gt", "gte", "lt", "lte"]).optional(),
     contractStart: Filter(
       ["eq", "ne", "gt", "gte", "lt", "lte"],
-      z.string().datetime()
+      z.string().datetime(),
     ).optional(),
     contractEnd: Filter(
       ["eq", "ne", "gt", "gte", "lt", "lte"],
-      z.string().datetime()
+      z.string().datetime(),
     ).optional(),
   })
   .optional();
@@ -50,11 +50,11 @@ export const getAllEmployees = (ctx: ToolContext) =>
         operation: "get_all_employees",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const employeesWithContractsResult = await fetchAllEmployees(
         client,
-        ctx.selectedCompanyId
+        ctx.selectedCompanyId,
       );
 
       if (Result.isFailure(employeesWithContractsResult)) {
@@ -67,7 +67,7 @@ export const getAllEmployees = (ctx: ToolContext) =>
         };
       }
       const employeesWithContracts = Result.unwrap(
-        employeesWithContractsResult
+        employeesWithContractsResult,
       );
 
       const filteredEmployees = applyFilters(employeesWithContracts, filters);
@@ -82,7 +82,7 @@ export const getAllEmployees = (ctx: ToolContext) =>
           ...rest
         } = employee;
 
-        let employeeObject: any = { ...rest };
+        const employeeObject: any = { ...rest };
 
         if (include.missingFields) {
           employeeObject.missingFieldsBPO = missingFieldsBPO;
@@ -93,8 +93,8 @@ export const getAllEmployees = (ctx: ToolContext) =>
         return employeeObject;
       });
 
-      if (include.missingFields) {
-      }
+      // if (include.missingFields) {
+      // }
 
       return {
         instructions: `
@@ -107,8 +107,8 @@ These are the active employees with contracts.
       name: "get_active_employees_with_contracts",
       description: "Get active employees with contracts",
       schema: z.object({
-        filters: filters,
+        filters,
         include: includeDefintion,
       }),
-    }
+    },
   );

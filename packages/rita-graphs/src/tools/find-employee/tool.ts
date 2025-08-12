@@ -21,7 +21,7 @@ export const findEmployee = (ctx: ToolContext) =>
         operation: "find_employee",
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       const employees = await Promise.all(
         userNameParts.map((namePart) =>

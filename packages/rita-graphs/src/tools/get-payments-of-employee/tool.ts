@@ -22,7 +22,7 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
         employeeId,
         companyId: ctx.selectedCompanyId,
       });
-      const client = createGraphQLClient(ctx.accessToken);
+      const client = createGraphQLClient(ctx);
 
       let employee: GetEmployeeByIdQuery;
       try {
