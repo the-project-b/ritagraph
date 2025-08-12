@@ -6,11 +6,12 @@ import {
   GetThreadItemsByLanggraphThreadIdQuery,
 } from "../generated/graphql";
 import { DataChangeProposal } from "../graphs/shared-types/base-annotation";
+import { ToolContext } from "../tools/tool-factory";
 
 type AppendDataChangeProposalsAsThreadItemsParams = {
   dataChangeProposals: Array<DataChangeProposal>;
   langgraphThreadId: string;
-  accessToken: string;
+  ctx: ToolContext;
   orderOffset?: number;
 };
 
@@ -24,11 +25,11 @@ type AppendDataChangeProposalAsThreadItemReturnType = Promise<
 export async function appendDataChangeProposalsAsThreadItems({
   dataChangeProposals,
   langgraphThreadId,
-  accessToken,
+  ctx,
   orderOffset = 150,
 }: AppendDataChangeProposalsAsThreadItemsParams): Promise<AppendDataChangeProposalAsThreadItemReturnType> {
   try {
-    const client = createGraphQLClient(accessToken);
+    const client = createGraphQLClient(ctx);
 
     const { threadByLanggraphId } =
       await client.getThreadItemsByLanggraphThreadId({
@@ -53,18 +54,18 @@ export async function appendDataChangeProposalsAsThreadItems({
 type AppendMessageAsThreadItemParams = {
   message: BaseMessage;
   langgraphThreadId: string;
-  accessToken: string;
+  ctx: ToolContext;
   orderOffset?: number;
 };
 
 export async function appendMessageAsThreadItem({
   message,
   langgraphThreadId,
-  accessToken,
+  ctx,
   orderOffset = 100,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
-    const client = createGraphQLClient(accessToken);
+    const client = createGraphQLClient(ctx);
 
     // Determine the order of the message
     const { threadByLanggraphId } =

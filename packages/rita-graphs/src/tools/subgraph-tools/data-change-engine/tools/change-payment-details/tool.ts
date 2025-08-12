@@ -37,7 +37,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         newFrequency,
         newMonthlyHours,
       } = params;
-      const { selectedCompanyId, accessToken } = ctx;
+      const { selectedCompanyId } = ctx;
       const { thread_id } = config.configurable;
 
       logger.info("[TOOL > change_payment_details]", {
@@ -59,7 +59,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
 
       const payments = await client.getPaymentsByContractId({
         data: {
-          contractIds: [contractId!],
+          contractIds: [contractId],
           companyId: selectedCompanyId,
         },
       });
@@ -183,7 +183,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         await appendDataChangeProposalsAsThreadItems({
           dataChangeProposals: newProposals,
           langgraphThreadId: thread_id,
-          accessToken,
+          ctx,
         });
 
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
