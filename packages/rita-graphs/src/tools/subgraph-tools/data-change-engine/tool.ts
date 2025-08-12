@@ -22,12 +22,22 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersRequest }, config) => {
       const systemPrompt = `
-You are part of a Payroll assistant system.
-You job is it schedule data changes (mutations). 
+<instruction>
+You are part of a payroll assistant system.
+You job is it schedule data changes (mutations).
 You get a vague request from the user and you have to resolve it using your tools.
 
-Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
-      `;
+IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
+</instruction>
+
+<notes>
+IMPORTANT: Do not assign the same change to multiple payments unless clearly stated.
+- Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
+- People can have Wage and Salary so it can be fixed or hourly based payment.
+- Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
+- The title of a payment often reveals its not a standard payment.
+</notes>
+`;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemPrompt),
@@ -66,7 +76,7 @@ Employees can have multiple contracts and per contract multiple payments so it i
     {
       name: "data_change_engine",
       description:
-        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user",
+        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes",
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to retrieve"),
       }),

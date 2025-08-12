@@ -5,7 +5,6 @@ import { ToolFactoryToolDefintion } from "../../../../tool-factory";
 import { DataChangeProposal } from "../../../../../graphs/shared-types/base-annotation";
 import { randomUUID as uuid } from "crypto";
 import {
-  CreateRitaThreadItemMutation,
   GetPaymentsByContractIdQuery,
   PaymentFrequency,
 } from "../../../../../generated/graphql";
@@ -16,6 +15,7 @@ import {
 } from "./queries-defintions";
 import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
+import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -179,15 +179,21 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         payment,
       );
 
-      const newProposalDbUpdateResults = await Promise.all(
-        newProposals.map((proposal) =>
-          createThreadItemForProposal(
-            proposal,
-            thread_id,
-            accessToken,
-            ctx.appdataHeader,
-          ),
-        ),
+      const appendDataChangeProposalsAsThreadItemsResult =
+        await appendDataChangeProposalsAsThreadItems({
+          dataChangeProposals: newProposals,
+          langgraphThreadId: thread_id,
+          accessToken,
+        });
+
+      if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
+        return {
+          error: "Failed to create thread items - tool call unavailable.",
+        };
+      }
+
+      const newProposalDbUpdateResults = Result.unwrap(
+        appendDataChangeProposalsAsThreadItemsResult,
       );
 
       // TODO: Remove this once we have a way to handle failed thread items
@@ -195,6 +201,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         const failedThreadItems = newProposalDbUpdateResults.filter(
           Result.isFailure,
         );
+
         const issues = failedThreadItems
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
@@ -215,8 +222,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           error: "Failed to create thread items for the data change proposals.",
         };
       }
-
-      //newProposals.forEach((proposal) => addDataChangeProposal(proposal));
 
       prefixedLog("dataChangeProposals", newProposals);
 
@@ -245,30 +250,6 @@ ${redundantChanges}
       }),
     },
   );
-
-async function createThreadItemForProposal(
-  proposal: DataChangeProposal,
-  threadId: string,
-  accessToken: string,
-  appdataHeader?: string,
-): Promise<Result<CreateRitaThreadItemMutation>> {
-  try {
-    const client = createGraphQLClient({ accessToken, appdataHeader });
-    const threadItem = await client.createRitaThreadItem({
-      input: {
-        ritaThreadId: threadId,
-        data: {
-          type: "DATA_CHANGE_PROPOSAL",
-          proposal,
-        },
-      },
-    });
-
-    return Result.success(threadItem);
-  } catch (error) {
-    return Result.failure(error as Error);
-  }
-}
 
 function determineAndExplainRedundantChanges(
   params: {
