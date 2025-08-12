@@ -14,6 +14,7 @@ import {
   RitaThreadStatus,
   RitaThreadTriggerType,
 } from "@the-project-b/rita-graphs";
+import { createGraphQLClient } from "../graphql/index.js";
 
 const logger = createLogger({ service: "experiments" }).child({
   module: "EvaluationJobManager",
@@ -357,7 +358,6 @@ export class EvaluationJobManager {
       }
 
       // Create Rita thread just before invoking the graph
-      const { createGraphQLClient } = await import("../graphql/client.js");
       const graphqlClient = createGraphQLClient(context.token || "");
 
       // Generate a unique LangGraph thread ID for this evaluation

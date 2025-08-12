@@ -7,6 +7,7 @@ import { createLogger } from "@the-project-b/logging";
 import { Client } from "langsmith";
 import { evaluate } from "langsmith/evaluation";
 import { getAuthUser } from "../security/auth.js";
+import { createGraphQLClient } from "../graphql/index.js";
 
 import { GraphQLErrors } from "../graphql/errors.js";
 import type { GraphQLContext } from "../types/context.js";
@@ -109,7 +110,6 @@ export class LangSmithService {
     }
 
     // Create Rita thread in database BEFORE running evaluations
-    const { createGraphQLClient } = await import("../graphql/client.js");
     const graphqlClient = createGraphQLClient(context.token || "");
 
     // Generate the LangGraph thread ID that will be used for all evaluations
