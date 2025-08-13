@@ -70,7 +70,7 @@ User Question: {inputs}
 </input>
 
 <generated_title>
-Thread Title: {outputs}
+{outputs}
 </generated_title>
 
 <reference_information>

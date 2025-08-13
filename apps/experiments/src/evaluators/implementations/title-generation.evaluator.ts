@@ -108,27 +108,18 @@ export const titleGenerationEvaluator: TypedEvaluator<
       }
     }
 
-    // Import and use the createLLMAsJudge from openevals
     const { createLLMAsJudge } = await import("openevals");
 
-    // Create the LLM judge with scoring scale
     const evaluator = createLLMAsJudge({
       prompt: customPrompt || TITLE_GENERATION_PROMPT,
       model: model || this.config.defaultModel,
       feedbackKey: "title_generation",
-      choices: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], // 0-1 scale in 0.1 increments
+      choices: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
     });
 
-    // Prepare outputs with threadTitle explicitly included
-    const enhancedOutputs = {
-      ...params.outputs,
-      threadTitle, // Ensure threadTitle is in outputs for the prompt
-    };
-
-    // Execute evaluation
     const evaluatorResult = (await evaluator({
       inputs: params.inputs,
-      outputs: enhancedOutputs,
+      outputs: threadTitle,
       referenceOutputs,
     })) as OpenEvalsResult;
 

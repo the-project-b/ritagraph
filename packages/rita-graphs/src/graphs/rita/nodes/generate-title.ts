@@ -43,12 +43,19 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
   );
 
   const shouldGenerateTitle =
-    userMessages.length === 1 || userMessages.length % 5 === 0;
+    userMessages.length === 1 || userMessages.length % 10 === 0;
 
   if (shouldGenerateTitle && companyId) {
+    const firstUserMessage = userMessages[0];
+    const firstUserContent = firstUserMessage
+      ? `Initial request: ${firstUserMessage.content}\n\n`
+      : "";
+
     const recentConversation = getConversationMessages(state.messages, 10);
 
-    if (recentConversation.trim().length > 0) {
+    const conversationContext = firstUserContent + recentConversation;
+
+    if (conversationContext.trim().length > 0) {
       try {
         const systemPrompt = await PromptTemplate.fromTemplate(
           `You are a professional payroll system assistant. Generate a concise, descriptive title for this conversation.
@@ -70,10 +77,10 @@ Good examples:
 - "Gehaltanpassung für mehrere Mitarbeiter"
 - "Überstundensatz Änderung Wilson"
 
-Recent conversation:
-{recentConversation}`,
+Conversation context (including initial request):
+{conversationContext}`,
         ).format({
-          recentConversation: recentConversation.slice(0, 2000),
+          conversationContext: conversationContext.slice(0, 2500),
         });
 
         const prompt = await ChatPromptTemplate.fromMessages([
@@ -86,7 +93,9 @@ Recent conversation:
         });
 
         const response = await llm
-          .withStructuredOutput(TitleGenerationOutput)
+          .withStructuredOutput<
+            z.infer<typeof TitleGenerationOutput>
+          >(TitleGenerationOutput)
           .invoke(prompt);
 
         logger.info("Generated title", {

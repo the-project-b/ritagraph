@@ -92,13 +92,8 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
         .addEdge(START, "loadSettings")
-        .addConditionalEdges(
-          "loadSettings",
-          (_state) => {
-            return ["router", "generateTitle"];
-          },
-          ["router", "generateTitle"],
-        )
+        .addEdge("loadSettings", "router")
+        .addEdge("loadSettings", "generateTitle")
         .addConditionalEdges("router", routerEdgeDecision, [
           "quickResponse",
           "workflowEngine",
