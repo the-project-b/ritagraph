@@ -231,6 +231,7 @@ export class LangSmithService {
       return {
         answer,
         dataChangeProposals,
+        threadTitle: threadItemsResult?.thread?.title || null,
       };
     };
 

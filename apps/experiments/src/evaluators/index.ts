@@ -11,5 +11,7 @@ export {
 export type { EvaluatorFunction } from "./core/factory";
 
 // Implementation exports
+export * from "./implementations/data-change-proposal.evaluator";
 export * from "./implementations/expected-output.evaluator";
 export * from "./implementations/language-verification.evaluator";
+export * from "./implementations/title-generation.evaluator";

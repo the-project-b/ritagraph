@@ -426,6 +426,7 @@ export class EvaluationJobManager {
         return {
           answer: "",
           dataChangeProposals: [],
+          threadTitle: null,
         };
       }
 
@@ -481,6 +482,7 @@ export class EvaluationJobManager {
       return {
         answer,
         dataChangeProposals,
+        threadTitle: threadItemsResult?.thread?.title || null,
       };
     };
   }

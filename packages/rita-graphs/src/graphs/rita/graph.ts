@@ -17,15 +17,12 @@ import { routerEdgeDecision } from "./nodes/router.js";
 import { loadSettings } from "./nodes/load-settings.js";
 import { generateTitle } from "./nodes/generate-title.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
-// import { createMcpClient } from "../../mcp/client.js";
-// Remove direct import - getAuthUser will be passed as parameter
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
   mutationEngine,
   getEmployeeById,
   getCurrentUser,
-  generateThreadTitle,
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
 import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
@@ -46,7 +43,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     const toolContext = {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
-      appdataHeader: authUser.appdataHeader, // Pass appdata header for impersonation
+      appdataHeader: authUser.appdataHeader,
     };
 
     const tools = toolFactory<undefined>({
@@ -56,7 +53,6 @@ function createFetchTools(getAuthUser: (config: any) => any) {
         findEmployee,
         getEmployeeById,
         getCurrentUser,
-        generateThreadTitle,
       ],
       ctx: toolContext,
     });
@@ -95,16 +91,9 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
           },
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
-        // => Edges
         .addEdge(START, "loadSettings")
-        // 'conditional edge' but the flow triggers both options because then we ran the generateTitle node async to the normal flow
-        .addConditionalEdges(
-          "loadSettings",
-          (_state) => {
-            return ["router", "generateTitle"];
-          },
-          ["router", "generateTitle"],
-        )
+        .addEdge("loadSettings", "router")
+        .addEdge("loadSettings", "generateTitle")
         .addConditionalEdges("router", routerEdgeDecision, [
           "quickResponse",
           "workflowEngine",
