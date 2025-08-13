@@ -15,6 +15,7 @@ import {
 } from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
 import { loadSettings } from "./nodes/load-settings.js";
+import { generateTitle } from "./nodes/generate-title.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 // import { createMcpClient } from "../../mcp/client.js";
 // Remove direct import - getAuthUser will be passed as parameter
@@ -24,6 +25,7 @@ import {
   mutationEngine,
   getEmployeeById,
   getCurrentUser,
+  generateThreadTitle,
 } from "../../tools/index.js";
 import { toolFactory } from "../../tools/tool-factory.js";
 import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
@@ -54,6 +56,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
         findEmployee,
         getEmployeeById,
         getCurrentUser,
+        generateThreadTitle,
       ],
       ctx: toolContext,
     });
@@ -76,6 +79,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
         .addNode("loadSettings", wrapNodeWithAuth(loadSettings))
+        .addNode("generateTitle", wrapNodeWithAuth(generateTitle))
         .addNode("router", wrapNodeWithAuth(router))
         .addNode("quickResponse", wrapNodeWithAuth(quickResponse))
         .addNode(
@@ -93,13 +97,21 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
         // => Edges
         .addEdge(START, "loadSettings")
-        .addEdge("loadSettings", "router")
+        // 'conditional edge' but the flow triggers both options because then we ran the generateTitle node async to the normal flow
+        .addConditionalEdges(
+          "loadSettings",
+          (_state) => {
+            return ["router", "generateTitle"];
+          },
+          ["router", "generateTitle"],
+        )
         .addConditionalEdges("router", routerEdgeDecision, [
           "quickResponse",
           "workflowEngine",
         ])
         .addEdge("workflowEngine", "finalMessage")
-        .addEdge("finalMessage", END);
+        .addEdge("finalMessage", END)
+        .addEdge("generateTitle", END);
 
       // Compile the graph
       const memory = new MemorySaver();

@@ -6,3 +6,4 @@ export * from "./subgraph-tools/data-change-engine/tool";
 export * from "./get-employee-by-id/tool";
 export * from "./find-employee/tool";
 export * from "./get-current-user/tool";
+export * from "./generate-thread-title/tool";

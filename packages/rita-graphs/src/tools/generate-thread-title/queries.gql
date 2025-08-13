@@ -1,0 +1,8 @@
+query getThreadByLanggraphId($langgraphId: String!) {
+  threadByLanggraphId(langgraphId: $langgraphId) {
+    id
+    title
+    createdAt
+    updatedAt
+  }
+}

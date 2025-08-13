@@ -1,0 +1,10 @@
+mutation updateRitaThread($input: UpdateRitaThreadInput!) {
+  updateRitaThread(input: $input) {
+    id
+    lcThreadId
+    title
+    subtitle
+    createdAt
+    updatedAt
+  }
+}
