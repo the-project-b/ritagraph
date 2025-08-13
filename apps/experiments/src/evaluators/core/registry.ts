@@ -2,6 +2,7 @@ import { Evaluator, EvaluatorMap } from "./types.js";
 import { expectedOutputEvaluator } from "../implementations/expected-output.evaluator.js";
 import { languageVerificationEvaluator } from "../implementations/language-verification.evaluator.js";
 import { dataChangeProposalEvaluator } from "../implementations/data-change-proposal.evaluator.js";
+import { titleGenerationEvaluator } from "../implementations/title-generation.evaluator.js";
 
 export class EvaluatorRegistry {
   private static readonly evaluators = new Map<string, Evaluator>();
@@ -11,6 +12,7 @@ export class EvaluatorRegistry {
     this.register(expectedOutputEvaluator);
     this.register(languageVerificationEvaluator);
     this.register(dataChangeProposalEvaluator);
+    this.register(titleGenerationEvaluator);
   }
 
   /**

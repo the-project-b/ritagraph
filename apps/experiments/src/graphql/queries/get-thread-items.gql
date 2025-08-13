@@ -1,6 +1,7 @@
 query getThreadItemsByThreadId($threadId: String!) {
   thread(id: $threadId) {
     id
+    title
     threadItems {
       id
       data
