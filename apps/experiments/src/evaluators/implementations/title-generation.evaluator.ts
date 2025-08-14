@@ -1,4 +1,7 @@
-import type { EvaluatorResult as OpenEvalsResult } from "openevals";
+import {
+  createLLMAsJudge,
+  type EvaluatorResult as OpenEvalsResult,
+} from "openevals";
 import { createLogger } from "@the-project-b/logging";
 import {
   TypedEvaluator,
@@ -8,7 +11,7 @@ import {
   TextEvaluationInputs,
   TextEvaluationOutputs,
 } from "../core/types.js";
-import { TITLE_GENERATION_PROMPT } from "../prompts/title-generation.prompt.js";
+import { getTitleGenerationPrompt } from "../prompts/title-generation.prompt.js";
 
 // Create logger instance
 const logger = createLogger({ service: "experiments" }).child({
@@ -108,10 +111,11 @@ export const titleGenerationEvaluator: TypedEvaluator<
       }
     }
 
-    const { createLLMAsJudge } = await import("openevals");
+    const preferredLanguage = params.inputs?.preferredLanguage || "EN";
+    const dynamicPrompt = await getTitleGenerationPrompt(preferredLanguage);
 
     const evaluator = createLLMAsJudge({
-      prompt: customPrompt || TITLE_GENERATION_PROMPT,
+      prompt: customPrompt || dynamicPrompt,
       model: model || this.config.defaultModel,
       feedbackKey: "title_generation",
       choices: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
@@ -123,15 +127,7 @@ export const titleGenerationEvaluator: TypedEvaluator<
       referenceOutputs,
     })) as OpenEvalsResult;
 
-    // Ensure score is a valid number
-    const score =
-      typeof evaluatorResult.score === "number"
-        ? evaluatorResult.score
-        : typeof evaluatorResult.score === "boolean"
-          ? evaluatorResult.score
-            ? 1
-            : 0
-          : 0;
+    const score = evaluatorResult.score as number;
 
     logger.info("[TITLE_GENERATION] Evaluation completed", {
       operation: "evaluate",
