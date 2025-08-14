@@ -52,6 +52,7 @@ query getEmployeeById($data: GetEmployeeInput!) {
     lastName
     employeeContract {
       id
+      jobTitle
       contractStart
       contractEnd
     }

@@ -3,6 +3,7 @@ query findEmployeeByNameWithContract($data: EmployeeAdvancedFilterForHrInput!) {
   employees(data: $data) {
     employees {
       contractId
+      jobTitle
       employeeId
       firstName
       lastName
