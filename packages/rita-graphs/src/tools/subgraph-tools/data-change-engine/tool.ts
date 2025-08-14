@@ -32,7 +32,7 @@ IMPORTANT: When you are done please summarize the changes and mention which data
 
 <notes>
 IMPORTANT: Do not assign the same change to multiple payments unless clearly stated.
-- Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
+- Employees can have multiple contracts and they are often directly linked by the job title. If you it is ambiguous please ask the user for clarification.
 - People can have Wage and Salary so it can be fixed or hourly based payment.
 - Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
 - The title of a payment often reveals its not a standard payment.
@@ -76,7 +76,7 @@ IMPORTANT: Do not assign the same change to multiple payments unless clearly sta
     {
       name: "data_change_engine",
       description:
-        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes",
+        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes. If the job title was mentioned please include it.",
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to retrieve"),
       }),
