@@ -61,7 +61,10 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
         instructions: `
 These are the payments for ${employee.employee?.firstName} ${employee.employee?.lastName} grouped by contract id.
 `,
-        payments: formatOutput(payments.payments),
+        payments: formatOutput(
+          payments.payments,
+          employee.employee?.employeeContract || [],
+        ),
       };
     },
     {
@@ -73,7 +76,14 @@ These are the payments for ${employee.employee?.firstName} ${employee.employee?.
     },
   );
 
-function formatOutput(payments: GetPaymentsQuery["payments"]) {
+function formatOutput(
+  payments: GetPaymentsQuery["payments"],
+  contracts: GetEmployeeByIdQuery["employee"]["employeeContract"],
+) {
+  const contractIdOnEmployeeMap = new Map(
+    contracts.map((contract) => [contract.id, contract.jobTitle]),
+  );
+
   const paymentsGroupedByContractId = payments.reduce(
     (acc, payment) => {
       acc[payment.contractId] = acc[payment.contractId] || [];
@@ -87,10 +97,10 @@ function formatOutput(payments: GetPaymentsQuery["payments"]) {
 
   const result = entries
     .map(([contractId, payments]) => {
-      return `Contract ID: ${contractId}
+      return `Contract ID: ${contractId} - Job Title: ${contractIdOnEmployeeMap.get(contractId)}
 Payments:
 ${JSON.stringify(
-  payments.map(({ contractId, ...p }) => p),
+  payments.map(({ contractId: _, ...p }) => p),
   null,
   2,
 )}`;
