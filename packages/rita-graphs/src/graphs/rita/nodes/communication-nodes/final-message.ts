@@ -63,13 +63,14 @@ Guidelines:
  - There will never be "pending" operations only thigns to be approved or rejected by the user.
  - Do not claim or say that there is an operation pending.
 
-${dataRepresentationLayerPrompt}
+{dataRepresentationLayerPrompt}
 
 Speak in {language}.
 
 Drafted Response: {draftedResponse}
   `,
   ).format({
+    dataRepresentationLayerPrompt,
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
   });

@@ -30,6 +30,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
       );
 
       const unfailedSearchResults = employees.filter(Result.isSuccess);
+
       const foundEmployees = unfailedSearchResults
         .map(Result.unwrap)
         .flat()
@@ -41,6 +42,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
         };
       }
 
+      // We have to deduplicate the contractIds employees are allowed to have multiple contracts
       const deduplicatedEmployees = Array.from(
         new Map(foundEmployees.map(toMappable)).values(),
       );
@@ -91,7 +93,7 @@ function toMappable(
   string,
   FindEmployeeByNameWithContractQuery["employees"]["employees"][number],
 ] {
-  return [employee.employeeId, employee];
+  return [employee.contractId, employee];
 }
 
 function isActiveContract(
