@@ -36,6 +36,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         newAmount,
         newFrequency,
         newMonthlyHours,
+        effectiveDate,
       } = params;
       const { selectedCompanyId } = ctx;
       const { thread_id } = config.configurable;
@@ -108,6 +109,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           statusQuoQuery: getPayment(payment.id, "payment.properties.amount"),
           mutationQuery: updatePayment(
             {
+              ...parseEffectiveDate(effectiveDate),
               id: payment.id,
               properties: {
                 amount: newAmount,
@@ -141,6 +143,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           ),
           mutationQuery: updatePayment(
             {
+              ...parseEffectiveDate(effectiveDate),
               id: payment.id,
               properties: {
                 amount: "to-be-determined" as any,
@@ -229,6 +232,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         instructions: `
 These are the pending data change proposals. You can use them to approve the based on the confirmation of the user.
 ${redundantChanges}
+${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
 `,
         dataChangeProposals: newProposals.map((proposal) => ({
           id: proposal.id,
@@ -247,9 +251,24 @@ ${redundantChanges}
         newAmount: z.number().optional(),
         newMonthlyHours: z.number().optional(),
         newFrequency: z.nativeEnum(PaymentFrequency).optional(),
+        effectiveDate: z
+          .string()
+          .optional()
+          .describe(
+            "The date on which the change should be effective. If not defined its immediately effective. YYYY-MM-DD format",
+          ),
       }),
     },
   );
+
+// MARK: - Helper functions
+
+function parseEffectiveDate(effectiveDate: string | undefined) {
+  if (!effectiveDate) {
+    return {};
+  }
+  return { effectiveDate: new Date(effectiveDate).toISOString() };
+}
 
 function determineAndExplainRedundantChanges(
   params: {

@@ -4,7 +4,7 @@ import { PaymentUpdateInput } from "../../../../../generated/graphql";
 
 export const getPayment: (
   id: string,
-  propertyPath: string
+  propertyPath: string,
 ) => QueryDefinition = (id, propertyPath) => ({
   query: gql`
     query Payment($paymentId: String!) {
@@ -25,7 +25,7 @@ export const getPayment: (
 
 export const updatePayment: (
   variables: PaymentUpdateInput,
-  propertyPath: string
+  propertyPath: string,
 ) => QueryDefinition = (variables, propertyPath) => ({
   query: gql`
     mutation PaymentUpdate($data: PaymentUpdateInput!) {

@@ -21,7 +21,8 @@ import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-wi
 export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersRequest }, config) => {
-      const systemPrompt = `
+      const systemPrompt = await ChatPromptTemplate.fromTemplate(
+        `
 <instruction>
 You are part of a payroll assistant system.
 You job is it schedule data changes (mutations).
@@ -36,8 +37,13 @@ IMPORTANT: Do not assign the same change to multiple payments unless clearly sta
 - People can have Wage and Salary so it can be fixed or hourly based payment.
 - Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
 - The title of a payment often reveals its not a standard payment.
+
+Today is the {today}
 </notes>
-`;
+`,
+      ).format({
+        today: new Date().toISOString().split("T")[0],
+      });
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemPrompt),
