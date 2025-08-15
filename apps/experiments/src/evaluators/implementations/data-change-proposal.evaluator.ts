@@ -14,6 +14,7 @@ import {
   logProposalDetails,
 } from "../helpers/proposal-comparison.js";
 import { ProposalFormatter } from "../helpers/proposal-formatter.js";
+import { substituteSituationAwareExpectedValues } from "../helpers/situation-aware.js";
 
 // Create logger instance
 const logger = createLogger({ service: "experiments" }).child({
@@ -125,6 +126,10 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     expectedProposals = Array.isArray(referenceValue)
       ? referenceValue
       : [referenceValue];
+
+    // Apply situation-aware substitutions to expected values
+    expectedProposals =
+      substituteSituationAwareExpectedValues(expectedProposals);
 
     logger.debug("Expected proposals normalized", {
       operation: "normalize.expected",

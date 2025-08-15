@@ -255,7 +255,7 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
           .string()
           .optional()
           .describe(
-            "The date on which the change should be effective. If not defined its immediately effective. YYYY-MM-DD format",
+            "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format",
           ),
       }),
     },
@@ -265,7 +265,22 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
 
 function parseEffectiveDate(effectiveDate: string | undefined) {
   if (!effectiveDate) {
-    return {};
+    // today at 00:00:00.000 UTC
+    const now = new Date();
+    const utcDate = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
+    return {
+      effectiveDate: utcDate.toISOString(),
+    };
   }
   return { effectiveDate: new Date(effectiveDate).toISOString() };
 }
