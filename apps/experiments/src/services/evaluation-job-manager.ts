@@ -165,6 +165,7 @@ export class EvaluationJobManager {
       experimentName: job.experimentName,
       graphName: job.input.graphName,
       datasetName: job.input.datasetName,
+      splits: job.input.splits,
       evaluatorCount: job.input.evaluators.length,
       maxConcurrency: job.input.maxConcurrency || 10,
       numRepetitions: job.input.numRepetitions || 1,
@@ -267,9 +268,15 @@ export class EvaluationJobManager {
         numRepetitions: job.input.numRepetitions || 1, // Number of times to run each example
       };
 
+      // We filter based on splits here
+      const exampleGenerator = langsmithService.getClient().listExamples({
+        datasetName: job.input.datasetName,
+        splits: job.input.splits,
+      });
+
       // Use LangSmith's evaluate function with concurrency
-      const experimentResults: any = await evaluate(target as any, {
-        data: job.input.datasetName,
+      const experimentResults = await evaluate(target as any, {
+        data: exampleGenerator,
         ...evaluationConfig,
       });
 
@@ -442,15 +449,7 @@ export class EvaluationJobManager {
             const data =
               typeof item.data === "string" ? JSON.parse(item.data) : item.data;
             if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
-              const proposal = {
-                changedField: data.proposal.changedField,
-                newValue: data.proposal.newValue,
-                mutationQueryPropertyPath:
-                  data.proposal.mutationQuery?.propertyPath,
-                relatedUserId: data.proposal.relatedUserId,
-                mutationVariables: data.proposal.mutationQuery?.variables,
-              };
-              dataChangeProposals.push(proposal);
+              dataChangeProposals.push(data.proposal);
             }
           } catch (e) {
             logger.error(`[${ritaThread.id}] Failed to parse thread item`, e, {

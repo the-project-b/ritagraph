@@ -8,7 +8,7 @@ type Params = {
 };
 
 export function buildDataRetrievalEngineGraph({ tools }: Params) {
-  const llm = new ChatOpenAI({ temperature: 0 });
+  const llm = new ChatOpenAI({ temperature: 0, modelName: "gpt-4o-mini" });
 
   // Initialize memory to persist state between graph runs
   const agentCheckpointer = new MemorySaver();

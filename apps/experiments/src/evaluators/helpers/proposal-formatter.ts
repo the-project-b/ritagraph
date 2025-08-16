@@ -2,7 +2,9 @@ import {
   NormalizedProposal,
   ProposalComparisonResult,
   hashProposal,
+  canonicalizeObject,
 } from "./proposal-comparison.js";
+import { diffLines } from "diff";
 
 /**
  * Formats data change proposals for display in evaluation results.
@@ -20,6 +22,7 @@ export class ProposalFormatter {
   ): string[] {
     const lines: string[] = [
       "    {",
+      `      changeType: "${proposal.changeType}",`,
       `      changedField: "${proposal.changedField}",`,
       `      newValue: "${proposal.newValue}",`,
     ];
@@ -213,6 +216,11 @@ export class ProposalFormatter {
       issueNum++;
     }
 
+    const diff = printDiff(expectedProposals, actualProposals);
+    issues.push("\n---\n");
+    issues.push(diff);
+    issues.push("\n---\n");
+
     // Report value mismatches
     for (const actual of actualProposals) {
       const expected = expectedProposals.find(
@@ -250,5 +258,132 @@ export class ProposalFormatter {
         comparisonResult,
       );
     }
+  }
+}
+
+function printDiff(
+  expectedProposals: NormalizedProposal[],
+  actualProposals: NormalizedProposal[],
+) {
+  try {
+    // Heuristically align proposals by similarity so order differences don't dominate the diff
+    type Pair = { expectedIndex: number; actualIndex: number; score: number };
+
+    const scorePair = (
+      e: NormalizedProposal,
+      a: NormalizedProposal,
+    ): number => {
+      let score = 0;
+      if (e.changedField && a.changedField && e.changedField === a.changedField)
+        score += 10;
+      if (
+        e.mutationQueryPropertyPath &&
+        a.mutationQueryPropertyPath &&
+        e.mutationQueryPropertyPath === a.mutationQueryPropertyPath
+      )
+        score += 6;
+      if (
+        e.relatedUserId &&
+        a.relatedUserId &&
+        e.relatedUserId === a.relatedUserId
+      )
+        score += 4;
+      if (e.changeType && a.changeType && e.changeType === a.changeType)
+        score += 2;
+      if (e.newValue && a.newValue && e.newValue === a.newValue) score += 3;
+
+      // Bonus if mutationVariables deep-equal canonically
+      if (e.mutationVariables && a.mutationVariables) {
+        const eCanon = JSON.stringify(canonicalizeObject(e.mutationVariables));
+        const aCanon = JSON.stringify(canonicalizeObject(a.mutationVariables));
+        if (eCanon === aCanon) score += 3;
+      }
+      return score;
+    };
+
+    const pairs: Pair[] = [];
+    for (let i = 0; i < expectedProposals.length; i++) {
+      for (let j = 0; j < actualProposals.length; j++) {
+        pairs.push({
+          expectedIndex: i,
+          actualIndex: j,
+          score: scorePair(expectedProposals[i], actualProposals[j]),
+        });
+      }
+    }
+
+    // Greedy maximum matching by descending score
+    pairs.sort((a, b) => b.score - a.score);
+    const usedExpected = new Set<number>();
+    const usedActual = new Set<number>();
+    const aligned: Array<{
+      expectedIndex: number | null;
+      actualIndex: number | null;
+    }> = [];
+
+    for (const p of pairs) {
+      if (usedExpected.has(p.expectedIndex) || usedActual.has(p.actualIndex))
+        continue;
+      // Prefer only positive scores; if no positive matches exist, we will append leftover below
+      if (p.score <= 0) continue;
+      usedExpected.add(p.expectedIndex);
+      usedActual.add(p.actualIndex);
+      aligned.push({
+        expectedIndex: p.expectedIndex,
+        actualIndex: p.actualIndex,
+      });
+    }
+
+    // Append remaining unmatched in stable order
+    for (let i = 0; i < expectedProposals.length; i++) {
+      if (!usedExpected.has(i))
+        aligned.push({ expectedIndex: i, actualIndex: null });
+    }
+    for (let j = 0; j < actualProposals.length; j++) {
+      if (!usedActual.has(j))
+        aligned.push({ expectedIndex: null, actualIndex: j });
+    }
+
+    const toCanonicalPretty = (p: NormalizedProposal | null): string => {
+      if (!p) return "<none>";
+      const canon = canonicalizeObject(p);
+      return JSON.stringify(canon, null, 2);
+    };
+
+    const headerLine = (title: string) =>
+      `\n${title}\n${"-".repeat(title.length)}`;
+
+    let output = "";
+    aligned.forEach((entry, idx) => {
+      const e =
+        entry.expectedIndex !== null
+          ? expectedProposals[entry.expectedIndex]
+          : null;
+      const a =
+        entry.actualIndex !== null ? actualProposals[entry.actualIndex] : null;
+
+      const eStr = toCanonicalPretty(e);
+      const aStr = toCanonicalPretty(a);
+
+      output += headerLine(`Proposal ${idx + 1} diff`);
+      const diffs = diffLines(`${eStr}\n`, `${aStr}\n`);
+      for (const part of diffs) {
+        const prefix = part.added ? "+ " : part.removed ? "- " : "  ";
+        const lines = part.value.split("\n");
+        // Avoid trailing empty line duplication due to the added newline
+        const toIterate =
+          lines[lines.length - 1] === "" ? lines.slice(0, -1) : lines;
+        for (const line of toIterate) {
+          output += `\n${prefix}${line}`;
+        }
+      }
+      output += "\n";
+    });
+
+    console.warn(output);
+
+    return output;
+  } catch (err) {
+    console.error("Failed to generate proposal diff:", err);
   }
 }

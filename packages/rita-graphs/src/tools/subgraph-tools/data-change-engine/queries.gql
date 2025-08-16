@@ -1,0 +1,13 @@
+query getPaymentTypesForDataChangeEngine($data: PaymentTypesInput!) {
+  paymentTypes(data: $data) {
+    name
+    translationKey
+    id
+    compensationBaseTypeId
+    description
+    categoryId
+    slug
+    settings
+    __typename
+  }
+}

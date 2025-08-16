@@ -15,6 +15,7 @@ import {
 } from "../helpers/proposal-comparison.js";
 import { ProposalFormatter } from "../helpers/proposal-formatter.js";
 import { substituteSituationAwareExpectedValues } from "../helpers/situation-aware.js";
+import { DataChangeProposal } from "./types.js";
 
 // Create logger instance
 const logger = createLogger({ service: "experiments" }).child({
@@ -28,38 +29,13 @@ interface DataChangeProposalInputs extends TextEvaluationInputs {
 
 interface DataChangeProposalOutputs extends TextEvaluationOutputs {
   readonly answer: string;
-  readonly dataChangeProposals?: Array<{
-    id: string;
-    status: "pending" | "approved" | "rejected";
-    description: string;
-    changedField: string;
-    newValue: string;
-    mutationQuery?: {
-      query: string;
-      variables: Record<string, unknown>;
-      propertyPath: string;
-    };
-    relatedUserId?: string;
-    createdAt: string;
-  }>;
+  readonly dataChangeProposals?: Array<DataChangeProposal>;
 }
 
 interface DataChangeProposalReferenceOutputs {
   readonly expectedDataProposal?:
-    | Array<{
-        changedField: string;
-        newValue: string;
-        mutationQueryPropertyPath?: string;
-        relatedUserId?: string;
-        mutationVariables?: any;
-      }>
-    | {
-        changedField: string;
-        newValue: string;
-        mutationQueryPropertyPath?: string;
-        relatedUserId?: string;
-        mutationVariables?: any;
-      };
+    | Array<NormalizedProposal>
+    | NormalizedProposal;
 }
 
 export const dataChangeProposalEvaluator: TypedEvaluator<
@@ -131,6 +107,12 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     expectedProposals =
       substituteSituationAwareExpectedValues(expectedProposals);
 
+    logger.debug("Expected proposals", {
+      operation: "normalize.expected",
+      count: expectedProposals.length,
+      firstProposal: expectedProposals[0],
+    });
+
     logger.debug("Expected proposals normalized", {
       operation: "normalize.expected",
       isArray: Array.isArray(referenceValue),
@@ -153,29 +135,8 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     }
 
     // Extract only the static fields for comparison
-    const normalizedActualProposals: NormalizedProposal[] = actualProposals.map(
-      (proposal: any, index: number) => {
-        // The actual proposals from evaluation-job-manager already have mutationVariables at top level
-        const normalized = {
-          changedField: proposal.changedField,
-          newValue: proposal.newValue,
-          mutationQueryPropertyPath: proposal.mutationQueryPropertyPath,
-          relatedUserId: proposal.relatedUserId,
-          mutationVariables: proposal.mutationVariables, // Already at top level from extraction
-        };
-
-        logger.debug(`Normalizing actual proposal [${index}]`, {
-          operation: "normalize.actual",
-          index,
-          original: proposal,
-          normalized,
-          hasMutationVariables: !!proposal.mutationVariables,
-          mutationVariablesType: typeof proposal.mutationVariables,
-        });
-
-        return normalized;
-      },
-    );
+    const normalizedActualProposals: NormalizedProposal[] =
+      actualProposals.map(toNormalizedProposal);
 
     // Comprehensive logging for debugging
     logger.info("Starting proposal comparison", {
@@ -240,3 +201,33 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
     return evaluationResult;
   },
 } as const;
+
+function toNormalizedProposal(
+  proposal: DataChangeProposalOutputs["dataChangeProposals"][number],
+  index: number,
+): NormalizedProposal {
+  if (proposal.changeType === "creation") {
+    throw new Error("Creation proposals are not supported yet");
+  }
+
+  // The actual proposals from evaluation-job-manager already have mutationVariables at top level
+  const normalized: NormalizedProposal = {
+    changeType: proposal.changeType,
+    changedField: proposal.changedField,
+    newValue: proposal.newValue,
+    mutationQueryPropertyPath: proposal.mutationQuery?.propertyPath,
+    relatedUserId: proposal.relatedUserId,
+    mutationVariables: proposal.mutationQuery?.variables, // Already at top level from extraction
+  };
+
+  logger.info(`Normalizing actual proposal [${index}]`, {
+    operation: "normalize.actual",
+    index,
+    original: proposal,
+    normalized,
+    hasMutationVariables: !!proposal.mutationQuery?.variables,
+    mutationVariablesType: typeof proposal.mutationQuery?.variables,
+  });
+
+  return normalized;
+}

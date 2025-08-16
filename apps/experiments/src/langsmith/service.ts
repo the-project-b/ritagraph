@@ -93,6 +93,7 @@ export class LangSmithService {
     const {
       graphName,
       datasetName,
+      splits,
       evaluators,
       experimentPrefix,
       selectedCompanyId,
@@ -213,14 +214,9 @@ export class LangSmithService {
             const data =
               typeof item.data === "string" ? JSON.parse(item.data) : item.data;
             if (data.type === "DATA_CHANGE_PROPOSAL" && data.proposal) {
-              dataChangeProposals.push({
-                changedField: data.proposal.changedField,
-                newValue: data.proposal.newValue,
-                mutationQueryPropertyPath:
-                  data.proposal.mutationQuery?.propertyPath,
-                relatedUserId: data.proposal.relatedUserId,
-                mutationVariables: data.proposal.mutationQuery?.variables,
-              });
+              // We want the actual proposal to be passed and the evaluator handles the normalization
+              logger.info(" ADDED proposaldata.proposal", data.proposal);
+              dataChangeProposals.push(data.proposal);
             }
           } catch (e) {
             // Skip invalid JSON items
@@ -286,9 +282,20 @@ export class LangSmithService {
       numRepetitions: numRepetitions || 1, // Number of times to run each example
     };
 
+    logger.info("Running evaluation with splits ", {
+      datasetName,
+      splits,
+    });
+
+    // We filter based on splits here
+    const exampleGenerator = this.client.listExamples({
+      datasetName,
+      splits,
+    });
+
     const experimentResults: any = await evaluate(target as any, {
-      data: datasetName,
       ...evaluationConfig,
+      data: exampleGenerator,
     });
 
     const results: any[] = [];

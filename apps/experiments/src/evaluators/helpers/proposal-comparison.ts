@@ -12,6 +12,7 @@ const logger = createLogger({ service: "experiments" }).child({
  * Normalized structure for data change proposals
  */
 export interface NormalizedProposal {
+  changeType: "change" | "creation";
   changedField: string;
   newValue: string;
   mutationQueryPropertyPath?: string;
@@ -30,6 +31,7 @@ export function normalizeProposal(
   proposal: NormalizedProposal,
 ): NormalizedProposal {
   return {
+    changeType: proposal.changeType ?? "change",
     changedField: proposal.changedField || "",
     mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
     mutationVariables: proposal.mutationVariables || null,

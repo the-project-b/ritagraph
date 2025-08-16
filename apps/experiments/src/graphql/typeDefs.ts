@@ -38,6 +38,8 @@ export const typeDefs = gql`
     graphName: GraphName!
     "The name of the dataset in LangSmith to use for the evaluation"
     datasetName: String!
+    "Optional list of dataset splits to include (e.g., ['train', 'test']). If omitted, all examples are used"
+    splits: [String!]
     "A list of evaluators to run against the graph's outputs"
     evaluators: [EvaluatorInput!]!
     "An optional prefix for the experiment name in LangSmith"

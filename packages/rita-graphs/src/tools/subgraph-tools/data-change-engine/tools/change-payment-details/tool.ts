@@ -69,6 +69,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
 
       const buildBaseDataChangeProps = () => ({
         id: uuid(),
+        changeType: "change" as const,
         relatedUserId: employeeId,
         description: `Change payment details for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
@@ -124,7 +125,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
               "payment.properties.monthlyHours",
             ),
           },
-          changedField: "Salary",
+          changedField: "payment.amount",
           newValue: newAmount.toFixed(2).toString(),
         };
         newProposals.push(dataChangeProposal);
@@ -158,7 +159,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
               "payment.properties.amount",
             ),
           },
-          changedField: "Monthly Hours",
+          changedField: "payment.monthlyHours",
           newValue: newMonthlyHours.toString(),
         };
         newProposals.push(dataChangeProposal);
@@ -170,7 +171,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           description: `Change frequency of payment ${payment.userFirstName} ${payment.userLastName} to ${newFrequency}`,
           statusQuoQuery: getPayment(payment.id, "payment.frequency"),
           mutationQuery: placeHolderQuery,
-          changedField: "Salary Frequency",
+          changedField: "payment.frequency",
           newValue: newFrequency.toString(),
         };
 

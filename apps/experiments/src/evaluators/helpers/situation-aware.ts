@@ -50,10 +50,7 @@ export function substituteSituationAwareExpectedValues(
     };
 
     const updated: NormalizedProposal = {
-      changedField: proposal.changedField,
-      newValue: proposal.newValue,
-      mutationQueryPropertyPath: proposal.mutationQueryPropertyPath,
-      relatedUserId: proposal.relatedUserId,
+      ...proposal,
       mutationVariables: newMutationVariables,
     };
 
