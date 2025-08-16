@@ -10,22 +10,29 @@ export function AnnotationWithDefault<T>(defaultValue: T) {
 }
 
 export type DataChangeProposal = {
+  id: string;
   createdAt: string;
   // E.g.: "Change salary for x from 1000 -> 1500"
   description: string;
-  id: string;
 
-  statusQuoQuery: QueryDefinition;
-  dynamicMutationVariables?: Record<string, QueryDefinition>;
-  mutationQuery: QueryDefinition;
   relatedUserId?: string;
   status: "approved" | "pending" | "rejected";
-
-  // Bound to change
-  changedField: string;
-  previousValueAtApproval?: string;
-  newValue: string;
-};
+} & (
+  | {
+      changeType: "change";
+      statusQuoQuery: QueryDefinition; //Not defined for creation
+      mutationQuery: QueryDefinition;
+      dynamicMutationVariables?: Record<string, QueryDefinition>;
+      changedField: string; // payment.properties.amount -> this key will be replaced in the FE for translation
+      previousValueAtApproval?: string;
+      newValue: string;
+    }
+  | {
+      changeType: "creation";
+      mutationQuery: QueryDefinition;
+      properties: Record<string, string>;
+    }
+);
 
 export const BaseGraphAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,

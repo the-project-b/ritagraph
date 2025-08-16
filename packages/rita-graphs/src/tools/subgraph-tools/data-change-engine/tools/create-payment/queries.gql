@@ -1,0 +1,24 @@
+query getEmployeeById($data: GetEmployeeInput!) {
+  employee(data: $data) {
+    id
+    firstName
+    lastName
+    employeeContract {
+      id
+      jobTitle
+      contractStart
+      contractEnd
+    }
+  }
+}
+
+mutation createRitaThreadItem($input: CreateRitaThreadItemInput!) {
+  createRitaThreadItem(input: $input) {
+    createdAt
+    data
+    id
+    ownerId
+    ritaThreadId
+    updatedAt
+  }
+}

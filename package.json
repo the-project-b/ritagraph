@@ -8,6 +8,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "start": "turbo run start",
+    "logs:clean": "rm -rf ./apps/experiments/logs/*.log",
     "clean": "bash -c 'find . -name \"node_modules\" -type d -prune -exec rm -rf {} + && find . -name \".turbo\" -type d -prune -exec rm -rf {} + && find . -name \"dist\" -type d -prune -exec rm -rf {} + && find . -name \"generated\" -type d -prune -exec rm -rf {} + && if [ \"$0\" != \"\" ]; then find . -name \"package-lock.json\" -type f -exec rm -f {} +; fi' --",
     "syncpack:check": "syncpack list-mismatches",
     "syncpack:fix": "syncpack fix-mismatches",
