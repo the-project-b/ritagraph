@@ -18,6 +18,7 @@ export interface EvaluatorInput {
 export interface RunEvaluationInput {
   graphName: GraphName;
   datasetName: string;
+  splits?: string[]; // Dataset splits to include (e.g., ["train", "test"])
   selectedCompanyId: string;
   preferredLanguage?: string; // Fall back to user-configured preferredLanguage if not provided
   evaluators: EvaluatorInput[];
