@@ -6,7 +6,7 @@ type NodeReturn<State> = Command | Partial<State> | null;
 
 export type Node<State, Config> = (
   state: State,
-  config: Config
+  config: Config,
 ) => Promise<NodeReturn<State>> | NodeReturn<State>;
 
 export type ToolInterface =

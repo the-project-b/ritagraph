@@ -1,5 +1,6 @@
 import { createLogger } from "@the-project-b/logging";
 import { canonicalizeObject, hashCanonicalObject } from "./canonical-json.js";
+import { DataChangeProposal } from "../implementations/types.js";
 
 // Re-export canonicalizeObject for use in other modules
 export { canonicalizeObject } from "./canonical-json.js";
@@ -11,14 +12,20 @@ const logger = createLogger({ service: "experiments" }).child({
 /**
  * Normalized structure for data change proposals
  */
-export interface NormalizedProposal {
-  changeType: "change" | "creation";
-  changedField: string;
-  newValue: string;
-  mutationQueryPropertyPath?: string;
-  relatedUserId?: string;
-  mutationVariables?: any;
-}
+export type NormalizedProposal =
+  | {
+      changeType: "creation";
+      relatedUserId?: string;
+      mutationVariables?: any;
+    }
+  | {
+      changeType: "change";
+      changedField: string;
+      newValue: string;
+      mutationQueryPropertyPath?: string;
+      relatedUserId?: string;
+      mutationVariables?: any;
+    };
 
 /**
  * Normalizes a proposal to ensure consistent types and values.
@@ -28,15 +35,23 @@ export interface NormalizedProposal {
  * @returns A normalized proposal with consistent types
  */
 export function normalizeProposal(
-  proposal: NormalizedProposal,
+  proposal: DataChangeProposal,
 ): NormalizedProposal {
+  if (proposal.changeType === "creation") {
+    return {
+      changeType: "creation",
+      relatedUserId: proposal.relatedUserId,
+      mutationVariables: proposal.mutationQuery?.variables,
+    };
+  }
+
   return {
-    changeType: proposal.changeType ?? "change",
-    changedField: proposal.changedField || "",
-    mutationQueryPropertyPath: proposal.mutationQueryPropertyPath || "",
-    mutationVariables: proposal.mutationVariables || null,
-    newValue: String(proposal.newValue || ""), // Ensure string type
-    relatedUserId: proposal.relatedUserId || "",
+    changeType: "change",
+    changedField: proposal.changedField,
+    newValue: proposal.newValue,
+    mutationQueryPropertyPath: proposal.mutationQuery?.propertyPath,
+    relatedUserId: proposal.relatedUserId,
+    mutationVariables: proposal.mutationQuery?.variables, // Already at top level from extraction
   };
 }
 
@@ -52,22 +67,21 @@ export function hashProposal(
   proposal: NormalizedProposal,
   logDetails = false,
 ): string {
-  const normalized = normalizeProposal(proposal);
-
   // Canonicalize the entire proposal object (handles nested objects)
-  const canonical = canonicalizeObject(normalized);
+  const canonical = canonicalizeObject(proposal);
   const proposalString = JSON.stringify(canonical);
 
   if (logDetails) {
     logger.debug("Hashing proposal", {
       operation: "hashProposal",
-      field: proposal.changedField,
+      field:
+        proposal.changeType === "change" ? proposal.changedField : undefined,
       canonicalString: proposalString,
       stringLength: proposalString.length,
     });
   }
 
-  return hashCanonicalObject(normalized);
+  return hashCanonicalObject(proposal);
 }
 
 /**
@@ -238,7 +252,7 @@ export function compareProposalSets(
  * @param referenceKey - Optional reference key for context
  */
 export function logProposalDetails(
-  proposals: NormalizedProposal[],
+  proposals: Array<NormalizedProposal>,
   type: "expected" | "actual",
   referenceKey?: string,
 ): void {
@@ -249,8 +263,7 @@ export function logProposalDetails(
   });
 
   proposals.forEach((proposal, index) => {
-    const normalized = normalizeProposal(proposal);
-    const canonical = canonicalizeObject(normalized);
+    const canonical = canonicalizeObject(proposal);
 
     logger.debug(`${type} proposal [${index}]`, {
       operation: `log.${type}.detail`,

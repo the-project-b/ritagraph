@@ -40,12 +40,16 @@ export function substituteSituationAwareExpectedValues(
       return proposal;
     }
 
+    // startDate and effectiveDate are used for creation and change proposals respectively
+    const dateKey =
+      proposal.changeType === "change" ? "effectiveDate" : "startDate";
+
     const newMutationVariables = {
       ...(proposal.mutationVariables as Record<string, unknown>),
       data: {
         ...(proposal.mutationVariables as { data: Record<string, unknown> })
           .data,
-        effectiveDate: todayAtUtcMidnight,
+        [dateKey]: todayAtUtcMidnight,
       },
     };
 
@@ -53,13 +57,6 @@ export function substituteSituationAwareExpectedValues(
       ...proposal,
       mutationVariables: newMutationVariables,
     };
-
-    logger.debug("Applied situation-aware substitution to expected proposal", {
-      operation: "subSituationAwareExpectedValues.apply",
-      index,
-      changedField: proposal.changedField,
-    });
-
     return updated;
   });
 
