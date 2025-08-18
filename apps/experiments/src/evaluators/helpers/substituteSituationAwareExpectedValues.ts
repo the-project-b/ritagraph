@@ -30,7 +30,7 @@ export function substituteSituationAwareExpectedValues(
     Date.UTC(utcYear, utcMonth, utcDay, 0, 0, 0, 0),
   ).toISOString();
 
-  const transformed = proposals.map((proposal, index) => {
+  const transformed = proposals.map((proposal) => {
     const hasMutationVariables = !!proposal?.mutationVariables;
     const hasEffectiveDate =
       hasMutationVariables &&

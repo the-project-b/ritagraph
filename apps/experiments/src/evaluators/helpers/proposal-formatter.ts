@@ -20,6 +20,10 @@ export class ProposalFormatter {
     proposal: NormalizedProposal,
     statusIndicator?: string,
   ): string[] {
+    if (proposal.changeType === "creation") {
+      throw new Error("Creation proposals are not supported yet");
+    }
+
     const lines: string[] = [
       "    {",
       `      changeType: "${proposal.changeType}",`,
@@ -115,34 +119,6 @@ export class ProposalFormatter {
       }
     });
 
-    // Mark unexpected and partial matches in actual
-    actualProposals.forEach((p) => {
-      const hash = hashProposal(p);
-
-      // Check if this is a partial match (same field but different value)
-      const expectedWithSameField = expectedProposals.find(
-        (exp) =>
-          exp.changedField === p.changedField &&
-          exp.mutationQueryPropertyPath === p.mutationQueryPropertyPath &&
-          exp.relatedUserId === p.relatedUserId,
-      );
-
-      const isPartialMatch =
-        expectedWithSameField && expectedWithSameField.newValue !== p.newValue;
-      const isUnexpected = comparisonResult.unexpectedInActual.includes(hash);
-
-      if (isUnexpected && !isPartialMatch) {
-        actualStatusMap.set(hash, "⚠️ UNEXPECTED");
-      } else if (isPartialMatch) {
-        actualStatusMap.set(
-          hash,
-          `⚠️ WRONG VALUE (expected "${expectedWithSameField.newValue}")`,
-        );
-      } else {
-        actualStatusMap.set(hash, "✅");
-      }
-    });
-
     // Build sections
     const sections = [
       "❌ Evaluation Failed: Data Change Proposals Don't Match",
@@ -188,13 +164,9 @@ export class ProposalFormatter {
 
     // Report missing proposals
     if (comparisonResult.missingInActual.length > 0) {
-      const missingDescriptions = expectedProposals
-        .filter((p) =>
-          comparisonResult.missingInActual.includes(hashProposal(p)),
-        )
-        .map(
-          (p) => `changedField "${p.changedField}" with value "${p.newValue}"`,
-        );
+      const missingDescriptions = expectedProposals.filter((p) =>
+        comparisonResult.missingInActual.includes(hashProposal(p)),
+      );
 
       issues.push(
         `  ${issueNum}. Missing expected: ${missingDescriptions.join(", ")}`,
@@ -208,7 +180,9 @@ export class ProposalFormatter {
         .filter((p) =>
           comparisonResult.unexpectedInActual.includes(hashProposal(p)),
         )
-        .map((p) => `changedField "${p.changedField}"`);
+        .map(
+          (p) => `mutationVariables "${JSON.stringify(p.mutationVariables)}"`,
+        );
 
       issues.push(
         `  ${issueNum}. Unexpected proposals with: ${unexpectedDescriptions.join(", ")}`,
@@ -220,23 +194,6 @@ export class ProposalFormatter {
     issues.push("\n---\n");
     issues.push(diff);
     issues.push("\n---\n");
-
-    // Report value mismatches
-    for (const actual of actualProposals) {
-      const expected = expectedProposals.find(
-        (e) =>
-          e.changedField === actual.changedField &&
-          e.mutationQueryPropertyPath === actual.mutationQueryPropertyPath &&
-          e.relatedUserId === actual.relatedUserId,
-      );
-
-      if (expected && expected.newValue !== actual.newValue) {
-        issues.push(
-          `  ${issueNum}. changedField "${actual.changedField}" value mismatch: "${actual.newValue}" instead of "${expected.newValue}"`,
-        );
-        issueNum++;
-      }
-    }
 
     return issues;
   }
@@ -269,34 +226,50 @@ function printDiff(
     // Heuristically align proposals by similarity so order differences don't dominate the diff
     type Pair = { expectedIndex: number; actualIndex: number; score: number };
 
+    // Key-specific weights; if a key is listed here, its match contributes this many points.
+    // Keys not listed fall back to default weights below.
+    const KEY_WEIGHTS: Readonly<Record<string, number>> = {
+      changeType: 3,
+      changedField: 5,
+      mutationQueryPropertyPath: 3,
+      relatedUserId: 2,
+      newValue: 2,
+      mutationVariables: 4,
+    } as const;
+
+    const DEFAULT_PRIMITIVE_POINTS = 1;
+    const DEFAULT_OBJECT_POINTS = 2;
+
     const scorePair = (
       e: NormalizedProposal,
       a: NormalizedProposal,
     ): number => {
       let score = 0;
-      if (e.changedField && a.changedField && e.changedField === a.changedField)
-        score += 10;
-      if (
-        e.mutationQueryPropertyPath &&
-        a.mutationQueryPropertyPath &&
-        e.mutationQueryPropertyPath === a.mutationQueryPropertyPath
-      )
-        score += 6;
-      if (
-        e.relatedUserId &&
-        a.relatedUserId &&
-        e.relatedUserId === a.relatedUserId
-      )
-        score += 4;
-      if (e.changeType && a.changeType && e.changeType === a.changeType)
-        score += 2;
-      if (e.newValue && a.newValue && e.newValue === a.newValue) score += 3;
+      // Compare only keys present in both objects. Use generic logic so we don't
+      // need to know specific fields of NormalizedProposal.
+      for (const key of Object.keys(e) as Array<keyof NormalizedProposal>) {
+        const eValue = e[key] as unknown;
+        if (eValue === undefined || eValue === null) continue;
+        const aValue = a[key] as unknown;
+        if (aValue === undefined || aValue === null) continue;
 
-      // Bonus if mutationVariables deep-equal canonically
-      if (e.mutationVariables && a.mutationVariables) {
-        const eCanon = JSON.stringify(canonicalizeObject(e.mutationVariables));
-        const aCanon = JSON.stringify(canonicalizeObject(a.mutationVariables));
-        if (eCanon === aCanon) score += 3;
+        // Deep compare for object-like values (including mutationVariables)
+        if (typeof eValue === "object") {
+          try {
+            const eCanon = JSON.stringify(canonicalizeObject(eValue));
+            const aCanon = JSON.stringify(canonicalizeObject(aValue));
+            if (eCanon === aCanon)
+              score += KEY_WEIGHTS[key as string] ?? DEFAULT_OBJECT_POINTS;
+          } catch {
+            // Fallback: shallow strict equality
+            if (eValue === aValue)
+              score += KEY_WEIGHTS[key as string] ?? DEFAULT_OBJECT_POINTS;
+          }
+        } else {
+          // Primitive comparison via string normalization for robustness
+          if (String(eValue) === String(aValue))
+            score += KEY_WEIGHTS[key as string] ?? DEFAULT_PRIMITIVE_POINTS;
+        }
       }
       return score;
     };
