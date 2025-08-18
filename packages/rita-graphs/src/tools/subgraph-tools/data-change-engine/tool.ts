@@ -7,12 +7,34 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import { buildDataRetrievalEngineGraph } from "./sub-graph";
-import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
+import {
+  ToolContext,
+  ToolFactoryToolDefintion,
+  toolFactory,
+} from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
 import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
+import { createGraphQLClient } from "../../../utils/graphql/client";
+import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
+
+export type PaymentType = {
+  id: string;
+  title: string;
+  slug: string;
+};
+
+export type ExtendedToolContext = {
+  /**
+   * Payment types are useful for creating new payments. Why are we defining it arleady here?
+   * The tool that we will build will need to have an enum as input that lets LLM choose from the payment types.
+   * I want this enum to be written as slugs, and not ids since the LLM has to then remember the mapping of ids and slugs.
+   * -> Less cognitive complexity for the LLM
+   */
+  paymentTypes: Array<PaymentType>;
+};
 
 /**
  * This is a special tool since it runs its own graph.
@@ -28,11 +50,16 @@ You are part of a payroll assistant system.
 You job is it schedule data changes (mutations).
 You get a vague request from the user and you have to resolve it using your tools.
 
+1) Understand which payments already exist.
+2) Think about if a new payment is needed or an existing one should be changed.
+3) Schedule changes / creations
+
 IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
 </instruction>
 
 <notes>
 IMPORTANT: Do not assign the same change to multiple payments unless clearly stated.
+- Do not just create new payments if there is already a payment with the same name unless the user explicitly asks for a new payment.
 - Employees can have multiple contracts and they are often directly linked by the job title. If you it is ambiguous please ask the user for clarification.
 - People can have Wage and Salary so it can be fixed or hourly based payment.
 - Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
@@ -50,14 +77,23 @@ Today is the {today}
         new HumanMessage(usersRequest),
       ]);
 
-      const tools = toolFactory<undefined>({
+      // Tool related context
+      const paymentTypes = await getPaymentTypes(toolContext);
+
+      const tools = toolFactory<ExtendedToolContext>({
         toolDefintions: [
           findEmployeeByNameWithContract,
           getPaymentsOfEmployee,
           getCurrentDataChangeProposals,
           changePaymentDetails,
+          createPayment,
         ],
-        ctx: toolContext,
+        ctx: {
+          ...toolContext,
+          extendedContext: {
+            paymentTypes,
+          },
+        },
       });
 
       const agent = buildDataRetrievalEngineGraph({ tools });
@@ -88,3 +124,33 @@ Today is the {today}
       }),
     },
   );
+
+async function getPaymentTypes(
+  toolContext: ToolContext,
+): Promise<Array<PaymentType>> {
+  const graphqlClient = createGraphQLClient({
+    accessToken: toolContext.accessToken,
+    appdataHeader: toolContext.appdataHeader,
+  });
+
+  try {
+    const { paymentTypes } =
+      await graphqlClient.getPaymentTypesForDataChangeEngine({
+        data: {
+          companyId: toolContext.selectedCompanyId,
+        },
+      });
+
+    return paymentTypes.map((paymentType) => ({
+      id: paymentType.id,
+      title: paymentType.name,
+      slug: paymentType.slug,
+    }));
+  } catch (error) {
+    console.warn(
+      "Failed to get payment types - gracefully returning empty array",
+      error,
+    );
+    return [];
+  }
+}

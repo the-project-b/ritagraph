@@ -30,7 +30,7 @@ export function substituteSituationAwareExpectedValues(
     Date.UTC(utcYear, utcMonth, utcDay, 0, 0, 0, 0),
   ).toISOString();
 
-  const transformed = proposals.map((proposal, index) => {
+  const transformed = proposals.map((proposal) => {
     const hasMutationVariables = !!proposal?.mutationVariables;
     const hasEffectiveDate =
       hasMutationVariables &&
@@ -40,29 +40,23 @@ export function substituteSituationAwareExpectedValues(
       return proposal;
     }
 
+    // startDate and effectiveDate are used for creation and change proposals respectively
+    const dateKey =
+      proposal.changeType === "change" ? "effectiveDate" : "startDate";
+
     const newMutationVariables = {
       ...(proposal.mutationVariables as Record<string, unknown>),
       data: {
         ...(proposal.mutationVariables as { data: Record<string, unknown> })
           .data,
-        effectiveDate: todayAtUtcMidnight,
+        [dateKey]: todayAtUtcMidnight,
       },
     };
 
     const updated: NormalizedProposal = {
-      changedField: proposal.changedField,
-      newValue: proposal.newValue,
-      mutationQueryPropertyPath: proposal.mutationQueryPropertyPath,
-      relatedUserId: proposal.relatedUserId,
+      ...proposal,
       mutationVariables: newMutationVariables,
     };
-
-    logger.debug("Applied situation-aware substitution to expected proposal", {
-      operation: "subSituationAwareExpectedValues.apply",
-      index,
-      changedField: proposal.changedField,
-    });
-
     return updated;
   });
 
