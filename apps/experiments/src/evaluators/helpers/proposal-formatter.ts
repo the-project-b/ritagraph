@@ -82,19 +82,8 @@ export class ProposalFormatter {
   /**
    * Format successful match output
    */
-  formatSuccess(expectedProposals: NormalizedProposal[]): string {
-    return [
-      "✅ Evaluation Passed: Data Change Proposals Match",
-      "",
-      "EXPECTED & ACTUAL (matched):",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(expectedProposals),
-      "  ]",
-      "}",
-      "",
-      "✅ All proposals matched successfully!",
-    ].join("\n");
+  formatSuccess(_expectedProposals: NormalizedProposal[]): string {
+    return "✅ Evaluation Passed: All data change proposals matched successfully!";
   }
 
   /**
@@ -103,50 +92,19 @@ export class ProposalFormatter {
   formatFailure(
     expectedProposals: NormalizedProposal[],
     actualProposals: NormalizedProposal[],
-    comparisonResult: ProposalComparisonResult,
+    _comparisonResult: ProposalComparisonResult,
   ): string {
-    // Create status maps for both expected and actual
-    const expectedStatusMap = new Map<string, string>();
-    const actualStatusMap = new Map<string, string>();
+    // Generate the diff directly
+    const diff = printDiff(expectedProposals, actualProposals);
 
-    // Mark missing proposals in expected
-    expectedProposals.forEach((p) => {
-      const hash = hashProposal(p);
-      if (comparisonResult.missingInActual.includes(hash)) {
-        expectedStatusMap.set(hash, "❌ MISSING");
-      } else {
-        expectedStatusMap.set(hash, "✅");
-      }
-    });
-
-    // Build sections
+    // Build minimal output with just the failure message and diff
     const sections = [
       "❌ Evaluation Failed: Data Change Proposals Don't Match",
       "",
-      "EXPECTED:",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(expectedProposals, expectedStatusMap),
-      "  ]",
-      "}",
-      "",
-      "ACTUAL:",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(actualProposals, actualStatusMap),
-      "  ]",
-      "}",
+      "---",
+      diff,
+      "---",
     ];
-
-    // Add issues section if there are specific issues to report
-    const issues = this.generateIssuesList(
-      expectedProposals,
-      actualProposals,
-      comparisonResult,
-    );
-    if (issues.length > 0) {
-      sections.push("", "ISSUES:", ...issues);
-    }
 
     return sections.join("\n");
   }
