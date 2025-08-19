@@ -20,11 +20,15 @@ evaluators/
 │   ├── registry.ts          # Central evaluator registry
 │   └── types.ts            # Type definitions and interfaces
 ├── implementations/         # Concrete evaluator implementations
+│   ├── data-change-proposal.evaluator.ts  # Deterministic proposal verification
 │   ├── expected-output.evaluator.ts       # Production evaluator
-│   └── language-verification.evaluator.ts # Language validation evaluator
+│   ├── language-verification.evaluator.ts # Language validation evaluator
+│   └── title-generation.evaluator.ts      # Thread title quality evaluator
 ├── prompts/                # Default LLM prompts for evaluators
 │   ├── expected-output.prompt.ts
-│   └── language-verification.prompt.ts
+│   ├── language-verification.prompt.ts
+│   └── title-generation.prompt.ts
+│   # Note: data-change-proposal doesn't use prompts (deterministic)
 └── index.ts               # Public API exports
 ```
 
@@ -103,13 +107,16 @@ export function createEvaluator(
 
 ### `/implementations/` - Concrete Evaluators
 
+- **`data-change-proposal.evaluator.ts`**: Deterministic evaluator for verifying data change proposals match expected structure (no LLM)
 - **`expected-output.evaluator.ts`**: Production-ready evaluator comparing actual vs expected outputs
 - **`language-verification.evaluator.ts`**: Evaluator for verifying response language correctness
+- **`title-generation.evaluator.ts`**: Evaluator for assessing thread title quality (language, professionalism, sensitive data)
 
 ### `/prompts/` - LLM Instructions
 
 - **`expected-output.prompt.ts`**: Carefully crafted prompt for output comparison with rubric and instructions
 - **`language-verification.prompt.ts`**: Prompt for verifying response language matches expected language
+- **`title-generation.prompt.ts`**: Prompt for evaluating thread title quality on language, professionalism, and data sensitivity
 
 ### Root Files
 
@@ -202,11 +209,11 @@ export const myEvaluator: TypedEvaluator<
         }
       : undefined;
 
-    // Create LLM judge
+    // Create LLM judge - IMPORTANT: feedbackKey should match type.toLowerCase()
     const evaluator = createLLMAsJudge({
       prompt: customPrompt || MY_EVALUATOR_PROMPT,
       model: model || this.config.defaultModel,
-      feedbackKey: 'my_evaluator',
+      feedbackKey: this.config.type.toLowerCase(), // 'my_evaluator'
     });
 
     // Execute evaluation directly with params.inputs (expects 'question' field)
@@ -288,27 +295,36 @@ const result = await evaluator({
 - Use `readonly` for immutable properties
 - Leverage `as const` for configuration objects
 
-### 2. Error Handling
+### 2. Key Naming Convention ⚠️
+**CRITICAL**: The feedback key must match the type name to ensure consistency:
+- Use `feedbackKey: type.toLowerCase()` in your LLM judge
+- Return `key: type.toLowerCase()` in early exits
+- The factory automatically uses `type.toLowerCase()` for failed/skipped evaluations
+- Example: For `TITLE_GENERATION` type → use `"title_generation"` as the key
+
+This prevents duplicate keys in results (e.g., both "title_generation" and "title_generation_quality")
+
+### 3. Error Handling
 - Validate required parameters in evaluate function
 - Use descriptive error messages with available options
 - Handle OpenEvals result transformation safely
 
-### 3. Configuration
+### 4. Configuration
 - Provide sensible defaults for model selection
 - Support both custom prompts and reference keys when applicable
 - Use frozen objects for immutable configuration
 
-### 4. Documentation
+### 5. Documentation
 - Document evaluator purpose and expected input/output formats
 - Provide usage examples in implementation files
 - Include rubric information in prompts
 
-### 5. Testing Considerations
+### 6. Testing Considerations
 - Each evaluator should handle missing reference outputs gracefully
 - Test with various model providers
 - Validate type safety at compile time
 
-### 6. Template Format Requirements ⚠️
+### 7. Template Format Requirements ⚠️
 **CRITICAL**: OpenEvals templates must use object-level placeholders, not nested properties:
 
 ✅ **Correct:**
