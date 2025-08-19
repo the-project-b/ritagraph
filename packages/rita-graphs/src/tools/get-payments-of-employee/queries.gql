@@ -1,5 +1,5 @@
-query getPayments($data: PaymentsListInput!) {
-  payments(data: $data) {
+query getPaymentsIncome($data: PaymentsListBaseInput!) {
+  paymentsIncome(data: $data) {
     id
     userEmail
     userLastName
@@ -19,6 +19,94 @@ query getPayments($data: PaymentsListInput!) {
       title
       monthlyHours
     }
+    categoryName
+    categorySlug
+    startDate
+    endDate
+  }
+}
+
+query getPaymentsBonusesAndCommissions($data: PaymentsListBaseInput!) {
+  paymentsBonusesAndCommissions(data: $data) {
+    id
+    userEmail
+    userLastName
+    userFirstName
+    typeName
+    typeTranslationKey
+    frequency
+    status
+    paymentType {
+      compensationBaseTypeId
+      name
+      translationKey
+    }
+    contractId
+    properties {
+      amount
+      title
+      monthlyHours
+    }
+    categoryName
+    categorySlug
+    startDate
+    endDate
+  }
+}
+
+query getPaymentsBenefits($data: PaymentsListBaseInput!) {
+  paymentsBenefits(data: $data) {
+    id
+    userEmail
+    userLastName
+    userFirstName
+    typeName
+    typeTranslationKey
+    frequency
+    status
+    paymentType {
+      compensationBaseTypeId
+      name
+      translationKey
+    }
+    contractId
+    properties {
+      amount
+      title
+      monthlyHours
+    }
+    categoryName
+    categorySlug
+    startDate
+    endDate
+  }
+}
+
+query getPaymentsExpensesNetAndDeductions($data: PaymentsListBaseInput!) {
+  paymentsExpensesNetAndDeductions(data: $data) {
+    id
+    userEmail
+    userLastName
+    userFirstName
+    typeName
+    typeTranslationKey
+    frequency
+    status
+    paymentType {
+      compensationBaseTypeId
+      name
+      translationKey
+    }
+    contractId
+    properties {
+      amount
+      title
+      monthlyHours
+    }
+    categoryName
+    categorySlug
+    startDate
+    endDate
   }
 }
 
