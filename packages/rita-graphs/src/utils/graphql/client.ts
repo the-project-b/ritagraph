@@ -1,6 +1,11 @@
 import { GraphQLClient } from "graphql-request";
+import { createLogger } from "@the-project-b/logging";
 import { getSdk, Sdk } from "../../generated/graphql";
 import { ToolContext } from "../../tools/tool-factory";
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "GraphQLClient",
+});
 
 type GraphQLClientOverrides = {
   accessToken?: string;
@@ -43,12 +48,34 @@ export function createGraphQLClient(
   }
 
   const client = new GraphQLClient(
-    `${process.env.PROJECTB_GRAPHQL_ENDPOINT}/schema`,
+    `${process.env.PROJECTB_GRAPHQL_ENDPOINT}`,
     {
       headers,
     },
   );
-  const sdk = getSdk(client);
+  
+  // Create a custom wrapper that logs and handles errors
+  const customWrapper = (
+    action: any,
+    operationName: string,
+    operationType?: string,
+    _variables?: any,
+  ) => {
+    return action().catch((error: any) => {
+      logger.error(`GraphQL request failed`, error, {
+        operationName,
+        operationType,
+        status: error.response?.status,
+        errorMessage: error.message,
+        hasToken: !!accessToken,
+        tokenPrefix: `${accessToken?.substring(0, 20)}...`,
+        endpoint: process.env.PROJECTB_GRAPHQL_ENDPOINT,
+      });
+      throw error;
+    });
+  };
+
+  const sdk = getSdk(client, customWrapper);
 
   return sdk;
 }
