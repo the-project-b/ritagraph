@@ -37,6 +37,7 @@ export type DataChangeProposal = {
 export const BaseGraphAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
   preferredLanguage: AnnotationWithDefault<"EN" | "DE">("DE"),
+  isTriggeredByEmail: AnnotationWithDefault<boolean>(false),
   /**
    * The company id, is the id of the HR manager / the one that the HR manage is currently using (in case he manages multiple companies).
    * Similiar system should work for BPOs however there it could be a range of companies that the BPO is managing at the same time.

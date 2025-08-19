@@ -1,3 +1,4 @@
+import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
 import { getContextFromConfig, Node } from "../graph-state";
 
@@ -14,8 +15,14 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
   const { thread_id } =
     config.configurable as unknown as AssumedConfigurableType;
 
+  const lastMessage = state.messages.at(-1);
+
   await appendMessageAsThreadItem({
-    message: state.messages.at(-1),
+    message: new HumanMessage(lastMessage.content.toString(), {
+      ...lastMessage.additional_kwargs,
+      isEmail: state.isTriggeredByEmail,
+      subject: lastMessage.additional_kwargs.subject,
+    }),
     langgraphThreadId: thread_id,
     context: {
       accessToken: token,
