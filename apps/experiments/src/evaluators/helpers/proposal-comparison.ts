@@ -1,6 +1,11 @@
 import { createLogger } from "@the-project-b/logging";
-import { canonicalizeObject, hashCanonicalObject } from "./canonical-json.js";
+import { canonicalizeObject } from "./canonical-json.js";
 import { DataChangeProposal } from "../implementations/types.js";
+import { 
+  ValidationConfig, 
+  shouldIgnorePath, 
+  applyTransformer 
+} from "./validation-config.js";
 
 // Re-export canonicalizeObject for use in other modules
 export { canonicalizeObject } from "./canonical-json.js";
@@ -55,58 +60,15 @@ export function normalizeProposal(
   };
 }
 
-/**
- * Creates an MD5 hash of a normalized proposal for comparison.
- * Uses canonical JSON serialization to handle deep nested objects.
- *
- * @param proposal - The proposal to hash
- * @param logDetails - Whether to log hashing details for debugging
- * @returns MD5 hash of the proposal
- */
-export function hashProposal(
-  proposal: NormalizedProposal,
-  logDetails = false,
-): string {
-  // Canonicalize the entire proposal object (handles nested objects)
-  const canonical = canonicalizeObject(proposal);
-  const proposalString = JSON.stringify(canonical);
-
-  if (logDetails) {
-    logger.debug("Hashing proposal", {
-      operation: "hashProposal",
-      field:
-        proposal.changeType === "change" ? proposal.changedField : undefined,
-      canonicalString: proposalString,
-      stringLength: proposalString.length,
-    });
-  }
-
-  return hashCanonicalObject(proposal);
-}
-
-/**
- * Creates a hash set from an array of proposals
- *
- * @param proposals - Array of proposals to hash
- * @param logDetails - Whether to log hashing details
- * @returns Set of proposal hashes
- */
-export function createProposalHashSet(
-  proposals: NormalizedProposal[],
-  logDetails = false,
-): Set<string> {
-  return new Set(proposals.map((p) => hashProposal(p, logDetails)));
-}
 
 /**
  * Result of comparing two sets of proposals
  */
 export interface ProposalComparisonResult {
   matches: boolean;
-  expectedHashes: Set<string>;
-  actualHashes: Set<string>;
-  missingInActual: string[];
-  unexpectedInActual: string[];
+  missingInActual: NormalizedProposal[];
+  unexpectedInActual: NormalizedProposal[];
+  matchedCount: number;
 }
 
 /**
@@ -120,38 +82,61 @@ export interface ProposalComparisonResult {
  */
 /**
  * Checks if an actual proposal matches an expected proposal.
- * Only compares fields that exist in the expected proposal (subset matching).
+ * Uses strict matching - all fields in actual must exist in expected.
  *
- * @param expected - The expected proposal (may have fewer fields)
- * @param actual - The actual proposal (may have more fields)
- * @returns True if actual matches all fields present in expected
+ * @param expected - The expected proposal
+ * @param actual - The actual proposal
+ * @param config - Validation configuration for ignoring paths and transformers
+ * @returns True if proposals match according to strict rules
  */
 function proposalMatches(
   expected: NormalizedProposal,
   actual: NormalizedProposal,
+  config?: ValidationConfig,
 ): boolean {
-  // Only check fields that are actually present in expected
-  // This is true subset matching - if expected doesn't specify a field, we don't check it
-  for (const key of Object.keys(expected) as Array<keyof NormalizedProposal>) {
-    const expectedValue = expected[key];
-    const actualValue = actual[key];
+  // Strict matching: check that actual doesn't have extra fields
+  for (const key of Object.keys(actual) as Array<keyof NormalizedProposal>) {
+    if (!(key in expected)) {
+      // Check if this path should be ignored
+      if (!config || !shouldIgnorePath(key, config)) {
+        return false; // Extra field in actual that's not ignored
+      }
+    }
+  }
 
-    // Skip undefined or missing fields in expected
-    if (expectedValue === undefined || expectedValue === null) {
+  // Check all fields in expected match actual
+  for (const key of Object.keys(expected) as Array<keyof NormalizedProposal>) {
+    // Skip ignored paths
+    if (config && shouldIgnorePath(key, config)) {
       continue;
     }
 
-    // For objects like mutationVariables, do deep comparison
-    if (typeof expectedValue === "object") {
-      // If actual doesn't have this object field, it's a mismatch
+    let expectedValue = expected[key];
+    let actualValue = actual[key];
+
+    // Apply transformers if configured
+    if (config) {
+      expectedValue = applyTransformer(expectedValue, key, config, true);
+      actualValue = applyTransformer(actualValue, key, config, false);
+    }
+
+    // Skip undefined fields in expected (treat as optional)
+    if (expectedValue === undefined) {
+      continue;
+    }
+
+    // Check if actual is missing this field
+    if (actualValue === undefined) {
+      return false;
+    }
+
+    // For objects like mutationVariables, do deep strict comparison
+    if (typeof expectedValue === "object" && expectedValue !== null) {
       if (!actualValue || typeof actualValue !== "object") {
         return false;
       }
-      const expectedCanonical = canonicalizeObject(expectedValue);
-      const actualCanonical = canonicalizeObject(actualValue);
-      if (
-        JSON.stringify(expectedCanonical) !== JSON.stringify(actualCanonical)
-      ) {
+      // Use deep strict matching for nested objects
+      if (!deepStrictMatch(expectedValue, actualValue, config, key)) {
         return false;
       }
     } else {
@@ -167,10 +152,104 @@ function proposalMatches(
   return true;
 }
 
+/**
+ * Deep strict matching for nested objects.
+ * Validates that actual contains exactly the same fields as expected.
+ *
+ * @param expected - The expected object
+ * @param actual - The actual object  
+ * @param config - Validation configuration
+ * @param parentPath - Path to this object for path-based operations
+ * @returns True if objects match strictly
+ */
+function deepStrictMatch(
+  expected: any,
+  actual: any,
+  config?: ValidationConfig,
+  parentPath?: string
+): boolean {
+  // Handle null/undefined
+  if (expected === null || expected === undefined) {
+    return expected === actual;
+  }
+  
+  // If not an object, do simple comparison
+  if (typeof expected !== "object") {
+    return String(expected) === String(actual);
+  }
+  
+  // For arrays, compare length and elements
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) {
+      return false;
+    }
+    return expected.every((exp, i) => {
+      const elementPath = parentPath ? `${parentPath}[${i}]` : `[${i}]`;
+      if (config && shouldIgnorePath(elementPath, config)) {
+        return true;
+      }
+      
+      // Apply transformers to array elements
+      let expectedElem = exp;
+      let actualElem = actual[i];
+      if (config) {
+        expectedElem = applyTransformer(exp, elementPath, config, true);
+        actualElem = applyTransformer(actual[i], elementPath, config, false);
+      }
+      
+      return deepStrictMatch(expectedElem, actualElem, config, elementPath);
+    });
+  }
+  
+  // For objects, strict field checking
+  const actualKeys = Object.keys(actual);
+  const expectedKeys = Object.keys(expected);
+  
+  // Check for extra fields in actual (strict mode)
+  for (const key of actualKeys) {
+    const path = parentPath ? `${parentPath}.${key}` : key;
+    if (!expectedKeys.includes(key)) {
+      if (!config || !shouldIgnorePath(path, config)) {
+        return false; // Extra field not in expected and not ignored
+      }
+    }
+  }
+  
+  // Check all expected fields
+  for (const key of expectedKeys) {
+    const path = parentPath ? `${parentPath}.${key}` : key;
+    
+    // Skip ignored paths
+    if (config && shouldIgnorePath(path, config)) {
+      continue;
+    }
+    
+    if (!(key in actual)) {
+      return false; // Missing expected field
+    }
+    
+    // Apply transformers
+    let expectedVal = expected[key];
+    let actualVal = actual[key];
+    if (config) {
+      expectedVal = applyTransformer(expectedVal, path, config, true);
+      actualVal = applyTransformer(actualVal, path, config, false);
+    }
+    
+    // Recursively check nested values
+    if (!deepStrictMatch(expectedVal, actualVal, config, path)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
 export function compareProposalSets(
   expected: NormalizedProposal[],
   actual: NormalizedProposal[],
   logDetails = false,
+  config?: ValidationConfig,
 ): ProposalComparisonResult {
   // For subset matching, we need to find matches differently
   const unmatchedExpected: NormalizedProposal[] = [...expected];
@@ -183,7 +262,7 @@ export function compareProposalSets(
 
     // Find a matching actual proposal
     const actualIndex = unmatchedActual.findIndex((act) =>
-      proposalMatches(exp, act),
+      proposalMatches(exp, act, config),
     );
 
     if (actualIndex !== -1) {
@@ -194,19 +273,12 @@ export function compareProposalSets(
     }
   }
 
-  // Create hashes for unmatched proposals (for reporting)
-  const missingHashes = unmatchedExpected.map((p) =>
-    hashProposal(p, logDetails),
-  );
-  const unexpectedHashes = unmatchedActual.map((p) =>
-    hashProposal(p, logDetails),
-  );
 
   const matches =
     unmatchedExpected.length === 0 && unmatchedActual.length === 0;
 
   if (logDetails) {
-    logger.info("Proposal set comparison (subset matching)", {
+    logger.info("Proposal set comparison (strict matching)", {
       operation: "compareProposalSets",
       expectedCount: expected.length,
       actualCount: actual.length,
@@ -229,18 +301,11 @@ export function compareProposalSets(
     }
   }
 
-  // For compatibility, still return hash sets (though they're not used for matching now)
-  const expectedHashes = new Set(
-    expected.map((p) => hashProposal(p, logDetails)),
-  );
-  const actualHashes = new Set(actual.map((p) => hashProposal(p, logDetails)));
-
   return {
     matches,
-    expectedHashes,
-    actualHashes,
-    missingInActual: missingHashes,
-    unexpectedInActual: unexpectedHashes,
+    missingInActual: unmatchedExpected,
+    unexpectedInActual: unmatchedActual,
+    matchedCount: matchedPairs.length,
   };
 }
 
@@ -270,7 +335,6 @@ export function logProposalDetails(
       index,
       proposal,
       canonicalJson: JSON.stringify(canonical),
-      hash: hashProposal(proposal),
     });
   });
 }

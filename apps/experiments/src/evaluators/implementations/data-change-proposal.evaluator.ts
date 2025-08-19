@@ -15,7 +15,7 @@ import {
   normalizeProposal,
 } from "../helpers/proposal-comparison.js";
 import { ProposalFormatter } from "../helpers/proposal-formatter.js";
-import { substituteSituationAwareExpectedValues } from "../helpers/substituteSituationAwareExpectedValues.js";
+import { getDefaultValidationConfig, ValidationConfig } from "../helpers/validation-config.js";
 import { DataChangeProposal } from "./types.js";
 
 // Create logger instance
@@ -37,6 +37,7 @@ interface DataChangeProposalReferenceOutputs {
   readonly expectedDataProposal?:
     | Array<NormalizedProposal>
     | NormalizedProposal;
+  readonly validationConfig?: ValidationConfig;
 }
 
 export const dataChangeProposalEvaluator: TypedEvaluator<
@@ -104,9 +105,8 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       ? referenceValue
       : [referenceValue];
 
-    // Apply situation-aware substitutions to expected values
-    expectedProposals =
-      substituteSituationAwareExpectedValues(expectedProposals);
+    // Get validation config - use provided or default
+    const validationConfig = params.referenceOutputs?.validationConfig || getDefaultValidationConfig();
 
     // Extract actual data change proposals from outputs
     const actualProposals = params.outputs.dataChangeProposals || [];
@@ -141,23 +141,21 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       logProposalDetails(normalizedActualProposals, "actual", key);
     }
 
-    // Compare the proposal sets using hash comparison
+    // Compare the proposal sets using strict matching with validation config
     const comparisonResult = compareProposalSets(
       expectedProposals,
       normalizedActualProposals,
       isDebugEnabled, // Pass debug flag to enable detailed logging
+      validationConfig, // Pass validation config for strict matching with path ignoring
     );
 
     // Log comparison results
     logger.info("Comparison completed", {
       operation: "evaluate.comparison",
       matches: comparisonResult.matches,
-      expectedHashCount: comparisonResult.expectedHashes.size,
-      actualHashCount: comparisonResult.actualHashes.size,
+      matchedCount: comparisonResult.matchedCount,
       missingCount: comparisonResult.missingInActual.length,
       unexpectedCount: comparisonResult.unexpectedInActual.length,
-      missingHashes: comparisonResult.missingInActual,
-      unexpectedHashes: comparisonResult.unexpectedInActual,
     });
 
     // Use formatter to generate clean, structured output
@@ -177,12 +175,11 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       value: {
         expectedProposalCount: expectedProposals.length,
         actualProposalCount: normalizedActualProposals.length,
-        expectedHashes: Array.from(comparisonResult.expectedHashes),
-        actualHashes: Array.from(comparisonResult.actualHashes),
+        matchedProposals: comparisonResult.matchedCount,
         missingProposals: comparisonResult.missingInActual.length,
         unexpectedProposals: comparisonResult.unexpectedInActual.length,
         referenceKey,
-        comparisonMethod: "md5_hash_with_mutation_variables",
+        comparisonMethod: "strict_matching_with_path_config",
       },
     };
 
