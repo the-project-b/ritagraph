@@ -10,6 +10,7 @@ import {
 } from "../../../utils/graphql/client.js";
 import { Result } from "../../../utils/types/result.js";
 import { getConversationMessages } from "../../../utils/format-helpers/message-filters.js";
+import { Tags } from "../../tags.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Nodes",
@@ -125,6 +126,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
         const llm = new ChatOpenAI({
           model: "gpt-4o-mini",
           temperature: 0.3,
+          tags: [Tags.TITLE_GENERATION],
         });
 
         const response = await llm
