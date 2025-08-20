@@ -56,9 +56,7 @@ export class ProposalFormatter {
   /**
    * Format an array of proposals
    */
-  private formatProposalArray(
-    proposals: NormalizedProposal[],
-  ): string[] {
+  private formatProposalArray(proposals: NormalizedProposal[]): string[] {
     const result: string[] = [];
 
     proposals.forEach((proposal, index) => {
@@ -119,11 +117,11 @@ export class ProposalFormatter {
 
     // Report missing proposals
     if (comparisonResult.missingInActual.length > 0) {
-      const missingDescriptions = comparisonResult.missingInActual
-        .map(p => p.changeType === "change" ? 
-          `${p.changedField}: ${p.newValue}` : 
-          "creation proposal"
-        );
+      const missingDescriptions = comparisonResult.missingInActual.map((p) =>
+        p.changeType === "change"
+          ? `${p.changedField}: ${p.newValue}`
+          : "creation proposal",
+      );
 
       issues.push(
         `  ${issueNum}. Missing expected: ${missingDescriptions.join(", ")}`,
@@ -133,11 +131,12 @@ export class ProposalFormatter {
 
     // Report unexpected proposals
     if (comparisonResult.unexpectedInActual.length > 0) {
-      const unexpectedDescriptions = comparisonResult.unexpectedInActual
-        .map((p) => p.changeType === "change" ?
-          `${p.changedField}: ${p.newValue}` :
-          "creation proposal"
-        );
+      const unexpectedDescriptions = comparisonResult.unexpectedInActual.map(
+        (p) =>
+          p.changeType === "change"
+            ? `${p.changedField}: ${p.newValue}`
+            : "creation proposal",
+      );
 
       issues.push(
         `  ${issueNum}. Unexpected proposals: ${unexpectedDescriptions.join(", ")}`,

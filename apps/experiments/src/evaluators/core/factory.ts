@@ -1,10 +1,11 @@
 import { createLogger } from "@the-project-b/logging";
+import { runWithEvaluationContext } from "./evaluation-context.js";
 import { EvaluatorRegistry } from "./registry";
 import {
-  EvaluatorInfo,
   EvaluationOptions,
-  EvaluatorParams,
   EvaluationResult,
+  EvaluatorInfo,
+  EvaluatorParams,
   ModelIdentifier,
 } from "./types";
 
@@ -72,71 +73,88 @@ export function createEvaluator(
 
   // Return a strongly typed evaluator function
   return async (params: EvaluatorParams): Promise<EvaluationResult> => {
-    // Validate required parameters - allow evaluation of failed runs
-    if (!params.inputs) {
-      throw new Error("Evaluator params must include inputs");
-    }
+    // Extract the example ID from LangSmith's evaluation context
+    // LangSmith passes evaluators: { run, example, inputs, outputs, referenceOutputs }
+    const exampleId =
+      (params as any).example?.id ||
+      (params as any).run?.reference_example_id ||
+      `unknown-${Date.now()}`;
 
-    // If outputs is missing (e.g., run failed), return a default evaluation
-    if (!params.outputs) {
-      logger.warn(
-        `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`,
-        {
-          operation: "evaluate",
-          evaluatorType: type,
-          hasInputs: !!params.inputs,
-          hasOutputs: false,
-          hasReferenceOutputs: !!params.referenceOutputs,
-          customPrompt: !!customPrompt,
-          model: model || evaluator.config.defaultModel,
-        },
-      );
-      return {
-        key: type.toLowerCase(),
-        score: 0,
-        comment: "Run failed - no outputs available for evaluation",
-      };
-    }
+    // Run the evaluator with context
+    return runWithEvaluationContext(
+      {
+        exampleId,
+        evaluatorType: type,
+      },
+      async () => {
+        // Validate required parameters - allow evaluation of failed runs
+        if (!params.inputs) {
+          throw new Error("Evaluator params must include inputs");
+        }
 
-    // Check if evaluator has required reference keys
-    if (
-      evaluator.config.requiredReferenceKeys &&
-      evaluator.config.requiredReferenceKeys.length > 0
-    ) {
-      const keysToCheck = referenceKey
-        ? [referenceKey]
-        : evaluator.config.requiredReferenceKeys;
+        // If outputs is missing (e.g., run failed), return a default evaluation
+        if (!params.outputs) {
+          logger.warn(
+            `[Evaluator ${type}] Run has no outputs, likely failed. Returning default evaluation.`,
+            {
+              operation: "evaluate",
+              evaluatorType: type,
+              hasInputs: !!params.inputs,
+              hasOutputs: false,
+              hasReferenceOutputs: !!params.referenceOutputs,
+              customPrompt: !!customPrompt,
+              model: model || evaluator.config.defaultModel,
+            },
+          );
+          return {
+            key: type.toLowerCase(),
+            score: 0,
+            comment: "Run failed - no outputs available for evaluation",
+          };
+        }
 
-      // Check if this specific example has the required keys
-      const hasRequiredKey = keysToCheck.some(
-        (key) =>
-          params.referenceOutputs && params.referenceOutputs[key] !== undefined,
-      );
+        // Check if evaluator has required reference keys
+        if (
+          evaluator.config.requiredReferenceKeys &&
+          evaluator.config.requiredReferenceKeys.length > 0
+        ) {
+          const keysToCheck = referenceKey
+            ? [referenceKey]
+            : evaluator.config.requiredReferenceKeys;
 
-      if (!hasRequiredKey) {
-        // Skip this evaluation by returning a null score
-        logger.warn(
-          `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`,
-          {
-            operation: "evaluate",
-            evaluatorType: type,
-            requiredKeys: keysToCheck,
-            availableReferenceKeys: params.referenceOutputs
-              ? Object.keys(params.referenceOutputs)
-              : [],
-            referenceKeyUsed: referenceKey,
-            hasReferenceOutputs: !!params.referenceOutputs,
-          },
-        );
-        return {
-          key: type.toLowerCase(),
-          score: null,
-          comment: `Skipped - required reference key(s) not present: ${keysToCheck.join(", ")}`,
-        };
-      }
-    }
+          // Check if this specific example has the required keys
+          const hasRequiredKey = keysToCheck.some(
+            (key) =>
+              params.referenceOutputs &&
+              params.referenceOutputs[key] !== undefined,
+          );
 
-    return evaluator.evaluate(params, options);
+          if (!hasRequiredKey) {
+            // Skip this evaluation by returning a null score
+            logger.warn(
+              `[Evaluator ${type}] Skipping - required reference key(s) not present: ${keysToCheck.join(", ")}`,
+              {
+                operation: "evaluate",
+                evaluatorType: type,
+                requiredKeys: keysToCheck,
+                availableReferenceKeys: params.referenceOutputs
+                  ? Object.keys(params.referenceOutputs)
+                  : [],
+                referenceKeyUsed: referenceKey,
+                hasReferenceOutputs: !!params.referenceOutputs,
+              },
+            );
+            return {
+              key: type.toLowerCase(),
+              score: null,
+              comment: `Skipped - required reference key(s) not present: ${keysToCheck.join(", ")}`,
+            };
+          }
+        }
+
+        return evaluator.evaluate(params, options);
+      },
+    );
   };
 }
 

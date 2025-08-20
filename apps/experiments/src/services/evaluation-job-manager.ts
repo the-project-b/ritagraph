@@ -339,6 +339,10 @@ export class EvaluationJobManager {
 
     // Target function for evaluation
     return async (inputs: Record<string, any>) => {
+      // LangSmith passes the example inputs directly to the target function
+      // The example ID is not available here, so we generate a meaningful identifier
+      const exampleId = `q-${inputs.question?.substring(0, 20).replace(/\s+/g, '-')}-${Date.now()}`;
+      
       // Expect the 'question' key directly from the input
       const question = inputs.question;
       if (!question || typeof question !== "string") {
@@ -390,6 +394,7 @@ export class EvaluationJobManager {
           selectedCompanyId,
           questionPreview: question.substring(0, 50),
           hasPreferredLanguage: !!examplePreferredLanguage,
+          exampleId,
         },
       );
 
@@ -475,6 +480,7 @@ export class EvaluationJobManager {
             proposalCount: dataChangeProposals.length,
             graphName,
             hasThreadItems: !!threadItemsResult?.thread?.threadItems,
+            exampleId,
           },
         );
       }

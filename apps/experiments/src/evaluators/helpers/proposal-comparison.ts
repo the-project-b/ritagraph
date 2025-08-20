@@ -1,18 +1,18 @@
-import { createLogger } from "@the-project-b/logging";
+import { createEvaluationLogger } from "../core/evaluation-context.js";
 import { canonicalizeObject } from "./canonical-json.js";
 import { DataChangeProposal } from "../implementations/types.js";
-import { 
-  ValidationConfig, 
-  shouldIgnorePath, 
-  applyTransformer 
+import {
+  ValidationConfig,
+  shouldIgnorePath,
+  applyTransformer,
+  normalizeWithConfig,
 } from "./validation-config.js";
+import { deepEquals } from "./object-utils.js";
 
 // Re-export canonicalizeObject for use in other modules
 export { canonicalizeObject } from "./canonical-json.js";
 
-const logger = createLogger({ service: "experiments" }).child({
-  module: "ProposalComparison",
-});
+const logger = createEvaluationLogger("experiments", "ProposalComparison");
 
 /**
  * Normalized structure for data change proposals
@@ -33,15 +33,31 @@ export type NormalizedProposal =
     };
 
 /**
+ * Proposal with optional ignore paths metadata
+ * This is used for test data where we can override ignore paths per proposal
+ */
+export type ProposalWithMetadata = NormalizedProposal & {
+  ignorePaths?: string[] | string;
+};
+
+/**
  * Normalizes a proposal to ensure consistent types and values.
- * Converts newValue to string and handles missing fields.
+ * Uses ValidationConfig if provided, otherwise falls back to legacy behavior.
  *
  * @param proposal - The proposal to normalize
+ * @param config - Optional validation config with normalization rules
  * @returns A normalized proposal with consistent types
  */
 export function normalizeProposal(
   proposal: DataChangeProposal,
+  config?: ValidationConfig,
 ): NormalizedProposal {
+  // If config has normalization rules, use them
+  if (config?.normalization) {
+    return normalizeWithConfig(proposal, config) as NormalizedProposal;
+  }
+
+  // Legacy normalization for backward compatibility
   if (proposal.changeType === "creation") {
     return {
       changeType: "creation",
@@ -56,10 +72,9 @@ export function normalizeProposal(
     newValue: proposal.newValue,
     mutationQueryPropertyPath: proposal.mutationQuery?.propertyPath,
     relatedUserId: proposal.relatedUserId,
-    mutationVariables: proposal.mutationQuery?.variables, // Already at top level from extraction
+    mutationVariables: proposal.mutationQuery?.variables,
   };
 }
-
 
 /**
  * Result of comparing two sets of proposals
@@ -72,78 +87,160 @@ export interface ProposalComparisonResult {
 }
 
 /**
- * Compares two sets of proposals using hash comparison.
- * Order-independent comparison using canonical JSON hashing.
- *
- * @param expected - Expected proposals
- * @param actual - Actual proposals
- * @param logDetails - Whether to log comparison details
- * @returns Comparison result with match status and differences
+ * Extracts ignorePaths from a proposal and creates a merged config
  */
+function getMergedConfig(
+  proposal: ProposalWithMetadata | NormalizedProposal,
+  baseConfig?: ValidationConfig,
+): ValidationConfig | undefined {
+  // Check if proposal has ignorePaths metadata
+  const proposalIgnorePathsRaw = (proposal as ProposalWithMetadata).ignorePaths;
+
+  // If no ignorePaths in proposal, use base config as-is
+  if (proposalIgnorePathsRaw === undefined) {
+    return baseConfig;
+  }
+
+  // Normalize ignorePaths to always be an array (handle both string and array inputs)
+  const proposalIgnorePaths = Array.isArray(proposalIgnorePathsRaw)
+    ? proposalIgnorePathsRaw
+    : typeof proposalIgnorePathsRaw === "string"
+      ? [proposalIgnorePathsRaw]
+      : [];
+
+  // If ignorePaths is defined (even as empty array), override base config
+  const mergedConfig: ValidationConfig = {
+    ...(baseConfig || { ignorePaths: [], transformers: {} }),
+    ignorePaths: proposalIgnorePaths, // Override with proposal-specific paths
+  };
+
+  logger.debug("Using per-proposal ignorePaths override", {
+    operation: "getMergedConfig",
+    baseIgnorePaths: baseConfig?.ignorePaths || [],
+    proposalIgnorePaths,
+    rawValue: proposalIgnorePathsRaw,
+    changeType: proposal.changeType,
+  });
+
+  return mergedConfig;
+}
+
+/**
+ * Creates a clean copy of proposal without metadata fields
+ */
+function stripMetadata(
+  proposal: ProposalWithMetadata | NormalizedProposal,
+): NormalizedProposal {
+  const { ignorePaths, ...cleanProposal } = proposal as ProposalWithMetadata;
+  return cleanProposal as NormalizedProposal;
+}
+
 /**
  * Checks if an actual proposal matches an expected proposal.
  * Uses strict matching - all fields in actual must exist in expected.
  *
- * @param expected - The expected proposal
+ * @param expected - The expected proposal (may contain ignorePaths metadata)
  * @param actual - The actual proposal
  * @param config - Validation configuration for ignoring paths and transformers
  * @returns True if proposals match according to strict rules
  */
 function proposalMatches(
-  expected: NormalizedProposal,
+  expected: ProposalWithMetadata | NormalizedProposal,
   actual: NormalizedProposal,
   config?: ValidationConfig,
 ): boolean {
-  // Strict matching: check that actual doesn't have extra fields
+  // Extract per-proposal config if present
+  const mergedConfig = getMergedConfig(expected, config);
+
+  // Strip metadata from expected for comparison
+  const cleanExpected = stripMetadata(expected);
   for (const key of Object.keys(actual) as Array<keyof NormalizedProposal>) {
-    if (!(key in expected)) {
-      // Check if this path should be ignored
-      if (!config || !shouldIgnorePath(key, config)) {
-        return false; // Extra field in actual that's not ignored
+    if (!(key in cleanExpected)) {
+      if (!mergedConfig || !shouldIgnorePath(key, mergedConfig)) {
+        logger.debug("Proposal match failed: extra field in actual", {
+          operation: "proposalMatches.extraField",
+          field: key,
+          actualValue: actual[key],
+        });
+        return false;
       }
     }
   }
 
-  // Check all fields in expected match actual
-  for (const key of Object.keys(expected) as Array<keyof NormalizedProposal>) {
-    // Skip ignored paths
-    if (config && shouldIgnorePath(key, config)) {
+  for (const key of Object.keys(cleanExpected) as Array<
+    keyof NormalizedProposal
+  >) {
+    if (mergedConfig && shouldIgnorePath(key, mergedConfig)) {
       continue;
     }
 
-    let expectedValue = expected[key];
+    let expectedValue = cleanExpected[key];
     let actualValue = actual[key];
 
-    // Apply transformers if configured
-    if (config) {
-      expectedValue = applyTransformer(expectedValue, key, config, true);
-      actualValue = applyTransformer(actualValue, key, config, false);
+    if (mergedConfig) {
+      const expectedResult = applyTransformer(
+        expectedValue,
+        key,
+        mergedConfig,
+        true,
+      );
+      const actualResult = applyTransformer(
+        actualValue,
+        key,
+        mergedConfig,
+        false,
+      );
+
+      if (
+        expectedResult.value !== expectedValue ||
+        actualResult.value !== actualValue
+      ) {
+        logger.debug("Applied transformer to field", {
+          operation: "proposalMatches.transform",
+          field: key,
+          expectedBefore: expectedValue,
+          expectedAfter: expectedResult.value,
+          actualBefore: actualValue,
+          actualAfter: actualResult.value,
+        });
+      }
+
+      expectedValue = expectedResult.value;
+      actualValue = actualResult.value;
     }
 
-    // Skip undefined fields in expected (treat as optional)
     if (expectedValue === undefined) {
       continue;
     }
 
-    // Check if actual is missing this field
     if (actualValue === undefined) {
+      logger.debug("Proposal match failed: missing field in actual", {
+        operation: "proposalMatches.missingField",
+        field: key,
+        expectedValue,
+      });
       return false;
     }
 
-    // For objects like mutationVariables, do deep strict comparison
     if (typeof expectedValue === "object" && expectedValue !== null) {
       if (!actualValue || typeof actualValue !== "object") {
         return false;
       }
-      // Use deep strict matching for nested objects
-      if (!deepStrictMatch(expectedValue, actualValue, config, key)) {
+      if (!deepStrictMatch(expectedValue, actualValue, mergedConfig, key)) {
+        logger.debug("Proposal match failed: nested object mismatch", {
+          operation: "proposalMatches.nestedMismatch",
+          field: key,
+        });
         return false;
       }
     } else {
-      // For primitive values, ensure both are strings for comparison
-      const expStr = String(expectedValue);
-      const actStr = String(actualValue || "");
-      if (expStr !== actStr) {
+      if (!deepEquals(expectedValue, actualValue)) {
+        logger.debug("Proposal match failed: primitive value mismatch", {
+          operation: "proposalMatches.valueMismatch",
+          field: key,
+          expectedValue,
+          actualValue,
+        });
         return false;
       }
     }
@@ -157,7 +254,7 @@ function proposalMatches(
  * Validates that actual contains exactly the same fields as expected.
  *
  * @param expected - The expected object
- * @param actual - The actual object  
+ * @param actual - The actual object
  * @param config - Validation configuration
  * @param parentPath - Path to this object for path-based operations
  * @returns True if objects match strictly
@@ -166,19 +263,16 @@ function deepStrictMatch(
   expected: any,
   actual: any,
   config?: ValidationConfig,
-  parentPath?: string
+  parentPath?: string,
 ): boolean {
-  // Handle null/undefined
   if (expected === null || expected === undefined) {
     return expected === actual;
   }
-  
-  // If not an object, do simple comparison
+
   if (typeof expected !== "object") {
-    return String(expected) === String(actual);
+    return deepEquals(expected, actual);
   }
-  
-  // For arrays, compare length and elements
+
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) {
       return false;
@@ -188,91 +282,121 @@ function deepStrictMatch(
       if (config && shouldIgnorePath(elementPath, config)) {
         return true;
       }
-      
-      // Apply transformers to array elements
+
       let expectedElem = exp;
       let actualElem = actual[i];
       if (config) {
-        expectedElem = applyTransformer(exp, elementPath, config, true);
-        actualElem = applyTransformer(actual[i], elementPath, config, false);
+        const expectedResult = applyTransformer(exp, elementPath, config, true);
+        const actualResult = applyTransformer(
+          actual[i],
+          elementPath,
+          config,
+          false,
+        );
+        expectedElem = expectedResult.value;
+        actualElem = actualResult.value;
       }
-      
+
       return deepStrictMatch(expectedElem, actualElem, config, elementPath);
     });
   }
-  
-  // For objects, strict field checking
+
   const actualKeys = Object.keys(actual);
   const expectedKeys = Object.keys(expected);
-  
-  // Check for extra fields in actual (strict mode)
+
   for (const key of actualKeys) {
     const path = parentPath ? `${parentPath}.${key}` : key;
     if (!expectedKeys.includes(key)) {
       if (!config || !shouldIgnorePath(path, config)) {
-        return false; // Extra field not in expected and not ignored
+        return false;
       }
     }
   }
-  
-  // Check all expected fields
+
   for (const key of expectedKeys) {
     const path = parentPath ? `${parentPath}.${key}` : key;
-    
-    // Skip ignored paths
+
     if (config && shouldIgnorePath(path, config)) {
       continue;
     }
-    
+
     if (!(key in actual)) {
-      return false; // Missing expected field
+      return false;
     }
-    
-    // Apply transformers
+
     let expectedVal = expected[key];
     let actualVal = actual[key];
     if (config) {
-      expectedVal = applyTransformer(expectedVal, path, config, true);
-      actualVal = applyTransformer(actualVal, path, config, false);
+      const expectedResult = applyTransformer(expectedVal, path, config, true);
+      const actualResult = applyTransformer(actualVal, path, config, false);
+      expectedVal = expectedResult.value;
+      actualVal = actualResult.value;
     }
-    
-    // Recursively check nested values
+
     if (!deepStrictMatch(expectedVal, actualVal, config, path)) {
       return false;
     }
   }
-  
+
   return true;
 }
 
 export function compareProposalSets(
-  expected: NormalizedProposal[],
+  expected: (ProposalWithMetadata | NormalizedProposal)[],
   actual: NormalizedProposal[],
   logDetails = false,
   config?: ValidationConfig,
 ): ProposalComparisonResult {
-  // For subset matching, we need to find matches differently
-  const unmatchedExpected: NormalizedProposal[] = [...expected];
+  const unmatchedExpected: (ProposalWithMetadata | NormalizedProposal)[] = [
+    ...expected,
+  ];
   const unmatchedActual: NormalizedProposal[] = [...actual];
-  const matchedPairs: Array<[NormalizedProposal, NormalizedProposal]> = [];
+  const matchedPairs: Array<
+    [ProposalWithMetadata | NormalizedProposal, NormalizedProposal]
+  > = [];
 
-  // Try to match each expected with an actual
+  logger.debug("Starting proposal set comparison", {
+    operation: "compareProposalSets.start",
+    expectedCount: expected.length,
+    actualCount: actual.length,
+    validationMode: "strict",
+    hasConfig: !!config,
+    ignorePaths: config?.ignorePaths || [],
+  });
+
   for (let i = unmatchedExpected.length - 1; i >= 0; i--) {
     const exp = unmatchedExpected[i];
 
-    // Find a matching actual proposal
+    logger.debug("Attempting to match expected proposal", {
+      operation: "compareProposalSets.matching",
+      expectedIndex: i,
+      changeType: exp.changeType,
+      remainingActual: unmatchedActual.length,
+    });
+
     const actualIndex = unmatchedActual.findIndex((act) =>
       proposalMatches(exp, act, config),
     );
 
     if (actualIndex !== -1) {
-      // Found a match
+      logger.debug("Found matching proposal", {
+        operation: "compareProposalSets.matched",
+        expectedIndex: i,
+        actualIndex,
+        changeType: exp.changeType,
+      });
       matchedPairs.push([exp, unmatchedActual[actualIndex]]);
       unmatchedExpected.splice(i, 1);
       unmatchedActual.splice(actualIndex, 1);
+    } else {
+      logger.debug("No match found for expected proposal", {
+        operation: "compareProposalSets.noMatch",
+        expectedIndex: i,
+        changeType: exp.changeType,
+        proposal: exp,
+      });
     }
   }
-
 
   const matches =
     unmatchedExpected.length === 0 && unmatchedActual.length === 0;
@@ -303,7 +427,7 @@ export function compareProposalSets(
 
   return {
     matches,
-    missingInActual: unmatchedExpected,
+    missingInActual: unmatchedExpected.map(stripMetadata),
     unexpectedInActual: unmatchedActual,
     matchedCount: matchedPairs.length,
   };
@@ -317,7 +441,7 @@ export function compareProposalSets(
  * @param referenceKey - Optional reference key for context
  */
 export function logProposalDetails(
-  proposals: Array<NormalizedProposal>,
+  proposals: Array<ProposalWithMetadata | NormalizedProposal>,
   type: "expected" | "actual",
   referenceKey?: string,
 ): void {
@@ -328,13 +452,16 @@ export function logProposalDetails(
   });
 
   proposals.forEach((proposal, index) => {
-    const canonical = canonicalizeObject(proposal);
+    // Strip metadata for logging
+    const cleanProposal = stripMetadata(proposal);
+    const canonical = canonicalizeObject(cleanProposal);
 
     logger.debug(`${type} proposal [${index}]`, {
       operation: `log.${type}.detail`,
       index,
-      proposal,
+      proposal: cleanProposal,
       canonicalJson: JSON.stringify(canonical),
+      hasIgnorePaths: "ignorePaths" in proposal,
     });
   });
 }
