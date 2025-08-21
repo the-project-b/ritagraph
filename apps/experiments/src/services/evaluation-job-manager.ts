@@ -75,6 +75,37 @@ export class EvaluationJobManager {
       throw new Error(errorMessage);
     }
 
+    // Also validate that examples exist for the specified splits
+    const splits = input.splits || [];
+    const exampleCount = await langsmithService.countExamples(
+      input.datasetName,
+      splits,
+    );
+
+    if (exampleCount === 0) {
+      const errorMessage =
+        splits.length > 0
+          ? `No examples found in dataset "${input.datasetName}" for splits: [${splits.join(", ")}]. Available splits might be different. Please verify the split names or add examples to these splits.`
+          : `Dataset "${input.datasetName}" exists but contains no examples. Please add examples to the dataset before running evaluations.`;
+
+      logger.error(errorMessage, {
+        operation: "startEvaluationJob.validateExamples",
+        datasetName: input.datasetName,
+        graphName: input.graphName,
+        splits,
+        exampleCount,
+      });
+      throw new Error(errorMessage);
+    }
+
+    logger.info(`Dataset validation successful`, {
+      operation: "startEvaluationJob.validateDataset",
+      datasetName: input.datasetName,
+      splits,
+      exampleCount,
+      graphName: input.graphName,
+    });
+
     const jobId = randomUUID();
     const experimentName = input.experimentPrefix
       ? `${input.experimentPrefix}-${Date.now()}`
@@ -268,6 +299,63 @@ export class EvaluationJobManager {
         numRepetitions: job.input.numRepetitions || 1, // Number of times to run each example
       };
 
+      // Verify dataset still exists before attempting to list examples
+      try {
+        const datasetStillExists = await langsmithService.getDataset(
+          job.input.datasetName,
+        );
+        if (!datasetStillExists) {
+          throw new Error(
+            `Dataset "${job.input.datasetName}" no longer exists or is inaccessible`,
+          );
+        }
+      } catch (verifyError) {
+        const errorMessage = `Failed to access dataset "${job.input.datasetName}": ${verifyError instanceof Error ? verifyError.message : String(verifyError)}`;
+        logger.error(errorMessage, {
+          operation: "executeJob.verifyDataset",
+          jobId,
+          datasetName: job.input.datasetName,
+          error:
+            verifyError instanceof Error
+              ? verifyError.message
+              : String(verifyError),
+        });
+        throw new Error(errorMessage);
+      }
+
+      // Verify examples exist for the specified splits
+      const splits = job.input.splits || [];
+      const exampleCount = await langsmithService.countExamples(
+        job.input.datasetName,
+        splits,
+      );
+
+      if (exampleCount === 0) {
+        const errorMessage =
+          splits.length > 0
+            ? `No examples found in dataset "${job.input.datasetName}" for splits: [${splits.join(", ")}]. Please verify the split names or add examples to these splits.`
+            : `Dataset "${job.input.datasetName}" contains no examples. Please add examples to the dataset before running evaluations.`;
+
+        logger.error(errorMessage, {
+          operation: "executeJob.validateExamples",
+          jobId,
+          datasetName: job.input.datasetName,
+          splits,
+          exampleCount,
+          experimentName: job.experimentName,
+        });
+        throw new Error(errorMessage);
+      }
+
+      logger.info(`Found ${exampleCount} examples to evaluate`, {
+        operation: "executeJob.validateExamples",
+        jobId,
+        datasetName: job.input.datasetName,
+        splits,
+        exampleCount,
+        experimentName: job.experimentName,
+      });
+
       // We filter based on splits here
       const exampleGenerator = langsmithService.getClient().listExamples({
         datasetName: job.input.datasetName,
@@ -341,8 +429,8 @@ export class EvaluationJobManager {
     return async (inputs: Record<string, any>) => {
       // LangSmith passes the example inputs directly to the target function
       // The example ID is not available here, so we generate a meaningful identifier
-      const exampleId = `q-${inputs.question?.substring(0, 20).replace(/\s+/g, '-')}-${Date.now()}`;
-      
+      const exampleId = `q-${inputs.question?.substring(0, 20).replace(/\s+/g, "-")}-${Date.now()}`;
+
       // Expect the 'question' key directly from the input
       const question = inputs.question;
       if (!question || typeof question !== "string") {

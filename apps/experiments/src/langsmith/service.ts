@@ -367,6 +367,43 @@ export class LangSmithService {
   }
 
   /**
+   * Count examples in a dataset, optionally filtered by splits
+   * @param datasetName - The name of the dataset
+   * @param splits - Optional array of split names to filter by
+   * @returns Promise<number> - Number of examples found
+   */
+  public async countExamples(
+    datasetName: string,
+    splits?: string[],
+  ): Promise<number> {
+    try {
+      let count = 0;
+      const examples = this.client.listExamples({
+        datasetName,
+        splits,
+      });
+
+      // Count all examples
+      for await (const _ of examples) {
+        count++;
+      }
+
+      return count;
+    } catch (error) {
+      logger.error(`Failed to count examples in dataset "${datasetName}"`, {
+        operation: "countExamples",
+        datasetName,
+        splits,
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      // Return 0 if we can't count - this will trigger the proper error message
+      return 0;
+    }
+  }
+
+  /**
    * Verify if a dataset exists in LangSmith
    * @param datasetName - The name of the dataset to check
    * @returns Promise<boolean> - True if dataset exists, false otherwise
@@ -374,16 +411,49 @@ export class LangSmithService {
   public async getDataset(datasetName: string): Promise<boolean> {
     try {
       const dataset = await this.client.readDataset({ datasetName });
-      return !!dataset;
+
+      // Validate that dataset has required properties
+      if (!dataset || !dataset.id) {
+        logger.error(
+          `Dataset "${datasetName}" is invalid or missing required properties`,
+          {
+            operation: "getDataset",
+            datasetName,
+            datasetId: dataset?.id,
+            datasetExists: !!dataset,
+          },
+        );
+        return false;
+      }
+
+      return true;
     } catch (error) {
       // If dataset not found, LangSmith Client throws an error
-      logger.warn(`Dataset "${datasetName}" not found`, {
-        operation: "getDataset",
-        datasetName,
-        errorType:
-          error instanceof Error ? error.constructor.name : "UnknownError",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Check for specific error messages indicating dataset doesn't exist
+      if (
+        errorMessage.includes("404") ||
+        errorMessage.includes("not found") ||
+        errorMessage.includes("does not exist")
+      ) {
+        logger.error(`Dataset "${datasetName}" does not exist in LangSmith`, {
+          operation: "getDataset",
+          datasetName,
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage,
+        });
+      } else {
+        logger.error(`Failed to verify dataset "${datasetName}"`, {
+          operation: "getDataset",
+          datasetName,
+          errorType:
+            error instanceof Error ? error.constructor.name : "UnknownError",
+          errorMessage,
+        });
+      }
       return false;
     }
   }
