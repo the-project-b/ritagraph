@@ -16,7 +16,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 
 export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
   tool(
-    async ({ nameParts }) => {
+    async ({ userNameParts }) => {
       logger.info("[TOOL > find_employee_by_name_with_contract]", {
         operation: "find_employee_by_name_with_contract",
         companyId: ctx.selectedCompanyId,
@@ -24,7 +24,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
       const client = createGraphQLClient(ctx);
 
       const employees = await Promise.all(
-        nameParts.map((namePart) =>
+        userNameParts.map((namePart) =>
           fetchEmployeeByName(client, ctx.selectedCompanyId, namePart),
         ),
       );
@@ -38,7 +38,7 @@ export const findEmployeeByNameWithContract = (ctx: ToolContext) =>
 
       if (foundEmployees.length === 0) {
         return {
-          instructions: `No employees found matching the given name.`,
+          instructions: `No employees found matching the given name. (Only active contracts are considered) Maybe the employee is not active anymore?`,
         };
       }
 
@@ -59,7 +59,7 @@ These are the employees matching the given name.
       description:
         "Find employees by first and/or last name and get their contract information",
       schema: z.object({
-        nameParts: z
+        userNameParts: z
           .array(z.string())
           .describe("Parts of the name of the employee e.g. [John, Doe]"),
       }),

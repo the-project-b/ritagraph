@@ -36,6 +36,7 @@ export const preWorkflowResponse: Node = async ({
 Acknowledge the user's request and inform them that you are going to work on it.
 Example:
 Thanks, I will get to work on x, give me a moment.
+In german use "du" and "deine" instead of "Sie" and "Ihre".
 
 Speak in {language}.
 `,

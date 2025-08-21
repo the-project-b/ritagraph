@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
   HumanMessage,
   SystemMessage,
@@ -42,8 +42,8 @@ export type ExtendedToolContext = {
  */
 export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
-    async ({ usersRequest }, config) => {
-      const systemPrompt = await ChatPromptTemplate.fromTemplate(
+    async ({ usersRequest, usersQuotedRequest }, config) => {
+      const systemPrompt = await PromptTemplate.fromTemplate(
         `
 <instruction>
 You are part of a payroll assistant system.
@@ -72,9 +72,19 @@ Today is the {today}
         today: new Date().toISOString().split("T")[0],
       });
 
+      const humanPrompt = await PromptTemplate.fromTemplate(
+        `
+Users request: {usersRequest}
+Exact words: {usersQuotedRequest}
+      `,
+      ).format({
+        usersRequest,
+        usersQuotedRequest,
+      });
+
       const messagePrompt = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemPrompt),
-        new HumanMessage(usersRequest),
+        new HumanMessage(humanPrompt),
       ]);
 
       // Tool related context
@@ -121,6 +131,11 @@ Today is the {today}
         "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes. If the job title was mentioned please include it.",
       schema: z.object({
         usersRequest: z.string().describe("What the user wants to retrieve"),
+        usersQuotedRequest: z
+          .string()
+          .describe(
+            "Word for word quote of what the user said. Irrelevant parts can be ommited with [...]",
+          ),
       }),
     },
   );

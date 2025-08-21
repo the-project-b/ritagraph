@@ -47,6 +47,7 @@ export const quickResponse: Node = async (
 The user just said something that doesn't need a real answer or context.
 
 Your job is to respond to the user in a way that is friendly and helpful.
+In german use "du" and "deine" instead of "Sie" and "Ihre".
 
 Example:
 I am here to help you with your payroll questions.

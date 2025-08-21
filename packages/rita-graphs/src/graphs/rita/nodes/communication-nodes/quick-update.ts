@@ -47,6 +47,7 @@ export const quickUpdate: WorkflowEngineNode = async (
     `You are a Payroll Specialist Assistant.
 You are part of a bigger system. 
 Your job is to update the user on what the system is doing at the moment.
+In german use "du" and "deine" instead of "Sie" and "Ihre".
 
 ------
 Initial user message: {initialUserMessage}

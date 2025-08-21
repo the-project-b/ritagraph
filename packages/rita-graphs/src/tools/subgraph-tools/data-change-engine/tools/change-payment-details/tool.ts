@@ -37,6 +37,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         newFrequency,
         newMonthlyHours,
         effectiveDate,
+        quote,
       } = params;
       const { selectedCompanyId } = ctx;
       const { thread_id } = config.configurable;
@@ -74,6 +75,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         description: `Change payment details for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
+        quote,
       });
 
       if (payments.payments.length === 0) {
@@ -246,6 +248,9 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
       description:
         "Change employees payment. There are multiple properties that can be changed. Only change the ones mentioned in the request.",
       schema: z.object({
+        quote: z
+          .string()
+          .describe("Quoted phrase from the user mentioning the change"),
         employeeId: z.string(),
         contractId: z.string(),
         paymentId: z.string(),
