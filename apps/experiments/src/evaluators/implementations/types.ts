@@ -23,10 +23,12 @@ export type DataChangeProposal = {
       changedField: string; // payment.properties.amount -> this key will be replaced in the FE for translation
       previousValueAtApproval?: string;
       newValue: string;
+      quote?: string;
     }
   | {
       changeType: "creation";
       mutationQuery: QueryDefinition;
       properties: Record<string, string>;
+      quote?: string;
     }
 );
