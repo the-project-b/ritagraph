@@ -1,7 +1,6 @@
 import {
   NormalizedProposal,
   ProposalComparisonResult,
-  hashProposal,
   canonicalizeObject,
 } from "./proposal-comparison.js";
 import { diffLines } from "diff";
@@ -57,16 +56,12 @@ export class ProposalFormatter {
   /**
    * Format an array of proposals
    */
-  private formatProposalArray(
-    proposals: NormalizedProposal[],
-    statusMap?: Map<string, string>,
-  ): string[] {
+  private formatProposalArray(proposals: NormalizedProposal[]): string[] {
     const result: string[] = [];
 
     proposals.forEach((proposal, index) => {
       const isLast = index === proposals.length - 1;
-      const status = statusMap?.get(hashProposal(proposal));
-      const proposalLines = this.formatProposal(proposal, status);
+      const proposalLines = this.formatProposal(proposal);
 
       // Add comma to all but the last line of each proposal except the last proposal
       if (!isLast) {
@@ -82,19 +77,8 @@ export class ProposalFormatter {
   /**
    * Format successful match output
    */
-  formatSuccess(expectedProposals: NormalizedProposal[]): string {
-    return [
-      "✅ Evaluation Passed: Data Change Proposals Match",
-      "",
-      "EXPECTED & ACTUAL (matched):",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(expectedProposals),
-      "  ]",
-      "}",
-      "",
-      "✅ All proposals matched successfully!",
-    ].join("\n");
+  formatSuccess(_expectedProposals: NormalizedProposal[]): string {
+    return "✅ Evaluation Passed: All data change proposals matched successfully!";
   }
 
   /**
@@ -103,50 +87,19 @@ export class ProposalFormatter {
   formatFailure(
     expectedProposals: NormalizedProposal[],
     actualProposals: NormalizedProposal[],
-    comparisonResult: ProposalComparisonResult,
+    _comparisonResult: ProposalComparisonResult,
   ): string {
-    // Create status maps for both expected and actual
-    const expectedStatusMap = new Map<string, string>();
-    const actualStatusMap = new Map<string, string>();
+    // Generate the diff directly
+    const diff = printDiff(expectedProposals, actualProposals);
 
-    // Mark missing proposals in expected
-    expectedProposals.forEach((p) => {
-      const hash = hashProposal(p);
-      if (comparisonResult.missingInActual.includes(hash)) {
-        expectedStatusMap.set(hash, "❌ MISSING");
-      } else {
-        expectedStatusMap.set(hash, "✅");
-      }
-    });
-
-    // Build sections
+    // Build minimal output with just the failure message and diff
     const sections = [
       "❌ Evaluation Failed: Data Change Proposals Don't Match",
       "",
-      "EXPECTED:",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(expectedProposals, expectedStatusMap),
-      "  ]",
-      "}",
-      "",
-      "ACTUAL:",
-      "{",
-      "  dataChangeProposals: [",
-      ...this.formatProposalArray(actualProposals, actualStatusMap),
-      "  ]",
-      "}",
+      "---",
+      diff,
+      "---",
     ];
-
-    // Add issues section if there are specific issues to report
-    const issues = this.generateIssuesList(
-      expectedProposals,
-      actualProposals,
-      comparisonResult,
-    );
-    if (issues.length > 0) {
-      sections.push("", "ISSUES:", ...issues);
-    }
 
     return sections.join("\n");
   }
@@ -164,8 +117,10 @@ export class ProposalFormatter {
 
     // Report missing proposals
     if (comparisonResult.missingInActual.length > 0) {
-      const missingDescriptions = expectedProposals.filter((p) =>
-        comparisonResult.missingInActual.includes(hashProposal(p)),
+      const missingDescriptions = comparisonResult.missingInActual.map((p) =>
+        p.changeType === "change"
+          ? `${p.changedField}: ${p.newValue}`
+          : "creation proposal",
       );
 
       issues.push(
@@ -176,16 +131,15 @@ export class ProposalFormatter {
 
     // Report unexpected proposals
     if (comparisonResult.unexpectedInActual.length > 0) {
-      const unexpectedDescriptions = actualProposals
-        .filter((p) =>
-          comparisonResult.unexpectedInActual.includes(hashProposal(p)),
-        )
-        .map(
-          (p) => `mutationVariables "${JSON.stringify(p.mutationVariables)}"`,
-        );
+      const unexpectedDescriptions = comparisonResult.unexpectedInActual.map(
+        (p) =>
+          p.changeType === "change"
+            ? `${p.changedField}: ${p.newValue}`
+            : "creation proposal",
+      );
 
       issues.push(
-        `  ${issueNum}. Unexpected proposals with: ${unexpectedDescriptions.join(", ")}`,
+        `  ${issueNum}. Unexpected proposals: ${unexpectedDescriptions.join(", ")}`,
       );
       issueNum++;
     }
