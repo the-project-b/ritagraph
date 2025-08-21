@@ -33,6 +33,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         monthlyHours,
         frequency,
         startDate,
+        quote,
       } = params;
       const { selectedCompanyId } = ctx;
       const { thread_id } = config.configurable;
@@ -62,6 +63,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         description: `Change payment details for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
+        quote,
       });
 
       const dataChangeProposal: DataChangeProposal = {
@@ -155,6 +157,9 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
       description:
         "Create a new payment for an employee. Payments include bonuses, extra payments, and regular payments. There are multiple properties that can be changed. Only change the ones mentioned in the request. You can use the change_payment_details tool to change the properties of an existing payment.",
       schema: z.object({
+        quote: z
+          .string()
+          .describe("Quoted phrase from the user mentioning the change"),
         employeeId: z.string(),
         contractId: z.string(),
         title: z.string(),
