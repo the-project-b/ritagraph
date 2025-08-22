@@ -27,6 +27,7 @@ export interface LoggerConfig extends LoggerOptions {
   environment?: string;
   prettyPrint?: boolean;
   useEnvConfig?: boolean;
+  path?: string;
 }
 
 /**

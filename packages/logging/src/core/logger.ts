@@ -12,7 +12,10 @@ import path from "node:path";
 // Store file destinations per service to reuse them
 const fileDestinations = new Map<string, any>();
 // Store buffered logs per service until threshold is reached
-const bufferedLogs = new Map<string, Array<{ level: string; obj: any; msg: string }>>();
+const bufferedLogs = new Map<
+  string,
+  Array<{ level: string; obj: any; msg: string }>
+>();
 // Number of logs to buffer before starting file writing
 const BUFFER_THRESHOLD = 3;
 
@@ -24,7 +27,7 @@ function getLogSessionTimestamp(): number {
   if (process.env.LOGGER_SESSION_TIMESTAMP) {
     return parseInt(process.env.LOGGER_SESSION_TIMESTAMP, 10);
   }
-  
+
   // Create a new session timestamp and set it in environment for child processes
   const timestamp = Date.now();
   process.env.LOGGER_SESSION_TIMESTAMP = timestamp.toString();
@@ -34,23 +37,27 @@ function getLogSessionTimestamp(): number {
 /**
  * Get or create file logging setup for development
  */
-function getOrCreateFileSetup(serviceName?: string): { logFile: string; destination: any } | null {
+function getOrCreateFileSetup(
+  serviceName?: string,
+  filePath?: string,
+): { logFile: string; destination: any } | null {
   // Only in development and when explicitly enabled
-  const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === "development";
+  const isDevelopment =
+    !process.env.NODE_ENV || process.env.NODE_ENV === "development";
   if (!isDevelopment || process.env.LOGGER_LOG_TO_FILE !== "true") {
     return null;
   }
 
   const service = serviceName || "unknown";
-  
+
   // Check if we already have a file destination for this service
   const existingDestination = fileDestinations.get(service);
   if (existingDestination) {
     return existingDestination;
   }
 
-  const logDir = path.join(process.cwd(), "logs");
-  
+  const logDir = filePath ? filePath : path.join(process.cwd(), "logs");
+
   try {
     // Create logs directory if it doesn't exist
     if (!fs.existsSync(logDir)) {
@@ -66,13 +73,13 @@ function getOrCreateFileSetup(serviceName?: string): { logFile: string; destinat
     // Use shared session timestamp for all services in this run
     const timestamp = getLogSessionTimestamp();
     const logFile = path.join(logDir, `logs-${service}-${timestamp}.log`);
-    
+
     // Create the destination
     const destination = pino.destination({
       dest: logFile,
       sync: false, // Async for better performance
     });
-    
+
     const setup = { logFile, destination };
     // Don't store here, let the caller decide when to store
     return setup;
@@ -98,10 +105,11 @@ export class Logger {
       service,
       environment,
       prettyPrint,
+      path,
       useEnvConfig = true,
       ...pinoOptions
     } = config;
-    
+
     this.serviceName = service;
 
     // Load configuration
@@ -163,11 +171,13 @@ export class Logger {
     }
 
     // Check if we're running in langgraph environment where worker threads cause issues
-    const isLanggraph = process.env.LANGGRAPH_API_URL || process.argv.some(arg => arg.includes('langgraph'));
-    
+    const isLanggraph =
+      process.env.LANGGRAPH_API_URL ||
+      process.argv.some((arg) => arg.includes("langgraph"));
+
     // Disable pretty printing in langgraph to avoid worker thread JSON parse errors
     const usePrettyPrint = shouldPrettyPrint && !isLanggraph;
-    
+
     // Initially create logger without file logging
     if (usePrettyPrint) {
       // Use pretty transport with worker threads for better performance
@@ -179,7 +189,7 @@ export class Logger {
       // Use standard JSON output (for production or langgraph environments)
       this.pinoInstance = pino(options);
     }
-    
+
     // Set up buffering if file logging is enabled
     if (this.config.logToFile && service) {
       // Get or create buffer for this service
@@ -227,9 +237,9 @@ export class Logger {
         level: level.toUpperCase(),
         time: Date.now(),
         ...obj,
-        msg
+        msg,
       };
-      existingSetup.destination.write(JSON.stringify(logEntry) + '\n');
+      existingSetup.destination.write(`${JSON.stringify(logEntry)}\n`);
       return;
     }
 
@@ -252,18 +262,18 @@ export class Logger {
         if (fileSetup && fileSetup.destination) {
           // Store the setup for future use
           fileDestinations.set(this.serviceName, fileSetup);
-          
+
           // Write all buffered logs
           for (const buffered of this.logBuffer) {
             const logEntry = {
               level: buffered.level.toUpperCase(),
               time: Date.now(),
               ...buffered.obj,
-              msg: buffered.msg
+              msg: buffered.msg,
             };
-            fileSetup.destination.write(JSON.stringify(logEntry) + '\n');
+            fileSetup.destination.write(`${JSON.stringify(logEntry)}\n`);
           }
-          
+
           // Clear the buffer - it's no longer needed for this service
           this.logBuffer.length = 0;
         }
@@ -312,7 +322,11 @@ export class Logger {
   trace(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
       this.pinoInstance.trace(context || {}, message);
-      this.handleFileLogging('trace', { ...this.pinoInstance.bindings(), ...(context || {}) }, message);
+      this.handleFileLogging(
+        "trace",
+        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        message,
+      );
     }
   }
 
@@ -322,7 +336,11 @@ export class Logger {
   debug(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
       this.pinoInstance.debug(context || {}, message);
-      this.handleFileLogging('debug', { ...this.pinoInstance.bindings(), ...(context || {}) }, message);
+      this.handleFileLogging(
+        "debug",
+        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        message,
+      );
     }
   }
 
@@ -332,7 +350,11 @@ export class Logger {
   info(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
       this.pinoInstance.info(context || {}, message);
-      this.handleFileLogging('info', { ...this.pinoInstance.bindings(), ...(context || {}) }, message);
+      this.handleFileLogging(
+        "info",
+        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        message,
+      );
     }
   }
 
@@ -349,7 +371,11 @@ export class Logger {
   warn(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
       this.pinoInstance.warn(context || {}, message);
-      this.handleFileLogging('warn', { ...this.pinoInstance.bindings(), ...(context || {}) }, message);
+      this.handleFileLogging(
+        "warn",
+        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        message,
+      );
     }
   }
 
@@ -371,7 +397,11 @@ export class Logger {
     }
 
     this.pinoInstance.error(errorContext, message);
-    this.handleFileLogging('error', { ...this.pinoInstance.bindings(), ...errorContext }, message);
+    this.handleFileLogging(
+      "error",
+      { ...this.pinoInstance.bindings(), ...errorContext },
+      message,
+    );
   }
 
   /**
@@ -392,7 +422,11 @@ export class Logger {
     }
 
     this.pinoInstance.fatal(errorContext, message);
-    this.handleFileLogging('fatal', { ...this.pinoInstance.bindings(), ...errorContext }, message);
+    this.handleFileLogging(
+      "fatal",
+      { ...this.pinoInstance.bindings(), ...errorContext },
+      message,
+    );
   }
 
   /**
