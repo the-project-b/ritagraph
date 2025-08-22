@@ -75,6 +75,7 @@ function getDefaultValidationConfig(now: Date = new Date()): ValidationConfig {
           path: "changeType",
           equals: "change",
         },
+        conditionTarget: "actual", // Check the actual LLM output's changeType
       },
       "mutationVariables.data.startDate": {
         transform: () => todayAtUtcMidnight,
@@ -83,6 +84,7 @@ function getDefaultValidationConfig(now: Date = new Date()): ValidationConfig {
           path: "changeType",
           equals: "creation",
         },
+        conditionTarget: "actual", // Check the actual LLM output's changeType
       },
     },
   };
@@ -187,37 +189,65 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         params.referenceOutputs?.validationConfig ||
         getDefaultValidationConfig();
 
-      // Apply transformers that add missing fields (like effectiveDate)
-      // This replaces the old substituteSituationAwareExpectedValues
-      logger.debug("Applying transformers to expected proposals", {
-        operation: "evaluate.applyTransformers",
-        beforeCount: expectedProposals.length,
-        transformerCount: Object.keys(validationConfig.transformers || {})
-          .length,
+      // Extract actual data change proposals from outputs EARLY
+      // We need them normalized for condition checking
+      const actualProposals = params.outputs.dataChangeProposals || [];
+
+      // Normalize actual proposals first
+      logger.debug("Normalizing actual proposals", {
+        operation: "evaluate.normalize",
+        count: actualProposals.length,
+        hasNormalizationConfig: !!validationConfig.normalization,
       });
 
-      // Log if any proposals have ignorePaths
-      const proposalsWithIgnorePaths = expectedProposals.filter(
-        (p) => "ignorePaths" in p,
-      );
-      if (proposalsWithIgnorePaths.length > 0) {
-        logger.debug("Found proposals with ignorePaths metadata", {
-          operation: "evaluate.checkIgnorePaths",
-          count: proposalsWithIgnorePaths.length,
-          ignorePaths: proposalsWithIgnorePaths.map(
-            (p) => (p as any).ignorePaths,
-          ),
-        });
-      }
+      const normalizedActualProposals: NormalizedProposal[] =
+        actualProposals.map((p, i) =>
+          toNormalizedProposal(p, i, validationConfig),
+        );
+
+      // Expected proposals need to have changeType inferred for transformer conditions
+      // They may not have explicit changeType field but we can infer it
+      logger.debug("Processing expected proposals", {
+        operation: "evaluate.processExpected",
+        expectedCount: expectedProposals.length,
+        actualCount: normalizedActualProposals.length,
+        firstExpectedKeys: expectedProposals.length > 0 ? Object.keys(expectedProposals[0]) : [],
+      });
+
+      // Normalize expected proposals to ensure they have changeType field
+      const normalizedExpectedProposals = expectedProposals.map((p) => {
+        const proposal = p as any;
+        
+        // If already has changeType, keep as is
+        if (proposal.changeType) {
+          return proposal as NormalizedProposal;
+        }
+        
+        // Infer changeType from structure
+        // If has changedField, it's a "change" type
+        // Otherwise it's a "creation" type
+        const inferredType = proposal.changedField ? "change" : "creation";
+        
+        return {
+          ...proposal,
+          changeType: inferredType,
+        } as NormalizedProposal;
+      });
+
+      // Apply transformers to add missing fields like dates
+      // Now we can use conditionTarget: "actual" to check actual proposal's changeType
+      logger.debug("Applying transformers to expected proposals with actual conditions", {
+        operation: "evaluate.applyTransformers",
+        beforeCount: normalizedExpectedProposals.length,
+        transformerCount: Object.keys(validationConfig.transformers || {}).length,
+      });
 
       expectedProposals = applyAddTransformers(
-        expectedProposals,
+        normalizedExpectedProposals,
         validationConfig,
         true,
+        normalizedActualProposals, // Pass actual proposals for condition checking
       );
-
-      // Extract actual data change proposals from outputs
-      const actualProposals = params.outputs.dataChangeProposals || [];
 
       // Log the exact structure we receive to understand the data shape
       if (actualProposals.length > 0) {
@@ -231,17 +261,7 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         });
       }
 
-      // Extract only the static fields for comparison
-      logger.debug("Normalizing actual proposals", {
-        operation: "evaluate.normalize",
-        count: actualProposals.length,
-        hasNormalizationConfig: !!validationConfig.normalization,
-      });
-
-      const normalizedActualProposals: NormalizedProposal[] =
-        actualProposals.map((p, i) =>
-          toNormalizedProposal(p, i, validationConfig),
-        );
+      // Note: normalizedActualProposals was already created earlier for transformer conditions
 
       // Comprehensive logging for debugging
       logger.info("Starting proposal comparison", {
