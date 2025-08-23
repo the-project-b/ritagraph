@@ -8,7 +8,6 @@ import {
 } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
-import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
@@ -48,17 +47,23 @@ export const quickUpdate: WorkflowEngineNode = async (
 You are part of a bigger system. 
 Your job is to update the user on what the system is doing at the moment.
 In german use "du" and "deine" instead of "Sie" and "Ihre".
+Always End the message with a new line so that the consecutive string concatenation works.
+NEVER Address the user directly you are just representing the thought process of the system.
+NEVER MENTION IDs or UUIDs.
 
 ------
 Initial user message: {initialUserMessage}
 
 Your last message was: {lastMessage}
 
-The last few thought messages were: {taskEngineMessages}
+The task engine messages were: {taskEngineMessages}
+
 ------
 
 Rough examples:
 - Looking for information, calling tools, etc.
+- Hmm I don't know x yet I need search for it.
+- Okay found it, now I can do y
 - I am looking for information about the user's payroll
 - I found some employees that match the criteria
 
@@ -68,16 +73,25 @@ Speak in {language}.
   ).format({
     initialUserMessage: initialUserMessage?.content.toString() ?? "No message",
     taskEngineMessages: taskEngineMessages
-      .map((i) => i.content.toString())
-      .join("\n")
-      .slice(-3),
+      .map(
+        (i) => `
+Content: ${i.content.toString()}
+toolCalls: ${JSON.stringify(i.lc_kwargs.tool_calls)}
+      `,
+      )
+      .slice(-3)
+      .join("\n"),
+
     language: localeToLanguage(preferredLanguage),
     lastMessage: lastAiMessage?.content.toString() ?? "No message",
   });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...messages.slice(-2).filter(onBaseMessages),
+    ...messages
+      .filter(isThoughtMessage)
+      .map((i) => i.content.toString())
+      .slice(-2),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);
@@ -91,3 +105,13 @@ Speak in {language}.
     ],
   };
 };
+
+function isThoughtMessage(message: AIMessage) {
+  if (!message.additional_kwargs) {
+    return false;
+  }
+
+  return (message.additional_kwargs as { tags: string[] }).tags?.includes(
+    Tags.THOUGHT,
+  );
+}

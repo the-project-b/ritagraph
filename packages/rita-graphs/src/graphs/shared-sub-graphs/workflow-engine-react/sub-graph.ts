@@ -142,7 +142,7 @@ export function buildWorkflowEngineReAct({
     .addEdge(START, "preWorkflowResponse")
     .addEdge("preWorkflowResponse", "plan")
     .addEdge("tools", "plan")
-    .addEdge("reflect", "quickUpdate")
+    .addEdge("plan", "quickUpdate")
     .addConditionalEdges("plan", planEdgeDecision, [
       "tools",
       "reflect",

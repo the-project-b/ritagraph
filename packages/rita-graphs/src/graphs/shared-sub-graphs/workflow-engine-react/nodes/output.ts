@@ -12,7 +12,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 
 export const output: WorkflowEngineNode = async (
   { messages, taskEngineMessages, selectedCompanyId },
-  config
+  config,
 ) => {
   logger.info("🚀 Outputing the task", {
     operation: "output",
@@ -35,7 +35,7 @@ Make sure you find and extract all the information that is relevant to the users
 Put this into a brief response draft.
 
 ${dataRepresentationLayerPrompt}
-`
+`,
   ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
