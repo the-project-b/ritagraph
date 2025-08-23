@@ -14,26 +14,39 @@ flowchart TB
     Start --> Input2["🤖 LLM Outputs<br/>(Actual Response)"]
     
     %% Expected Data (Green path)
-    Input1 -->|expectedDataProposal| Expected["📗 Expected<br/>Type: NormalizedProposal[]"]:::expected
+    Input1 -->|expectedDataProposal| Expected["📗 Expected Raw<br/>May lack changeType"]:::expected
     
     %% Actual Data (Blue path)  
     Input2 -->|dataChangeProposals| ActualRaw["📘 Actual Raw<br/>Type: DataChangeProposal[]<br/>(full LLM output)"]:::actual
     
     %% Configuration
-    Config["⚙️ ValidationConfig<br/>• normalization[]<br/>• ignorePaths[]<br/>• transformers{}"]:::config
+    Config["⚙️ ValidationConfig<br/>• normalization[]<br/>• ignorePaths[]<br/>• transformers{}<br/>• conditionTarget"]:::config
     
-    %% Apply transformers to expected
-    Expected --> ApplyTrans{{"🔄 applyAddTransformers()<br/>Add missing fields"}}
-    Config --> ApplyTrans
-    ApplyTrans --> ExpectedTransformed["📗 Expected<br/>(with added fields)"]:::expected
+    %% Normalize Actual First
+    ActualRaw --> NormalizeActual{{"🔧 normalizeProposal()<br/>Extract & reshape fields"}}
+    Config --> NormalizeActual
+    NormalizeActual --> ActualNorm["📙 Actual Normalized<br/>Type: NormalizedProposal[]<br/>(has changeType)"]:::normalized
     
-    %% Normalization
-    ActualRaw --> Normalize{{"🔧 normalizeProposal()<br/>Extract & reshape fields"}}
-    Config --> Normalize
-    Normalize --> ActualNorm["📙 Actual Normalized<br/>Type: NormalizedProposal[]<br/>(matching expected type)"]:::normalized
+    %% Decision Point
+    Config --> CheckConfig{{"Has<br/>conditionTarget:<br/>'actual'?"}}
     
-    %% Comparison
-    ExpectedTransformed --> Compare{{"🔍 compareProposalSets()<br/>Strict Matching"}}
+    %% Path 1: New Flow (conditionTarget: actual)
+    CheckConfig -->|Yes| PairedTransform{{"🔄 applyAddTransformers()<br/>Check conditions on actual<br/>Transform expected"}}
+    Expected --> PairedTransform
+    ActualNorm --> PairedTransform
+    PairedTransform --> ExpectedTransformed1["📗 Expected<br/>(with added fields)"]:::expected
+    
+    %% Path 2: Legacy Flow
+    CheckConfig -->|No| NormalizeExpected{{"🔧 normalizeProposal()<br/>Add changeType"}}
+    Expected --> NormalizeExpected
+    NormalizeExpected --> ExpectedNorm["📗 Expected Normalized"]:::expected
+    ExpectedNorm --> LegacyTransform{{"🔄 applyAddTransformers()<br/>Check conditions on self"}}
+    Config --> LegacyTransform
+    LegacyTransform --> ExpectedTransformed2["📗 Expected<br/>(with added fields)"]:::expected
+    
+    %% Merge paths for comparison
+    ExpectedTransformed1 --> Compare{{"🔍 compareProposalSets()<br/>Strict Matching"}}
+    ExpectedTransformed2 --> Compare
     ActualNorm --> Compare
     Config --> Compare
     
@@ -156,7 +169,8 @@ Functions that modify field values before comparison, with control over when and
 transformers: {
   "mutationVariables.data.effectiveDate": {
     transform: () => todayAtUtcMidnight,  // Transform function
-    strategy: TransformerStrategy.AddMissingOnly  // Clear, typed strategy
+    strategy: TransformerStrategy.AddMissingOnly,  // Clear, typed strategy
+    conditionTarget: "actual"  // Check condition on actual LLM output
   }
 }
 ```
@@ -178,12 +192,21 @@ transformers: {
 - **When present**: Transforms values on both sides
 - **Use case**: Optional fields that need normalization when present
 
+**Condition Target** (`conditionTarget`):
+Controls which proposal to check conditions against when using `when` conditions:
+
+- `"self"` (default): Check condition on the same proposal being transformed
+- `"actual"`: Check condition on the actual (LLM output) proposal
+- `"expected"`: Check condition on the expected proposal
+
+**Example Use Case**: When adding `effectiveDate` to expected proposals, we want to check if the **actual** LLM output is a "change" type, not whether the expected proposal has `changeType` (which it might not have until normalized).
+
 **Legacy Options** (for complex cases):
 - `onMissing`: "skip" | "add" | "fail"
 - `onExisting`: "transform" | "skip"
 - `applyTo`: "both" | "expected" | "actual"
 
-**Impact**: The `AddMissingOnly` strategy ensures dynamic dates are handled intelligently - adding them when missing but comparing exact values when present.
+**Impact**: The `AddMissingOnly` strategy with `conditionTarget: "actual"` ensures dynamic dates are handled intelligently - adding them to expected when missing, based on what the LLM actually generated.
 
 ### Conditional Transformers
 
@@ -197,7 +220,8 @@ transformers: {
     when: {
       path: "changeType",      // Check this path in the proposal
       equals: "change"         // Only apply when changeType === "change"
-    }
+    },
+    conditionTarget: "actual"  // Check condition on actual LLM output, not expected
   },
   "mutationVariables.data.startDate": {
     transform: () => todayAtUtcMidnight,
@@ -205,7 +229,8 @@ transformers: {
     when: {
       path: "changeType",      
       equals: "creation"       // Only apply when changeType === "creation"
-    }
+    },
+    conditionTarget: "actual"  // Check condition on actual LLM output, not expected
   }
 }
 ```
@@ -224,7 +249,7 @@ when: [
 ]
 ```
 
-**Impact**: Eliminates the need for per-proposal `ignorePaths` by making transformers context-aware. For example, `effectiveDate` only applies to "change" type proposals, while `startDate` only applies to "creation" type proposals.
+**Impact**: With `conditionTarget: "actual"`, transformers become context-aware based on what the LLM actually generated, not what we expected. This solves the problem where expected proposals may not have `changeType` until after normalization, but we need to decide whether to add dates based on the actual LLM output's type.
 
 ## Error Handling & Logging
 

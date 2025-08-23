@@ -108,6 +108,15 @@ export interface TransformerConfig {
   when?: TransformerCondition | TransformerCondition[];
 
   /**
+   * Which proposal to check the condition against
+   * - "self" (default): Check condition on the same proposal being transformed
+   * - "actual": Check condition on the actual (LLM output) proposal
+   * - "expected": Check condition on the expected proposal
+   * This is useful when you want to add fields to expected based on what the LLM generated
+   */
+  conditionTarget?: "self" | "actual" | "expected";
+
+  /**
    * Legacy/custom configuration (used when strategy is not specified)
    */
   onMissing?: "skip" | "add" | "fail";
@@ -408,11 +417,19 @@ export function normalizeWithConfig(
 /**
  * Applies transformers that add missing fields to proposals
  * This is similar to the old substituteSituationAwareExpectedValues
+ * 
+ * @param proposals - The proposals to transform
+ * @param config - Validation configuration with transformers
+ * @param isExpected - Whether these are expected proposals (true) or actual (false)
+ * @param pairedProposals - Optional paired proposals for condition checking
+ *                          If transforming expected, these should be actual proposals
+ *                          If transforming actual, these should be expected proposals
  */
 export function applyAddTransformers(
   proposals: any[],
   config: ValidationConfig,
   isExpected: boolean = true,
+  pairedProposals?: any[],
 ): any[] {
   if (!config.transformers) return proposals;
 
@@ -427,12 +444,16 @@ export function applyAddTransformers(
       side: isExpected ? "expected" : "actual",
       paths: transformerPaths,
       proposalCount: proposals.length,
+      hasPairedProposals: !!pairedProposals,
     });
   }
 
   return proposals.map((proposal, index) => {
     const modified = deepClone(proposal);
     let fieldsAdded = 0;
+
+    // Get paired proposal if available
+    const pairedProposal = pairedProposals?.[index];
 
     for (const [path, transformer] of Object.entries(config.transformers)) {
       const transformerConfig = normalizeTransformer(transformer);
@@ -447,14 +468,36 @@ export function applyAddTransformers(
         continue;
       }
 
+      // Determine which proposal to check conditions against
+      let proposalForCondition = modified;
+      const conditionTarget = transformerConfig.conditionTarget || "self";
+      
+      if (conditionTarget === "actual" && isExpected && pairedProposal) {
+        // We're transforming expected, but want to check condition on actual
+        proposalForCondition = pairedProposal;
+      } else if (conditionTarget === "expected" && !isExpected && pairedProposal) {
+        // We're transforming actual, but want to check condition on expected
+        proposalForCondition = pairedProposal;
+      } else if (conditionTarget !== "self" && !pairedProposal) {
+        logger.debug("Cannot check condition on paired proposal - not provided", {
+          operation: "applyAddTransformers.noPairedProposal",
+          proposalIndex: index,
+          path,
+          conditionTarget,
+          side,
+        });
+        continue;
+      }
+
       // Check if transformer conditions are met
-      if (!shouldApplyTransformer(transformerConfig, modified)) {
+      if (!shouldApplyTransformer(transformerConfig, proposalForCondition)) {
         logger.debug("Skipping transformer due to condition not met", {
           operation: "applyAddTransformers.conditionNotMet",
           proposalIndex: index,
           path,
           when: transformerConfig.when,
-          changeType: modified.changeType,
+          conditionTarget,
+          changeType: proposalForCondition.changeType,
         });
         continue;
       }
@@ -502,6 +545,7 @@ export function applyAddTransformers(
           proposalIndex: index,
           path,
           value: transformedValue,
+          conditionCheckedOn: conditionTarget,
         });
       }
     }
