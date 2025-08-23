@@ -134,7 +134,7 @@ Exact words: {usersQuotedRequest}
         usersQuotedRequest: z
           .string()
           .describe(
-            "Word for word quote of what the user said. Irrelevant parts can be ommited with [...]",
+            'Word for word quote of what the user said. IMPORTANT. Ommited parts from the original can be indicated with "[...]" but all relevant parts should be included. E.g. Starting september [...] Robby works 20 hours [...] (Software Architect contract)',
           ),
       }),
     },

@@ -17,6 +17,24 @@ const PROPOSAL_QUOTE_VERIFICATION_TEMPLATE = `Evaluate if quotes in proposals ac
 </Rubric>
 
 <Examples>
+  GOOD: "Starting next November: Thompson's gets 5000€, Lee Alexander gets 5000€"
+  → Quote: "Starting next November [...] Thompson's gets 5000€" ✓
+  → Quote: "Starting next November [...] Lee Alexander gets 5000€" ✓
+
+  GOOD: "Anpassungen Basisgehalt für Mitarbeiter Thompson -> 40€*160 Wilson -> 60€*120 Lewis (nur als Product Tactics Architect) -> 40€*120"
+  → Quote: "Basisgehalt für [...] Thompson -> 40€*160" ✓
+  → Quote: "Basisgehalt für [...] Wilson -> 60€*120" ✓
+  → Quote: "Basisgehalt für [...] Lewis (nur als Product Tactics Architect) -> 40€*120" ✓
+
+  BAD: "Anpassungen Basisgehalt für Mitarbeiter Thompson -> 40€*160 Wilson -> 60€*120 Lewis (nur als Product Tactics Architect) -> 40€*120"
+  → Quote: "Thompson -> 40€*160" ✗ (lost temporal marker, starting november is not present in the quote)
+  → Quote: "Wilson -> 60€*120" ✗ (lost temporal marker, starting november is not present in the quote)
+  → Quote: "Lewis (nur als Product Tactics Architect) -> 40€*120" ✗ (lost temporal marker, product tactics architect is not present in the request)
+
+  BAD: "Starting next November: Thompson's gets 5000€, Lee Alexander gets 5000€"
+  → Quote: "Starting next November: Thompson's gets 5000€" ✗ (lost marker for ommited parts)
+  → Quote: "Starting next November: Lee Alexander gets 5000€" ✗ (lost marker for ommited parts)
+
   GOOD: "Starting next November, increase Thompson's salary to 4000"
   → Quote: "Starting next November, increase Thompson's salary to 4000" ✓
   

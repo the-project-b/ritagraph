@@ -60,6 +60,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         id: uuid(),
         changeType: "creation" as const,
         relatedUserId: employeeId,
+        relatedContractId: contractId,
         description: `Change payment details for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
@@ -159,7 +160,9 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
       schema: z.object({
         quote: z
           .string()
-          .describe("Quoted phrase from the user mentioning the change"),
+          .describe(
+            "Quoted phrase from the user mentioning the change. All words contributing to the change should be part of the quote. e.g. Starting september [...] Robby works 20 hours",
+          ),
         employeeId: z.string(),
         contractId: z.string(),
         title: z.string(),

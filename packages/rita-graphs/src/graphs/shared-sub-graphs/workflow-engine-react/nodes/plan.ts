@@ -22,23 +22,23 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 export const plan: (
   fetchTools: (
     companyId: string,
-    config: AnnotationRoot<any>
-  ) => Promise<Array<ToolInterface>>
+    config: AnnotationRoot<any>,
+  ) => Promise<Array<ToolInterface>>,
 ) => WorkflowEngineNode =
   (fetchTools) =>
   async (
     { messages, taskEngineMessages, taskEngineLoopCounter, selectedCompanyId },
-    config
+    config,
   ) => {
     logger.info(
       `🚀 Plan - Chain of thought length [${taskEngineMessages.length}]`,
       {
         operation: "plan",
-        threadId: config?.configurable?.thread_id || 'unknown',
+        threadId: config?.configurable?.thread_id || "unknown",
         taskEngineMessagesLength: taskEngineMessages.length,
         taskEngineLoopCounter,
         companyId: selectedCompanyId,
-      }
+      },
     );
 
     // Check if the taskEngineLoopCounter is greater than max and then return early (to prevent additonal tool calls)
@@ -58,7 +58,7 @@ export const plan: (
       `
 You are a Payroll Specialist and a ReAct agent that solves user requests by interacting with tools.
 
-Responsibilities
+# Responsibilities
 
 1. Understand the user's request
    - Carefully analyze the query.
@@ -77,6 +77,11 @@ Responsibilities
    - Choose tools based on the current step.
    - Only call a tool if it's clearly required for that step.
 
+## Guides for data changes
+- If the request states e.g. "Starting september:..." and then lists changes it means that those changes should be effective on the first day of september.
+- Please make sure its part of the quote.
+- If you ommit parts in a quote please indicate this with "[...]". (e.g. Starting september [...] Robby works 20 hours [...] (Software Architect contract))
+
 ${dataRepresentationLayerPrompt}
 
 Format Your Thoughts
@@ -86,7 +91,7 @@ Always format your reasoning like this:
 Thought: Based on [observation], I think we should [action] in order to [goal].
 
 Then, take the next action (e.g., call a tool or or finalize the response).
-`
+`,
     ).format({});
 
     const chatPrompt = await ChatPromptTemplate.fromMessages([

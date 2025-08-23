@@ -59,7 +59,7 @@ You have been called IMPROVE for {reflectionStepCount} times.
 Respond in JSON format with the following fields:
 - decision: ACCEPT or IMPROVE
 - reflection: The suggestion for the counter-part if decision is IMPROVE
-`
+`,
   ).format({ reflectionStepCount: state.reflectionStepCount });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
@@ -73,7 +73,7 @@ Respond in JSON format with the following fields:
       z.object({
         decision: z.enum(["ACCEPT", "IMPROVE"]),
         reflection: z.string(),
-      })
+      }),
     )
     .invoke(chatPrompt);
 

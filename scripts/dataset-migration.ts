@@ -16,20 +16,43 @@ export type MigrationOutput = Example;
 export async function migrateExample(
   example: MigrationInput,
 ): Promise<MigrationOutput> {
-  const expectedDataProposal = (example as any).outputs.expectedDataProposal
-    ? (example as any).outputs.expectedDataProposal.map((proposal) => {
-        return {
-          ...proposal,
-          changeType: "change",
-        };
-      })
-    : undefined;
+  // Do not affect examples that do not have a data proposal
+  if (
+    !(example as any).outputs.expectedDataProposal ||
+    (example as any).outputs.expectedDataProposal.length === 0
+  ) {
+    return example;
+  }
+
+  if (example.id === "353aeaf4-b281-4272-b0a1-d5c1c9a52491") {
+    return example;
+  }
+
+  if (example.id === "4904ad86-2acc-4059-83cb-922483af0095") {
+    return example;
+  }
+
+  const newExpectedDataProposal = (
+    example as any
+  ).outputs.expectedDataProposal.map(({ ...proposal }) => {
+    const { effectiveDate, ...rest } = proposal.mutationVariables.data;
+
+    return {
+      ...proposal,
+      mutationVariables: {
+        ...proposal.mutationVariables,
+        data: {
+          ...rest,
+        },
+      },
+    };
+  });
 
   return {
     ...example,
     outputs: {
       ...(example.outputs as any),
-      expectedDataProposal,
+      expectedDataProposal: newExpectedDataProposal,
     },
   } as MigrationOutput;
 }

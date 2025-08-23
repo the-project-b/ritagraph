@@ -21,16 +21,25 @@ type AssumedConfigType = {
 
 const examples: Record<"EN" | "DE", string> = {
   EN: `
-I worked on your request to change [list of changes] for [employee name].
-And I worked on [list of changes] for [employee name].
+I have read your request and created **{{numberOfChanges}} data change proposals**.
+Please review them and approve or reject them.
+Let me know if you need anything else.
+--------
+I have read your request and created **{{numberOfChanges}} data change proposals**.
+One of them is already the current state, so no change is needed.
+Please review them and approve or reject them.
+Let me know if you need anything else.
 
-Those changes await your approval.
   `,
   DE: `
-Ich habe deine Anfrage umgesetzt, um [list of changes] für [employee name].
-Und ich habe [list of changes] für [employee name].
-
-Diese Änderungen warten auf deine Bestätigung.
+Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
+Bitte überprüfe diese und nehme sie gegebenfalls an.
+Lass mich wissen ob ich dir noch helfen kann.
+--------
+Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
+Einer davon ist bereits der aktuelle Stand, daher ist keine Änderung nötig.
+Bitte überprüfe diese und nehme sie gegebenfalls an.
+Lass mich wissen ob ich dir noch helfen kann.
   `,
 };
 
@@ -67,8 +76,6 @@ export const finalMessage: Node = async (
     `Respond to the users request.
 
 Guidelines:
- - For data changes - do not start to list things that have less then 6 items. The user will see those changes in the approval UI.
- - Use emojis only for structuring the response.
  - Be concise but friendly.
  - Do not say "I will get back to you" or "I will send you an email" or anything like that.
  - If you could not find information say so
@@ -76,10 +83,13 @@ Guidelines:
  - Do not claim or say that there is an operation pending.
  - NEVER include ids like UUIDs in the response.
  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
+ - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
+ - IMPORTANT: ONLY LIST EXTRAORDINARY THINGS LIKE CHANGES THAT CANNOT BE APPLIED
+ - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
 
-#example - For data changes
+#examples - For data changes
 {example}
-#/example
+#/examples
 
 
 {dataRepresentationLayerPrompt}

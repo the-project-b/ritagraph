@@ -16,6 +16,7 @@ export type DataChangeProposal = {
   description: string;
 
   relatedUserId?: string;
+  relatedContractId?: string;
   status: "approved" | "pending" | "rejected";
 } & (
   | {
