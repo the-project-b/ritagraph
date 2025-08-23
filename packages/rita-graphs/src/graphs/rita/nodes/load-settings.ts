@@ -20,7 +20,7 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
   await appendMessageAsThreadItem({
     message: new HumanMessage(lastMessage.content.toString(), {
       ...lastMessage.additional_kwargs,
-      isEmail: state.isTriggeredByEmail ?? false,
+      isEmail: lastMessage.additional_kwargs.isRepresentingEmail ?? false,
       subject: lastMessage.additional_kwargs.subject,
     }),
     langgraphThreadId: thread_id,

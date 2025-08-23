@@ -3,7 +3,7 @@ import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
 import { SystemMessage } from "@langchain/core/messages";
-import { onBaseMessages } from "../../../utils/message-filter.js";
+import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -29,7 +29,7 @@ If the user is approving of something you should use the WORKFLOW_ENGINE.
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-3).filter(onBaseMessages),
+    ...state.messages.slice(-3).filter(onHumanAndAiMessage),
   ]).invoke({});
 
   const response = await llm

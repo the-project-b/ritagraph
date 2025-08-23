@@ -1,7 +1,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { ToolInterface } from "@langchain/core/tools";
+import { ToolInterface } from "../../../graphs/shared-types/node-types";
 
 type Params = {
   tools: Array<ToolInterface>;
