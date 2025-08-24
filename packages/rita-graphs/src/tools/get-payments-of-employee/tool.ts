@@ -41,7 +41,7 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
           companyId: ctx.selectedCompanyId,
         });
         return {
-          error: "Failed to get payments",
+          error: "Failed to get payments because failed to get employee by ID",
         };
       }
 
