@@ -51,8 +51,8 @@ export const plan: (
     const tools = await fetchTools(selectedCompanyId, config);
 
     const lastUserMessage = messages
-      .filter((i) => i instanceof HumanMessage)
-      .slice(-1);
+      .filter((i) => i.getType() === "human")
+      .slice(-2);
 
     const systemPropmt = await PromptTemplate.fromTemplate(
       `

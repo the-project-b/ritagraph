@@ -24,7 +24,18 @@ respond in JSON with:
 
 Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
 If the user is approving of something you should use the WORKFLOW_ENGINE.
-  `,
+
+# Examples
+[Person Name] hat jetzt doch mehr Gehalt bekommen, 1000€ -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for base salary -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for overtime -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
+Hi I am looking
+Hi, how are you? -> CASUAL_RESPONSE_WITHOUT_DATA
+Thanks, bye -> CASUAL_RESPONSE_WITHOUT_DATA
+Bis bald -> CASUAL_RESPONSE_WITHOUT_DATA
+`,
   ).format({});
 
   const prompt = await ChatPromptTemplate.fromMessages([
