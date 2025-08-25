@@ -3,7 +3,6 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
   AIMessage,
   AIMessageChunk,
-  HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
