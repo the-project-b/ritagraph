@@ -1,6 +1,6 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
-import { getContextFromConfig, Node } from "../graph-state";
+import { getContextFromConfig, GraphStateType, Node } from "../graph-state";
 
 type AssumedConfigurableType = {
   thread_id: string;
@@ -39,3 +39,18 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
       state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
   };
 };
+
+export function routingDecision(state: GraphStateType) {
+  const userMessages = state.messages.filter(
+    (msg) => msg instanceof HumanMessage,
+  );
+
+  const shouldGenerateTitle =
+    userMessages.length === 1 || userMessages.length % 10 === 0;
+
+  if (shouldGenerateTitle && !state.isTriggeredByEmail) {
+    return ["generateTitle", "router"];
+  }
+
+  return ["router"];
+}

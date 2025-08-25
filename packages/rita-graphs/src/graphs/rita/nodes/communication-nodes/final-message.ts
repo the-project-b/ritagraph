@@ -21,25 +21,34 @@ type AssumedConfigType = {
 
 const examples: Record<"EN" | "DE", string> = {
   EN: `
-I have read your request and created **{{numberOfChanges}} data change proposals**.
+I have read your request and proposed **one data change**.
 Please review them and approve or reject them.
 Let me know if you need anything else.
 --------
-I have read your request and created **{{numberOfChanges}} data change proposals**.
-One of them is already the current state, so no change is needed.
+I have read your request and proposed **{{number of changes}} data changes**.
 Please review them and approve or reject them.
 Let me know if you need anything else.
 
   `,
   DE: `
-Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
+Ich habe aus deiner Nachricht diesen **einen Änderungsvorschläg** ausgelesen.
 Bitte überprüfe diese und nehme sie gegebenfalls an.
 Lass mich wissen ob ich dir noch helfen kann.
 --------
 Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
-Einer davon ist bereits der aktuelle Stand, daher ist keine Änderung nötig.
 Bitte überprüfe diese und nehme sie gegebenfalls an.
 Lass mich wissen ob ich dir noch helfen kann.
+  `,
+};
+
+const otherExamples: Record<"EN" | "DE", string> = {
+  EN: `
+Okay based on your request here is the information you requested.
+{{information that is not a change but just a list of information}}
+  `,
+  DE: `
+Okay basierend auf deiner Anfrage hier ist die Information die du gefragt hast.
+{{Information that is not a change but just a list of information}}
   `,
 };
 
@@ -84,11 +93,14 @@ Guidelines:
  - NEVER include ids like UUIDs in the response.
  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
  - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
- - IMPORTANT: ONLY LIST EXTRAORDINARY THINGS LIKE CHANGES THAT CANNOT BE APPLIED
  - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
 
 #examples - For data changes
-{example}
+{examples}
+#/examples
+
+#examples - For other cases like listing information
+{otherExamples}
 #/examples
 
 
@@ -99,7 +111,8 @@ Speak in {language}.
 Drafted Response: {draftedResponse}
   `,
   ).format({
-    example: examples[preferredLanguage],
+    examples: examples[preferredLanguage],
+    otherExamples: otherExamples[preferredLanguage],
     dataRepresentationLayerPrompt,
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,

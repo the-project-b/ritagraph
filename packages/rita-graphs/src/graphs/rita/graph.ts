@@ -14,7 +14,10 @@ import {
   preWorkflowResponse,
 } from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
-import { loadSettings } from "./nodes/load-settings.js";
+import {
+  loadSettings,
+  routingDecision as routingDecisionFromLoadSettings,
+} from "./nodes/load-settings.js";
 import { generateTitle } from "./nodes/generate-title.js";
 import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
@@ -92,8 +95,10 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
         .addEdge(START, "loadSettings")
-        .addEdge("loadSettings", "router")
-        .addEdge("loadSettings", "generateTitle")
+        .addConditionalEdges("loadSettings", routingDecisionFromLoadSettings, [
+          "generateTitle",
+          "router",
+        ])
         .addConditionalEdges("router", routerEdgeDecision, [
           "quickResponse",
           "workflowEngine",

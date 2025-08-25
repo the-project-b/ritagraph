@@ -1,5 +1,5 @@
 import { HumanMessage } from "@langchain/core/messages";
-import { getContextFromConfig, Node } from "../graph-state";
+import { getContextFromConfig, GraphStateType, Node } from "../graph-state";
 import { createLogger } from "@the-project-b/logging";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
@@ -11,6 +11,7 @@ import {
 import { Result } from "../../../utils/types/result.js";
 import { getConversationMessages } from "../../../utils/format-helpers/message-filters.js";
 import { Tags } from "../../tags.js";
+import { END } from "@langchain/langgraph";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Nodes",
