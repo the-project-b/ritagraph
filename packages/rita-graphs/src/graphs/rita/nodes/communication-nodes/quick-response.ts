@@ -8,6 +8,7 @@ import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -37,7 +38,7 @@ export const quickResponse: Node = async (
     config.configurable as unknown as AssumedConfigType;
 
   const llm = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    ...BASE_MODEL_CONFIG,
     temperature: 0.1,
     tags: [Tags.COMMUNICATION],
   });

@@ -9,6 +9,7 @@ import { dataRepresentationLayerPrompt } from "../../../../utils/data-representa
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -77,7 +78,7 @@ export const finalMessage: Node = async (
     config.configurable as unknown as AssumedConfigType;
 
   const llm = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    ...BASE_MODEL_CONFIG,
     tags: [Tags.COMMUNICATION],
   });
 

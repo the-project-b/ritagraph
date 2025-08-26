@@ -24,7 +24,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 // Node 1: Query Builder - generates SQL queries from natural language
 const queryBuilder = async (state: QueryState) => {
   logger.info("🔧 Query Builder - Generating SQL query", {
-    userRequest: state.userRequest
+    userRequest: state.userRequest,
   });
 
   const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
@@ -55,7 +55,7 @@ Generate a valid SQL query that answers the user's request.
 // Node 2: Query Executor - executes the generated query
 const queryExecutor = async (state: QueryState) => {
   logger.info("⚡ Query Executor - Executing query", {
-    generatedQuery: state.generatedQuery
+    generatedQuery: state.generatedQuery,
   });
 
   try {
@@ -110,7 +110,7 @@ const querySubgraph = new StateGraph<QueryState>({
 const searchForInformation = tool(
   async (input: { userRequest: string }) => {
     logger.info("🔍 Search for Information Tool - Starting query subgraph", {
-      userRequest: input.userRequest
+      userRequest: input.userRequest,
     });
 
     const result = await querySubgraph.invoke({
@@ -136,7 +136,7 @@ const searchForInformation = tool(
         .string()
         .describe("Natural language description of what data to search for"),
     }),
-  }
+  },
 );
 
 export { searchForInformation };

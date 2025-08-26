@@ -4,6 +4,7 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
 import { SystemMessage } from "@langchain/core/messages";
 import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
+import { BASE_MODEL_CONFIG } from "../../model-config.js";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -11,7 +12,7 @@ import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
  * bad if the agent takes ages to respond to it.
  */
 export const router: Node = async (state) => {
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `

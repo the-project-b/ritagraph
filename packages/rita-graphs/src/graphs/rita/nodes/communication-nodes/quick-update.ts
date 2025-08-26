@@ -9,6 +9,7 @@ import {
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { Tags } from "../../../tags.js";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -32,7 +33,7 @@ export const quickUpdate: WorkflowEngineNode = async (
   });
 
   const llm = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    ...BASE_MODEL_CONFIG,
     temperature: 0.1,
     tags: [Tags.THOUGHT],
   });

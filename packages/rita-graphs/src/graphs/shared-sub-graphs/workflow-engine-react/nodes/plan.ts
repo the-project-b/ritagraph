@@ -10,6 +10,7 @@ import { AnnotationRoot } from "@langchain/langgraph";
 import { ToolInterface } from "../../../shared-types/node-types.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
 
@@ -45,7 +46,7 @@ export const plan: (
       return {};
     }
 
-    const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.3 });
+    const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.3 });
 
     const tools = await fetchTools(selectedCompanyId, config);
 
