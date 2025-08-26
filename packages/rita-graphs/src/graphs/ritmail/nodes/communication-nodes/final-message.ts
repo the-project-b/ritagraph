@@ -40,7 +40,7 @@ Speak in {language}.
 Drafted Response: {draftedResponse}
 -------
 PreviousMessages: {previousMessages}
-  `
+  `,
   ).format({
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,

@@ -4,6 +4,7 @@ import { WorkflowEngineNode } from "../sub-graph.js";
 import { ChatOpenAI } from "@langchain/openai";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "WorkflowEngine",
@@ -18,7 +19,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
  */
 export const abortOutput: WorkflowEngineNode = async (
   { messages, taskEngineMessages, selectedCompanyId },
-  config
+  config,
 ) => {
   logger.info("🚀 Outputing the task (abort case)", {
     operation: "abortOutput",
@@ -33,7 +34,7 @@ export const abortOutput: WorkflowEngineNode = async (
     .filter((i) => i instanceof HumanMessage)
     .slice(-2);
 
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0.1 });
+  const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
@@ -46,7 +47,7 @@ and that you could not retrieve it.
 ${dataRepresentationLayerPrompt}
 
 Put this into a brief response draft.
-`
+`,
   ).format({});
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([

@@ -3,7 +3,8 @@ import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
 import { SystemMessage } from "@langchain/core/messages";
-import { onBaseMessages } from "../../../utils/message-filter.js";
+import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
+import { BASE_MODEL_CONFIG } from "../../model-config.js";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -11,7 +12,7 @@ import { onBaseMessages } from "../../../utils/message-filter.js";
  * bad if the agent takes ages to respond to it.
  */
 export const router: Node = async (state) => {
-  const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
+  const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
@@ -24,12 +25,23 @@ respond in JSON with:
 
 Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
 If the user is approving of something you should use the WORKFLOW_ENGINE.
-  `,
+
+# Examples
+[Person Name] hat jetzt doch mehr Gehalt bekommen, 1000€ -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for base salary -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for overtime -> WORKFLOW_ENGINE
+[Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
+Hi I am looking
+Hi, how are you? -> CASUAL_RESPONSE_WITHOUT_DATA
+Thanks, bye -> CASUAL_RESPONSE_WITHOUT_DATA
+Bis bald -> CASUAL_RESPONSE_WITHOUT_DATA
+`,
   ).format({});
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-3).filter(onBaseMessages),
+    ...state.messages.slice(-3).filter(onHumanAndAiMessage),
   ]).invoke({});
 
   const response = await llm

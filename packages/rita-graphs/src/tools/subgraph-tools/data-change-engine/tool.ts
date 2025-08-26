@@ -15,10 +15,10 @@ import {
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import { Command } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
-import { getCurrentDataChangeProposals } from "./tools/get-current_data_change_proposals/tool";
+import { getCurrentDataChangeProposals } from "./tools/get-current-data-change-proposals/tool";
 import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
 import { createGraphQLClient } from "../../../utils/graphql/client";
-import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
+// import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
 
 export type PaymentType = {
   id: string;
@@ -96,7 +96,7 @@ Exact words: {usersQuotedRequest}
           getPaymentsOfEmployee,
           getCurrentDataChangeProposals,
           changePaymentDetails,
-          createPayment,
+          //createPayment,
         ],
         ctx: {
           ...toolContext,
