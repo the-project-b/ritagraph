@@ -1,10 +1,16 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
 import { getContextFromConfig, Node } from "../graph-state";
+import { createLogger } from "@the-project-b/logging";
 
 type AssumedConfigurableType = {
   thread_id: string;
 };
+
+const logger = createLogger({ service: "rita-graphs" }).child({
+  module: "Nodes",
+  node: "loadSettings",
+});
 
 /**
  * Responsible for initializing the settings for the graph.
@@ -16,6 +22,8 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     config.configurable as unknown as AssumedConfigurableType;
 
   const lastMessage = state.messages.at(-1);
+
+  logger.log("state", state);
 
   await appendMessageAsThreadItem({
     message: new HumanMessage(lastMessage.content.toString(), {
@@ -31,11 +39,21 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     },
   });
 
-  return {
+  const returnObject = {
     preferredLanguage:
       state.preferredLanguage ?? user.preferredLanguage ?? "DE",
     // Just for development we are using a backup company id based on the config
     selectedCompanyId:
       state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
   };
+
+  logger.info("Loaded settings", {
+    threadId: thread_id,
+    returnObject,
+    state,
+    user,
+    backupCompanyId,
+  });
+
+  return returnObject;
 };
