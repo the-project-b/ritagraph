@@ -21,7 +21,7 @@
     "sourceMap": true,
     "allowImportingTsExtensions": false,
     "noResolve": false,
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
