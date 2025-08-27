@@ -10,6 +10,13 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 
 export const auth: Auth = new Auth();
 
+/** Authentication types:
+ * M2M: Generated in the backend when we parse incoming email, passed as token in header 'Authorization: Bearer ...'
+ * Impersonation: Generated as 'appdata' in the backend and contains information around original user and their target for impersonation, this token is unchanged from how it's generated on the backend and is passed through 'x-appdata' header.
+ * Flow:
+ * We extract the token, and we pull user information from it using the 'me' query, including the prefferedLanguage of the sender user through 'fetchUserDataFromBackend'
+ */
+
 auth.authenticate(async (request: Request) => {
   // Extract the Authorization header from the request (Headers instance)
   let authorization: string | undefined = undefined;
@@ -378,6 +385,7 @@ fragment MeFieldsHr on OnboardingHrManager {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        "Cache-Control": "no-store",
       },
       method: "POST",
       body: JSON.stringify({ query }),
