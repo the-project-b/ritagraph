@@ -11,6 +11,7 @@ import {
 import { Result } from "../../../utils/types/result.js";
 import { getConversationMessages } from "../../../utils/format-helpers/message-filters.js";
 import { Tags } from "../../tags.js";
+import { BASE_MODEL_CONFIG } from "../../model-config";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Nodes",
@@ -124,7 +125,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
         ]).invoke({});
 
         const llm = new ChatOpenAI({
-          model: "gpt-4o-mini",
+          ...BASE_MODEL_CONFIG,
           temperature: 0.3,
           tags: [Tags.TITLE_GENERATION],
         });

@@ -9,6 +9,7 @@ import {
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { Tags } from "../../../tags.js";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -32,7 +33,7 @@ export const quickUpdate: WorkflowEngineNode = async (
   });
 
   const llm = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    ...BASE_MODEL_CONFIG,
     temperature: 0.1,
     tags: [Tags.THOUGHT],
   });
@@ -50,6 +51,8 @@ In german use "du" and "deine" instead of "Sie" and "Ihre".
 Always End the message with a new line so that the consecutive string concatenation works.
 NEVER Address the user directly you are just representing the thought process of the system.
 NEVER MENTION IDs or UUIDs.
+DO NOT MENTION "<List>" tags. Just say "list" instead.
+NEVER SAY Changes are applied they are always only prepared.
 
 ------
 Initial user message: {initialUserMessage}
@@ -60,26 +63,30 @@ The task engine messages were: {taskEngineMessages}
 
 ------
 
-Rough examples:
+<Examples>
 - Looking for information, calling tools, etc.
 - Hmm I don't know x yet I need search for it.
 - Okay found it, now I can do y
+- I continue to do y
+- In order to do y I need to find z
+- I need to find z in order to do y
 - I am looking for information about the user's payroll
 - I found some employees that match the criteria
+</Examples>
 
-Give brief updates. Not more then 1 sentence.
+Give brief updates. Not more then 1 sentence. You can connect the previous thought with the current one.
 Speak in {language}.
 `,
   ).format({
     initialUserMessage: initialUserMessage?.content.toString() ?? "No message",
     taskEngineMessages: taskEngineMessages
+      .slice(-4)
       .map(
         (i) => `
-Content: ${i.content.toString()}
-toolCalls: ${JSON.stringify(i.lc_kwargs.tool_calls)}
+Thought: ${i.content.toString()}
+tool called: ${i.lc_kwargs.tool_calls?.map((i) => i.name).join(", ") ?? "none"}
       `,
       )
-      .slice(-3)
       .join("\n"),
 
     language: localeToLanguage(preferredLanguage),

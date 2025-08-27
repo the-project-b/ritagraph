@@ -6,6 +6,7 @@ import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
+import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -26,7 +27,7 @@ export const preWorkflowResponse: Node = async ({
   });
 
   const llm = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    ...BASE_MODEL_CONFIG,
     temperature: 0.1,
     tags: [Tags.THOUGHT],
   });

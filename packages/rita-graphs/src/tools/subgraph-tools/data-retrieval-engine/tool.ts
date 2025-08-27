@@ -9,7 +9,11 @@ import {
 import { buildDataChangeEngineGraph } from "./sub-graph";
 import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
-import { Command, getCurrentTaskInput } from "@langchain/langgraph";
+import {
+  Command,
+  getCurrentTaskInput,
+  LangGraphRunnableConfig,
+} from "@langchain/langgraph";
 import { getEmployeeById } from "../../get-employee-by-id/tool";
 import { findEmployee } from "../../find-employee/tool";
 import { getActiveEmployeesWithContracts } from "../../get-active-employees-with-contracts/tool";
@@ -86,7 +90,7 @@ ${dataRepresentationLayerPrompt}
       return new Command({
         update: {
           dataRepresentationLayerStorage: {
-            ...(getCurrentTaskInput(config) as any)
+            ...(getCurrentTaskInput(config as LangGraphRunnableConfig) as any)
               .dataRepresentationLayerStorage,
             ...newDataRepresentationLayerStorage,
           },

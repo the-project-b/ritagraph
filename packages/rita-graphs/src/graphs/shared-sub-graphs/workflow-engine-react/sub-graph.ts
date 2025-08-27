@@ -84,13 +84,20 @@ export function buildWorkflowEngineReAct({
         // We do not support goto at the moment
         // For arrays, we need to handle Commands and state updates separately
         const commands = result.filter(isCommand);
+        const toolCalls = result
+          .filter((i) => !isCommand(i))
+          .map((i) => i.messages)
+          .flat();
         const updates = [];
         commands.forEach((item) => {
           updates.push(item.update);
         });
 
         return {
-          taskEngineMessages: updates.map((update) => update.messages).flat(),
+          taskEngineMessages: [
+            ...updates.map((update) => update.messages).flat(),
+            ...toolCalls,
+          ],
           dataRepresentationLayerStorage: updates.reduce(
             (acc, update) => ({
               ...acc,
