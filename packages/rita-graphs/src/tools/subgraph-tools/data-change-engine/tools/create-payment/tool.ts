@@ -36,7 +36,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         quote,
       } = params;
       const { selectedCompanyId } = ctx;
-      const { thread_id } = config.configurable;
+      const { thread_id, run_id } = config.configurable;
 
       logger.info("[TOOL > change_payment_details]", {
         operation: "change_payment_details",
@@ -65,6 +65,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
         quote,
+        runId: run_id,
       });
 
       const dataChangeProposal: DataChangeProposal = {

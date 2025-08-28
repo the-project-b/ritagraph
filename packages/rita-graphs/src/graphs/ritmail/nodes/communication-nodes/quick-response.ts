@@ -33,7 +33,7 @@ I am here to help you with your payroll questions.
 How can I assist you today?
 
 Speak in {language}.
-`
+`,
   ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([

@@ -44,11 +44,25 @@ export type Node<State = GraphStateType> = (
   ) => any,
 ) => Promise<NodeReturn<State>> | NodeReturn<State>;
 
+export type EdgeDecision<State = GraphStateType> = (
+  state: State,
+  config: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
+  getAuthUser?: (
+    config: LangGraphRunnableConfig<typeof ConfigurableAnnotation.State>,
+  ) => any,
+) => Promise<string | Array<string>> | string | Array<string>;
+
 export type ToolDefinition<InputSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   name: string;
   description: string;
   parameters: InputSchema;
   execute: (args: z.infer<InputSchema>) => Promise<string> | string;
+};
+
+// There is a type issue in langgraph that we need to work around
+export type AssumedConfigType = {
+  thread_id: string;
+  run_id: string;
 };
 
 export type AgentNode<
