@@ -64,9 +64,31 @@ IMPORTANT: Do not assign the same change to multiple payments unless clearly sta
 - People can have Wage and Salary so it can be fixed or hourly based payment.
 - Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
 - The title of a payment often reveals its not a standard payment.
+- If you fail to get a user by ID double check if you used the right ID.
+- If you realised you do not have any other Ids explain you are not able to find the user.
 
 Today is the {today}
 </notes>
+
+<examples>
+User: [name] worked 40 hours this month.
+Means: Change of existing payment because of hours worked.
+--------------
+User: [name] 40 stunden.
+Means: Change of existing payment in current month because of hours worked.
+--------------
+User: [name] gets a bonus of 100€ for the sales.
+Means: Create a new bonus type payment for the specific employee.
+--------------
+User: Bonus anpassen für [name]
+Means: Adjust existing bonus payment.
+--------------
+User: Amteter muss das Gehalt von 1000€ erhöht werden.
+Means: Adjust existing payment.
+--------------
+User: Erhöhe das Gehalt von [name] auf 1000€
+Means: Adjust existing payment.
+</examples>
 `,
       ).format({
         today: new Date().toISOString().split("T")[0],

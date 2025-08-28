@@ -47,13 +47,10 @@ export function createGraphQLClient(
     headers["X-Appdata"] = appdataHeader;
   }
 
-  const client = new GraphQLClient(
-    `${process.env.PROJECTB_GRAPHQL_ENDPOINT}`,
-    {
-      headers,
-    },
-  );
-  
+  const client = new GraphQLClient(`${process.env.PROJECTB_GRAPHQL_ENDPOINT}`, {
+    headers,
+  });
+
   // Create a custom wrapper that logs and handles errors
   const customWrapper = (
     action: any,
