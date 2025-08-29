@@ -27,15 +27,16 @@ Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or an
 If the user is approving of something you should use the WORKFLOW_ENGINE.
 
 # Examples
+Hi, how are you? -> CASUAL_RESPONSE_WITHOUT_DATA
+Thanks, bye -> CASUAL_RESPONSE_WITHOUT_DATA
+Bis bald -> CASUAL_RESPONSE_WITHOUT_DATA
 [Person Name] hat jetzt doch mehr Gehalt bekommen, 1000€ -> WORKFLOW_ENGINE
 [Person Name] gets [Amount] more money for base salary -> WORKFLOW_ENGINE
 [Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
 [Person Name] gets [Amount] more money for overtime -> WORKFLOW_ENGINE
 [Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
-Hi I am looking
-Hi, how are you? -> CASUAL_RESPONSE_WITHOUT_DATA
-Thanks, bye -> CASUAL_RESPONSE_WITHOUT_DATA
-Bis bald -> CASUAL_RESPONSE_WITHOUT_DATA
+Hi Rita, hier der August, [Name 1] [amount], [Name 2] [amount], [Name 3] [amount] VG Sonja -> WORKFLOW_ENGINE
+Hi looking for a list of employees -> WORKFLOW_ENGINE
 `,
   ).format({});
 

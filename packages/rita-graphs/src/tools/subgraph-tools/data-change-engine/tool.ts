@@ -18,7 +18,8 @@ import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current-data-change-proposals/tool";
 import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
 import { createGraphQLClient } from "../../../utils/graphql/client";
-// import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
+import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
+import growthbookClient from "../../../utils/growthbook";
 
 export type PaymentType = {
   id: string;
@@ -112,14 +113,19 @@ Exact words: {usersQuotedRequest}
       // Tool related context
       const paymentTypes = await getPaymentTypes(toolContext);
 
+      const toolDefinitions = [
+        findEmployeeByNameWithContract,
+        getPaymentsOfEmployee,
+        getCurrentDataChangeProposals,
+        changePaymentDetails,
+      ];
+
+      if (growthbookClient.isOn("create-payments", {})) {
+        toolDefinitions.push(createPayment);
+      }
+
       const tools = toolFactory<ExtendedToolContext>({
-        toolDefintions: [
-          findEmployeeByNameWithContract,
-          getPaymentsOfEmployee,
-          getCurrentDataChangeProposals,
-          changePaymentDetails,
-          //createPayment,
-        ],
+        toolDefinitions,
         ctx: {
           ...toolContext,
           extendedContext: {

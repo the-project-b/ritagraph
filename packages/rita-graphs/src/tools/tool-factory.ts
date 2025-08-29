@@ -14,7 +14,7 @@ export type ToolContext<T = undefined> = {
 };
 
 type Params<T> = {
-  toolDefintions: Array<ToolFactoryToolDefintion<any>>;
+  toolDefinitions: Array<ToolFactoryToolDefintion<any>>;
   ctx: ToolContext<T>;
 };
 
@@ -26,10 +26,10 @@ export type ToolFactoryToolDefintion<T = any> = (
  * Gives us the ability to create tools with special contexts
  */
 export function toolFactory<T>({
-  toolDefintions,
+  toolDefinitions,
   ctx,
 }: Params<T>): Array<ToolInterface> {
-  const tools = toolDefintions.map((toolDefinition) => toolDefinition(ctx));
+  const tools = toolDefinitions.map((toolDefinition) => toolDefinition(ctx));
   logger.debug("[TOOL FACTORY] Initialized tools", {
     operation: "tool_factory_initialization",
     toolNames: tools.map((i) => i.name),
