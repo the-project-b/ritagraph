@@ -57,7 +57,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     };
 
     const tools = toolFactory<undefined>({
-      toolDefintions: [
+      toolDefinitions: [
         mutationEngine,
         dataRetrievalEngine,
         findEmployee,
