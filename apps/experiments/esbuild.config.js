@@ -10,15 +10,20 @@ const build = async () => {
       target: 'node22',
       outfile: 'dist/main.js',
       format: 'esm',
-      // Keep node_modules external to avoid bundling them
+      // Support top-level await
+      supported: {
+        'top-level-await': true
+      },
+      // Bundle workspace packages but keep third-party dependencies external
       plugins: [
         nodeExternalsPlugin({
-          allowList: [
-            // Bundle local workspace packages
-            '@the-project-b/rita-graphs',
-            '@the-project-b/graphql',
-            '@the-project-b/logging'
-          ]
+          // Bundle workspace packages (@the-project-b/*) into the output
+          // Keep only third-party dependencies external
+          allowlist: [
+            /^@the-project-b\//  // Bundle all workspace packages
+          ],
+          dependencies: true,
+          devDependencies: false
         })
       ],
       // Source maps for debugging

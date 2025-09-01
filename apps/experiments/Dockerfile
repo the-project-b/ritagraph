@@ -33,20 +33,25 @@ RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rit
 WORKDIR /app/apps/experiments
 RUN npm run codegen
 
-# Build the experiments app with esbuild (bundles and resolves all imports properly)
-RUN NODE_ENV=production npm run build:docker
+# Build the experiments app with TypeScript compiler
+RUN npm run build
 
 ########### Runtime stage ###########
 FROM node:22-slim AS runtime
 
 WORKDIR /app
 
-# Copy the bundled application
+# Copy the compiled application and all dependencies
 COPY --from=builder /app/apps/experiments/dist ./dist
+COPY --from=builder /app/apps/experiments/src ./src
 COPY --from=builder /app/apps/experiments/package.json ./package.json
+COPY --from=builder /app/apps/experiments/tsconfig.json ./tsconfig.json
 
-# Copy node_modules for external dependencies (not bundled by esbuild)
+# Copy ALL node_modules including workspace packages
 COPY --from=builder /app/node_modules ./node_modules
+
+# Copy the built workspace packages
+COPY --from=builder /app/packages ./packages
 
 # Production environment configuration
 # - JSON logging for structured logs (Datadog/CloudWatch compatible)
@@ -59,5 +64,8 @@ ENV NODE_ENV=production \
 
 EXPOSE 4000
 
-# Run the bundled JavaScript directly (no tsx needed, all imports resolved)
-CMD ["node", "dist/main.js"] 
+# Install tsx for runtime TypeScript/ESM support
+RUN npm install -g tsx
+
+# Run with tsx to handle all module resolution properly
+CMD ["tsx", "src/main.ts"] 
