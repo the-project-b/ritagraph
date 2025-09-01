@@ -6,7 +6,7 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { buildDataRetrievalEngineGraph } from "./sub-graph";
+import { buildDataChangeEngineGraph } from "./sub-graph";
 import {
   ToolContext,
   ToolFactoryToolDefintion,
@@ -134,7 +134,7 @@ Exact words: {usersQuotedRequest}
         },
       });
 
-      const agent = buildDataRetrievalEngineGraph({ tools });
+      const agent = buildDataChangeEngineGraph({ tools });
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({
