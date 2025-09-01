@@ -5,7 +5,8 @@
     "ADD ./build.mts /api/langgraph_api/js/build.mts"
   ],
   "graphs": {
-    "rita": "./apps/rita/src/graphs/rita/graph.ts:graph"
+    "rita": "./apps/rita/src/graphs/rita/graph.ts:graph",
+    "rita-corrections": "./apps/rita/src/graphs/rita-corrections/graph.ts:graph"
   },
   "auth": {
     "path": "./apps/rita/src/security/auth.ts:auth"
