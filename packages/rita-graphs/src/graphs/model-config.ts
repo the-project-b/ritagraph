@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 
-export const MAIN_MODEL = "gpt-4.1-mini";
+export const MAIN_MODEL = "gpt-4o-mini";
 
 export const BASE_MODEL_CONFIG: Partial<
   ConstructorParameters<typeof ChatOpenAI>[0]

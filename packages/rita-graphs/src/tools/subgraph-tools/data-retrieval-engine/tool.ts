@@ -64,7 +64,7 @@ ${dataRepresentationLayerPrompt}
       };
 
       const tools = toolFactory<ExtendedToolContext>({
-        toolDefintions: [
+        toolDefinitions: [
           getPaymentsOfEmployee,
           getEmployeeById,
           findEmployee,

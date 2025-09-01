@@ -1,44 +1,61 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createLogger } from "@the-project-b/logging";
-import { AssumedConfigType, Node } from "../../graph-state.js";
+import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
 import { onBaseMessages } from "../../../../utils/message-filter.js";
-import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { createGraphQLClient } from "../../../../utils/graphql/client.js";
+import { DataChangeProposal } from "../../../shared-types/base-annotation.js";
+import { getProposalsOfThatRun } from "./final-message-edge-decision.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
   node: "finalMessage",
 });
 
+type AssumedConfigType = {
+  thread_id: string;
+  run_id: string;
+};
+
 const examples: Record<"EN" | "DE", string> = {
   EN: `
-User: Please adjust the salary of [name] to 1000€ and [name] worked 40 hours this month.
-Assistant: I could not propose the changes. Maybe the typo in the name of the users? Maybe you can try again and formulate it differntly? 
+I have read your request and proposed **one data change**.
+Please review them and approve or reject them.
 Let me know if you need anything else.
----------------------------------------
-User: Please give me a list of all employees
-Assistant: I have prepared a list of all employees.
+--------
+I have read your request and proposed **{{number of changes}} data changes**.
+Please review them and approve or reject them.
+Let me know if you need anything else.
 
-<List id="[insert the id of the list here]">
+  `,
+  DE: `
+Ich habe aus deiner Nachricht diesen **einen Änderungsvorschläg** ausgelesen.
+Bitte überprüfe diese und nehme sie gegebenfalls an.
+Lass mich wissen ob ich dir noch helfen kann.
+--------
+Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
+Bitte überprüfe diese und nehme sie gegebenfalls an.
+Lass mich wissen ob ich dir noch helfen kann.
+  `,
+};
 
+const examplesForMissingInformation: Record<"EN" | "DE", string> = {
+  EN: `
+I have read your request and proposed **{{numberOfChanges}} data changes**.
+However I had problem with [change description], can you try that again?
+Please review the rest of the changes and approve or reject them.
 Let me know if you need anything else.
   `,
   DE: `
-Benutzer: Bitte passe das Gehalt von [Name] auf 1000€ an und [Name] hat diesen Monat 40 Stunden gearbeitet.
-Assistent: Ich konnte die Änderungen vorbereiten. Vielleicht gibt es einen Tippfehler im Namen der Nutzer? Vielleicht kannst du es nochmal versuchen und es anders formulieren?
-Lass mich wissen, ob ich dir noch weiterhelfen kann.
---------
-Benutzer: Bitte gib mir eine Liste aller Mitarbeiter
-Assistent: Ich habe eine Liste aller Mitarbeiter vorbereitet.
-
-<List id="[insert the id of the list here]">
-
+Ich habe deine Anfrage gelesen und habe **{{numberOfChanges}} Änderungsvorschläge** vorgeschlagen.
+Allerdings hatte ich Probleme mit [change description], kannst du das nochmal versuchen, anders formulieren?
+Bitte überprüfe die restlichen Änderungen und nehme sie gegebenfalls an.
 Lass mich wissen, ob ich dir noch weiterhelfen kann.
   `,
 };
@@ -46,7 +63,7 @@ Lass mich wissen, ob ich dir noch weiterhelfen kann.
 /**
  * At the moment just a pass through node
  */
-export const finalMessage: Node = async (
+export const finalMessageForChanges: Node = async (
   {
     workflowEngineResponseDraft,
     preferredLanguage,
@@ -56,15 +73,20 @@ export const finalMessage: Node = async (
   config,
   getAuthUser,
 ) => {
-  logger.info("💬 Final Response", {
-    operation: "finalMessage",
+  logger.info("💬 Final Response for changes", {
+    operation: "finalMessage for changes",
     messageCount: messages.length,
     preferredLanguage,
     hasDraftResponse: !!workflowEngineResponseDraft,
   });
   const { token: accessToken, appdataHeader } = getAuthUser(config);
 
-  const { thread_id: langgraphThreadId } =
+  const graphqlClient = createGraphQLClient({
+    accessToken,
+    appdataHeader,
+  });
+
+  const { thread_id: langgraphThreadId, run_id } =
     config.configurable as unknown as AssumedConfigType;
 
   const llm = new ChatOpenAI({
@@ -72,10 +94,24 @@ export const finalMessage: Node = async (
     tags: [Tags.COMMUNICATION],
   });
 
-  // We can assume that we have no change requests scheduled, it could also be an errors
+  const proposalsResult = await getProposalsOfThatRun(
+    graphqlClient,
+    langgraphThreadId,
+    run_id,
+  );
+  let proposals: Array<DataChangeProposal> = [];
+
+  if (Result.isFailure(proposalsResult)) {
+    logger.error("Failed to get proposals of that run", {
+      error: Result.unwrapFailure(proposalsResult),
+    });
+    proposals = [];
+  } else {
+    proposals = Result.unwrap(proposalsResult);
+  }
 
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `You are a Payroll Specialist Assistant. Your job is to formulate the final response to the user.
+    `Respond to the users request.
 
 Guidelines:
  - Be concise but friendly.
@@ -85,12 +121,20 @@ Guidelines:
  - Do not claim or say that there is an operation pending.
  - NEVER include ids like UUIDs in the response.
  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
+ - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
+ - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
 
-#examples - For other cases like listing information
+#examples - when all changes that the user mentioned are listed
 {examples}
 #/examples
 
-{dataRepresentationLayerPrompt}
+#examples - when some changes are missing
+{examplesForMissingInformation}
+#/examples
+
+# List of changes (only for you to cross check if the user mentioned the same changes)
+{listOfChanges}
+
 
 Speak in {language}.
 
@@ -98,7 +142,9 @@ Drafted Response: {draftedResponse}
   `,
   ).format({
     examples: examples[preferredLanguage],
-    dataRepresentationLayerPrompt,
+    examplesForMissingInformation:
+      examplesForMissingInformation[preferredLanguage],
+    listOfChanges: proposals.map((i) => i.description).join("\n"),
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
   });

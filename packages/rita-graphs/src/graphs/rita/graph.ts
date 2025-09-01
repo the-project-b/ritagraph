@@ -6,12 +6,18 @@ import {
   StateGraph,
 } from "@langchain/langgraph";
 import { createLogger } from "@the-project-b/logging";
-import { ConfigurableAnnotation, GraphState, Node } from "./graph-state.js";
+import {
+  ConfigurableAnnotation,
+  EdgeDecision,
+  GraphState,
+  Node,
+} from "./graph-state.js";
 import {
   router,
   finalMessage,
   quickResponse,
   preWorkflowResponse,
+  finalMessageForChanges,
 } from "./nodes/index.js";
 import { routerEdgeDecision } from "./nodes/router.js";
 import {
@@ -30,6 +36,7 @@ import {
 import { toolFactory } from "../../tools/tool-factory.js";
 import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
 import { findEmployee } from "../../tools/find-employee/tool.js";
+import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-message-edge-decision.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -50,7 +57,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     };
 
     const tools = toolFactory<undefined>({
-      toolDefintions: [
+      toolDefinitions: [
         mutationEngine,
         dataRetrievalEngine,
         findEmployee,
@@ -75,6 +82,12 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         };
       };
 
+      const wrapEdgeDecisionWithAuth = (edgeDecision: EdgeDecision) => {
+        return async (state, config) => {
+          return edgeDecision(state, config, getAuthUser);
+        };
+      };
+
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
         .addNode("loadSettings", wrapNodeWithAuth(loadSettings))
@@ -94,6 +107,10 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
           },
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
+        .addNode(
+          "finalMessageForChanges",
+          wrapNodeWithAuth(finalMessageForChanges),
+        )
         .addEdge(START, "loadSettings")
         .addConditionalEdges("loadSettings", routingDecisionFromLoadSettings, [
           "generateTitle",
@@ -103,7 +120,11 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
           "quickResponse",
           "workflowEngine",
         ])
-        .addEdge("workflowEngine", "finalMessage")
+        .addConditionalEdges(
+          "workflowEngine",
+          wrapEdgeDecisionWithAuth(finalMessageEdgeDecision),
+          ["finalMessageForChanges", "finalMessage"],
+        )
         .addEdge("finalMessage", END)
         .addEdge("generateTitle", END);
 

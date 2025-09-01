@@ -26,9 +26,6 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
       });
       const client = createGraphQLClient(ctx);
 
-      console.log("🔑 employeeId", employeeId);
-      console.log("🔑 ctx.selectedCompanyId", ctx.selectedCompanyId);
-
       let employee: GetEmployeeByIdQuery;
       try {
         employee = await client.getEmployeeById({
@@ -38,7 +35,6 @@ export const getPaymentsOfEmployee = (ctx: ToolContext) =>
           },
         });
       } catch (e) {
-        console.log("🔑 e", e);
         logger.error("Failed to get employee by ID", {
           error: e,
           employeeId,

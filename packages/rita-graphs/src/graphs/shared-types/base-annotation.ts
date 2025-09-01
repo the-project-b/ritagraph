@@ -18,6 +18,7 @@ export type DataChangeProposal = {
   relatedUserId?: string;
   relatedContractId?: string;
   status: "approved" | "pending" | "rejected";
+  runId: string; // The runId of the run that created this proposal
 } & (
   | {
       changeType: "change";
