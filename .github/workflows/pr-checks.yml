@@ -73,18 +73,6 @@ jobs:
           npm run build -- --force
           echo "✅ Build completed successfully"
 
-      # Optional: Generate and upload test coverage
-      - name: Upload test coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: |
-            packages/*/coverage/**
-            apps/*/coverage/**
-          retention-days: 7
-          if-no-files-found: ignore
-
   # Final status check for branch protection
   pr-checks-complete:
     name: PR Checks Complete
