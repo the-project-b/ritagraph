@@ -1,5 +1,6 @@
 // Export main graphs
 export { graph as rita, createRitaGraph } from "./graphs/rita/graph.js";
+export { createRitaCorrectionsGraph } from "./graphs/rita-corrections/graph.js";
 // Commented out ritmail - not used
 // export { graph as ritmail } from './graphs/ritmail/graph.js';
 
@@ -8,6 +9,10 @@ export {
   GraphState as RitaGraphState,
   GraphStateType as RitaGraphStateType,
 } from "./graphs/rita/graph-state.js";
+export {
+  GraphState as RitaCorrectionsGraphState,
+  GraphStateType as RitaCorrectionsGraphStateType,
+} from "./graphs/rita-corrections/graph-state.js";
 // export { GraphState as RitmailGraphState, GraphStateType as RitmailGraphStateType } from './graphs/ritmail/graph-state.js';
 
 // Export shared types
@@ -21,6 +26,7 @@ export * from "./tools/tool-factory.js";
 // Export utilities
 export * from "./utils/graphql-client.js";
 export * from "./utils/user-service.js";
+export * from "./utils/types/query-defintion.js";
 export * from "./utility-nodes/empty-node.js";
 export * from "./utility-nodes/message-filter.js";
 export * from "./utility-nodes/message-tags.js";
