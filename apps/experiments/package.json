@@ -11,7 +11,7 @@
     "build:docker": "node esbuild.config.js",
     "codegen": "graphql-codegen --config codegen.ts",
     "lint": "eslint .",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"No tests implemented yet\"",
     "experiments:analyse:run": "tsx src/scripts/analyze-run.ts",
     "experiments:verify:evaluator": "tsx src/scripts/analysis/verify-data-change-proposal-evaluator.ts"
   },

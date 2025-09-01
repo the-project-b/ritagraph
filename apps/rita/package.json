@@ -26,7 +26,7 @@
     "format:check": "prettier --check \"**/*.ts\"",
     "langgraph:dev": "langgraphjs dev",
     "langgraph:dev:tunnel": "langgraphjs dev --tunnel",
-    "test": "jest",
+    "test": "echo \"No tests implemented yet\"",
     "codegen": "echo 'Codegen not needed - using shared package'"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",

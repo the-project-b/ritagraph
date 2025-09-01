@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Optimized: only need last 2 commits for PR comparison
+          fetch-depth: 0  # Need full history for --affected to work properly
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,6 +40,12 @@ jobs:
       - name: Run tests for affected packages
         run: |
           echo "Running tests for affected packages..."
+          
+          # Set the base branch for comparison (GitHub provides this for PRs)
+          export TURBO_SCM_BASE=origin/${{ github.base_ref }}
+          export TURBO_SCM_HEAD=HEAD
+          
+          echo "Comparing against base: $TURBO_SCM_BASE"
           
           # TODO: Re-enable lint checks after prettier formatting is fixed
           # npm run lint -- --affected --continue || LINT_FAILED=1
