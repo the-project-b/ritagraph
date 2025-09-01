@@ -36,7 +36,7 @@
     "@the-project-b/rita-graphs": "*",
     "@langchain/anthropic": "0.3.25",
     "@langchain/community": "0.3.49",
-    "@langchain/core": "0.3.66",
+    "@langchain/core": "0.3.72",
     "@langchain/langgraph": "0.4.2",
     "@langchain/langgraph-sdk": "0.0.105",
     "@langchain/mcp-adapters": "0.6.0",
