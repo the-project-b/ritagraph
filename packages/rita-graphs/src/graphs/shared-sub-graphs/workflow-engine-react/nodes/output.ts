@@ -31,17 +31,25 @@ export const output: WorkflowEngineNode = async (
 
   const systemPrompt = await PromptTemplate.fromTemplate(
     `
+### Users initial message
+{usersInitialMessage}
+
+### Guidelines
 Extract all the relevant information from the previous thought process and tool calls.
 Make sure you find and extract all the information that is relevant to the users request.
-Put this into a brief response draft.
 
-${dataRepresentationLayerPrompt}
+The extracted information should also make the thought process understandable.
+
+### placeholder rules
+{dataRepresentationLayerPrompt}
 `,
-  ).format({});
+  ).format({
+    usersInitialMessage: lastUserMessages.map((i) => i.content).join("\n\n"),
+    dataRepresentationLayerPrompt,
+  });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...lastUserMessages,
     ...taskEngineMessages,
   ]).invoke({});
 

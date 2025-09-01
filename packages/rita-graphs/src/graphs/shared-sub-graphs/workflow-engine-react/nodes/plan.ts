@@ -19,6 +19,17 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   component: "Plan",
 });
 
+const examplesForMeaningsOfRequests: Record<"EN" | "DE", string> = {
+  EN: `
+User: Hi Rita, here is August, Moore 49, William 50, Evelyn 34. Best regards, Sonja
+Means: The user lists the monthly hours of the employees. Adjust their monthly hours for the given month. Make sure to only apply that to base wages not salaries.
+  `,
+  DE: `
+User: Hi Rita, hier der August, Moore 49, William 50, Evelyn 34 VG Sonja
+Means: The user lists the monthly hours of the employees. Adjust their monthly hours for the given month. Make sure to only apply that to base wages not salaries.
+  `,
+};
+
 export const plan: (
   fetchTools: (
     companyId: string,
@@ -27,7 +38,13 @@ export const plan: (
 ) => WorkflowEngineNode =
   (fetchTools) =>
   async (
-    { messages, taskEngineMessages, taskEngineLoopCounter, selectedCompanyId },
+    {
+      messages,
+      taskEngineMessages,
+      taskEngineLoopCounter,
+      selectedCompanyId,
+      preferredLanguage,
+    },
     config,
   ) => {
     logger.info(
@@ -82,17 +99,23 @@ You are a Payroll Specialist and a ReAct agent that solves user requests by inte
 - Please make sure its part of the quote.
 - If you ommit parts in a quote please indicate this with "[...]". (e.g. Starting september [...] Robby works 20 hours [...] (Software Architect contract))
 
-${dataRepresentationLayerPrompt}
+# Meanings of requests
+{examplesForMeaningsOfRequests}
 
-Format Your Thoughts
+{dataRepresentationLayerPrompt}
 
+## Format Your Thoughts
 Always format your reasoning like this:
 
 Thought: Based on [observation], I think we should [action] in order to [goal].
 
 Then, take the next action (e.g., call a tool or or finalize the response).
 `,
-    ).format({});
+    ).format({
+      examplesForMeaningsOfRequests:
+        examplesForMeaningsOfRequests[preferredLanguage],
+      dataRepresentationLayerPrompt,
+    });
 
     const chatPrompt = await ChatPromptTemplate.fromMessages([
       new SystemMessage(systemPropmt),
@@ -125,5 +148,5 @@ export function planEdgeDecision(state: WorkflowEngineStateType) {
   if (hasPendingToolCalls) {
     return "tools";
   }
-  return "reflect";
+  return "output";
 }

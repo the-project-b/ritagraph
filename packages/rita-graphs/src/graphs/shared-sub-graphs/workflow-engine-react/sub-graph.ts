@@ -10,7 +10,6 @@ import {
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import { plan, planEdgeDecision } from "./nodes/plan.js";
-import { reflect, reflectionEdggeDecision } from "./nodes/reflect.js";
 import { output } from "./nodes/output.js";
 import { emptyNode } from "../../../utility-nodes/empty-node.js";
 import { Node, ToolInterface } from "../../shared-types/node-types.js";
@@ -141,7 +140,6 @@ export function buildWorkflowEngineReAct({
   subGraph
     .addNode("preWorkflowResponse", preWorkflowResponse ?? emptyNode)
     .addNode("plan", plan(fetchTools))
-    .addNode("reflect", reflect)
     .addNode("output", output)
     .addNode("abortOutput", abortOutput)
     .addNode("tools", toolsNode)
@@ -152,10 +150,9 @@ export function buildWorkflowEngineReAct({
     .addEdge("plan", "quickUpdate")
     .addConditionalEdges("plan", planEdgeDecision, [
       "tools",
-      "reflect",
+      "output",
       "abortOutput",
     ])
-    .addConditionalEdges("reflect", reflectionEdggeDecision, ["plan", "output"])
     .addEdge("abortOutput", END)
     .addEdge("output", END);
 
