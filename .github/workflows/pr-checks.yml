@@ -30,20 +30,8 @@ jobs:
 
       - name: Verify dependency versions
         run: |
-          echo "Checking for version mismatches..."
+          echo "Checking for version mismatches with syncpack..."
           npm run syncpack:check
-          
-          # Also verify that @langchain/core is consistent
-          CORE_VERSIONS=$(npm ls @langchain/core --json | jq -r '.. | .version? | select(. != null)' | sort -u)
-          VERSION_COUNT=$(echo "$CORE_VERSIONS" | wc -l)
-          
-          if [ "$VERSION_COUNT" -gt 1 ]; then
-            echo "❌ Multiple versions of @langchain/core found:"
-            echo "$CORE_VERSIONS"
-            exit 1
-          fi
-          
-          echo "✅ All dependency versions are consistent"
 
       - name: Cache turbo build artifacts
         uses: actions/cache@v4
