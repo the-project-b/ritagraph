@@ -44,11 +44,13 @@ Make sure you find and extract all the information that is relevant to the users
 In case the agent has not found parts or all of the required information, explain what is missing 
 and that you could not retrieve it.
 
-${dataRepresentationLayerPrompt}
+{dataRepresentationLayerPrompt}
 
 Put this into a brief response draft.
 `,
-  ).format({});
+  ).format({
+    dataRepresentationLayerPrompt,
+  });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),

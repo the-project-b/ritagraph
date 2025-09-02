@@ -91,6 +91,14 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         (payment) => payment.id === paymentId,
       );
 
+      // Edge case
+      if (payment?.paymentType.name === "Base Salary" && newMonthlyHours) {
+        return {
+          error:
+            "Monthly hours of a base salary does not make sense, maybe there was a second contract with base wage?",
+        };
+      }
+
       if (!payment) {
         return {
           error: `This payment does not exist. Those are the existing paymentIds payments: ${JSON.stringify(
@@ -259,7 +267,10 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
         contractId: z.string(),
         paymentId: z.string(),
         newAmount: z.number().optional(),
-        newMonthlyHours: z.number().optional(),
+        newMonthlyHours: z
+          .number()
+          .optional()
+          .describe("Not applicable for base salary"),
         newFrequency: z.nativeEnum(PaymentFrequency).optional(),
         effectiveDate: z
           .string()

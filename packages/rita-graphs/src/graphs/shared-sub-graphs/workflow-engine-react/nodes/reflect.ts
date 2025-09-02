@@ -18,6 +18,10 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   component: "Reflect",
 });
 
+/**
+ * NOTE: I deactivated this node for now since it hardly helped.
+ * We probably need to greatly improve the prompt or make it jump in in the end.
+ */
 export const reflect: WorkflowEngineNode = async (state, config) => {
   logger.info("🚀 Reflecting on the task", {
     operation: "reflect",
@@ -48,13 +52,24 @@ Your counterpart is using tools to solve the users request.
 
 You are checking if the counterpart has come up with enough information or is missing the point.
 
-${dataRepresentationLayerPrompt}
+{dataRepresentationLayerPrompt}
 
-Guidelines:
+#guidelines:
 - Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.
 - If not reflect on what information is missing or what is required to solve the users request.
 - If the counter-part says its unable to find or provide the information then ACCEPT.
 - If you already called IMPROVE multiple times it is time to ACCEPT, because the counterpart is not able to solve the users request.
+#/guidelines
+
+#examples
+User: Change hours for John, Marie & Eric to 40 hours per week.
+Counterpart: Here are John, Marie.
+You: IMPROVE -> Find eric or explain mentioning why Eric is missing?
+---------
+User: Change hours for John, Marie & Eric to 40 hours per week.
+Counterpart: Here are John, Marie but I could not find Eric.
+You: ACCEPT
+#/examples
 
 You have been called IMPROVE for {reflectionStepCount}/2 times.
 
@@ -62,7 +77,10 @@ Respond in JSON format with the following fields:
 - decision: ACCEPT or IMPROVE
 - reflection: The suggestion for the counter-part if decision is IMPROVE
 `,
-  ).format({ reflectionStepCount: state.reflectionStepCount });
+  ).format({
+    reflectionStepCount: state.reflectionStepCount,
+    dataRepresentationLayerPrompt,
+  });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
