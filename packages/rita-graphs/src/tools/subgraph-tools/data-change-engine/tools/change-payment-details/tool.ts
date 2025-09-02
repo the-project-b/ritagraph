@@ -16,7 +16,6 @@ import {
 import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
-import { ChangePaymentDetailsParams, ToolResult } from "../../types";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -29,10 +28,7 @@ function prefixedLog(message: string, data?: any) {
 
 export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
   tool(
-    async <T extends ChangePaymentDetailsParams>(
-      params: T,
-      config,
-    ): Promise<ToolResult<T>> => {
+    async (params, config) => {
       const {
         employeeId,
         paymentId,
@@ -42,7 +38,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         newMonthlyHours,
         effectiveDate,
         quote,
-        existingProposalId,
       } = params;
       const { selectedCompanyId } = ctx;
       const { thread_id, run_id } = config.configurable;
@@ -54,7 +49,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         paymentId,
         contractId,
         companyId: selectedCompanyId,
-        isCorrection: !!existingProposalId,
       });
 
       const client = createGraphQLClient(ctx);
@@ -75,7 +69,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
       prefixedLog("payments", payments);
 
       const buildBaseDataChangeProps = () => ({
-        id: existingProposalId || uuid(),
+        id: uuid(),
         changeType: "change" as const,
         relatedUserId: employeeId,
         relatedContractId: contractId,
@@ -90,13 +84,21 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
       if (payments.payments.length === 0) {
         return {
           error: "This contract does not have any payments.",
-        } as ToolResult<T>;
+        };
       }
 
       const newProposals: Array<DataChangeProposal> = [];
       const payment = payments.payments.find(
         (payment) => payment.id === paymentId,
       );
+
+      // Edge case
+      if (payment?.paymentType.name === "Base Salary" && newMonthlyHours) {
+        return {
+          error:
+            "Monthly hours of a base salary does not make sense, maybe there was a second contract with base wage?",
+        };
+      }
 
       if (!payment) {
         return {
@@ -105,7 +107,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
             null,
             2,
           )}`,
-        } as ToolResult<T>;
+        };
       }
 
       prefixedLog("payment", payment);
@@ -194,20 +196,6 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         payment,
       );
 
-      if (existingProposalId) {
-        logger.info("Returning proposal for correction without saving", {
-          proposalId: existingProposalId,
-          description: newProposals[0]?.description,
-        });
-
-        return {
-          success: true,
-          isCorrection: true,
-          correctedProposal: newProposals[0],
-          message: `Proposal corrected: ${newProposals[0]?.description}`,
-        } as ToolResult<T>;
-      }
-
       const appendDataChangeProposalsAsThreadItemsResult =
         await appendDataChangeProposalsAsThreadItems({
           dataChangeProposals: newProposals,
@@ -218,7 +206,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
         return {
           error: "Failed to create thread items - tool call unavailable.",
-        } as ToolResult<T>;
+        };
       }
 
       const newProposalDbUpdateResults = Result.unwrap(
@@ -249,7 +237,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
 
         return {
           error: "Failed to create thread items for the data change proposals.",
-        } as ToolResult<T>;
+        };
       }
 
       prefixedLog("dataChangeProposals", newProposals);
@@ -264,7 +252,7 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
           id: proposal.id,
           description: proposal.description,
         })),
-      } as ToolResult<T>;
+      };
     },
     {
       name: "change_payment_details",
@@ -280,7 +268,10 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
         contractId: z.string(),
         paymentId: z.string(),
         newAmount: z.number().optional(),
-        newMonthlyHours: z.number().optional(),
+        newMonthlyHours: z
+          .number()
+          .optional()
+          .describe("Not applicable for base salary"),
         newFrequency: z.nativeEnum(PaymentFrequency).optional(),
         effectiveDate: z
           .string()
@@ -288,15 +279,11 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
           .describe(
             "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format",
           ),
-        existingProposalId: z
-          .string()
-          .optional()
-          .describe(
-            "ID of an existing proposal to correct. When provided, returns the corrected proposal without saving to database.",
-          ),
       }),
     },
   );
+
+// MARK: - Helper functions
 
 function parseEffectiveDate(effectiveDate: string | undefined) {
   if (!effectiveDate) {

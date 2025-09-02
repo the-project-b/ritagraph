@@ -9,7 +9,6 @@ import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
 import { ExtendedToolContext, PaymentType } from "../../tool";
-import { CreatePaymentParams, ToolResult } from "../../types";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -24,10 +23,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
   ExtendedToolContext
 > = (ctx) =>
   tool(
-    async <T extends CreatePaymentParams>(
-      params: T,
-      config,
-    ): Promise<ToolResult<T>> => {
+    async (params, config) => {
       const {
         employeeId,
         contractId,
@@ -38,7 +34,6 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         frequency,
         startDate,
         quote,
-        existingProposalId,
       } = params;
       const { selectedCompanyId } = ctx;
       const { thread_id, run_id } = config.configurable;
@@ -55,11 +50,10 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         frequency,
         startDate,
         companyId: selectedCompanyId,
-        isCorrection: !!existingProposalId,
       });
 
       const buildBaseDataChangeProps = () => ({
-        id: existingProposalId || uuid(),
+        id: uuid(),
         changeType: "creation" as const,
         relatedUserId: employeeId,
         relatedContractId: contractId,
@@ -97,20 +91,6 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         },
       };
 
-      if (existingProposalId) {
-        logger.info("Returning proposal for correction without saving", {
-          proposalId: existingProposalId,
-          description: dataChangeProposal.description,
-        });
-
-        return {
-          success: true,
-          isCorrection: true,
-          correctedProposal: dataChangeProposal,
-          message: `Proposal changed to creation: ${dataChangeProposal.description}`,
-        } as ToolResult<T>;
-      }
-
       const appendDataChangeProposalsAsThreadItemsResult =
         await appendDataChangeProposalsAsThreadItems({
           dataChangeProposals: [dataChangeProposal],
@@ -125,7 +105,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
         return {
           error: "Failed to create thread items - tool call unavailable.",
-        } as ToolResult<T>;
+        };
       }
 
       const newProposalDbUpdateResults = Result.unwrap(
@@ -155,7 +135,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
 
         return {
           error: "Failed to create thread items for the data change proposals.",
-        } as ToolResult<T>;
+        };
       }
 
       prefixedLog("dataChangeProposals", dataChangeProposal);
@@ -169,7 +149,7 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
           id: proposal.id,
           description: proposal.description,
         })),
-      } as ToolResult<T>;
+      };
     },
     {
       name: "create_payment",
@@ -197,12 +177,6 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
           .optional()
           .describe(
             "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format",
-          ),
-        existingProposalId: z
-          .string()
-          .optional()
-          .describe(
-            "ID of an existing proposal to correct. When provided, returns the corrected proposal without saving to database.",
           ),
       }),
     },
