@@ -93,6 +93,9 @@ export const loadOriginalProposal: Node = async (
       proposalType: originalProposal.changeType,
       description: originalProposal.description,
       status: originalProposal.status,
+      iteration: originalProposal.iteration || 1,
+      hasPreviousIterations: !!originalProposal.previousIterations,
+      previousIterationsCount: originalProposal.previousIterations?.length || 0,
     });
 
     return {

@@ -71,6 +71,9 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
     logger.info("Invoking correction engine tool", {
       originalProposalId,
       toolName: "data_correction_engine",
+      proposalIteration: originalProposal.iteration || 1,
+      hasPreviousIterations: !!originalProposal.previousIterations,
+      previousIterationsCount: originalProposal.previousIterations?.length || 0,
     });
     const correctionTool = tools[0];
     const result = await correctionTool.invoke(

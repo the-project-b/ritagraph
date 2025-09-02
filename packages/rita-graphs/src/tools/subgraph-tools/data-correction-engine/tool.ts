@@ -10,15 +10,19 @@ import { createLogger } from "@the-project-b/logging";
 import { z } from "zod";
 import { createGraphQLClient } from "../../../utils/graphql/client.js";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool.js";
-import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory.js";
+import {
+  ToolFactoryToolDefintion,
+  toolFactory,
+  ToolContext,
+} from "../../tool-factory.js";
 import {
   ExtendedToolContext,
   PaymentType,
 } from "../data-change-engine/tool.js";
-import { changePaymentDetails } from "../data-change-engine/tools/change-payment-details/tool.js";
-import { createPaymentTool } from "../data-change-engine/tools/create-payment/tool.js";
 import { findEmployeeByNameWithContract } from "../data-change-engine/tools/find-employee-by-name-with-contract/tool.js";
 import { getCurrentDataChangeProposals } from "../data-change-engine/tools/get-current-data-change-proposals/tool.js";
+import { correctPaymentChange } from "./tools/correct-payment-change.js";
+import { correctPaymentCreation } from "./tools/correct-payment-creation.js";
 import { buildDataCorrectionEngineGraph } from "./sub-graph.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
@@ -34,71 +38,117 @@ export const correctionEngine: ToolFactoryToolDefintion = (toolContext) =>
         threadId,
         correctionRequest,
         originalDescription: originalProposal.description,
+        iteration: originalProposal.iteration || 1,
+        hasPreviousIterations: !!originalProposal.previousIterations,
+        previousIterationsCount:
+          originalProposal.previousIterations?.length || 0,
       });
 
-      logger.debug("Building correction prompt with original proposal context");
+      // Strip out previousIterations to avoid bloating LLM context
+      // We only need the current proposal state
+      const {
+        previousIterations: _previousIterations,
+        ...proposalWithoutHistory
+      } = originalProposal;
+
+      // Extract paymentId from mutationQuery if this is a "change" type proposal
+      let extractedPaymentId: string | undefined;
+      if (
+        originalProposal.changeType === "change" &&
+        originalProposal.mutationQuery
+      ) {
+        const mutationVariables = originalProposal.mutationQuery.variables;
+        if (mutationVariables?.data?.id) {
+          extractedPaymentId = mutationVariables.data.id;
+          logger.debug("Extracted paymentId from mutationQuery", {
+            paymentId: extractedPaymentId,
+          });
+        }
+      }
+
+      logger.debug(
+        "Building correction prompt with cleaned proposal (removed previousIterations)",
+      );
 
       const systemPrompt = await PromptTemplate.fromTemplate(
-        `
-<instruction>
-You are correcting a previously created data change proposal based on user feedback.
+        `## Role
+You correct data change proposals based on user feedback.
 
-<original_proposal>
+## Current Proposal
+Type: {changeType}
+{paymentIdInfo}
+\`\`\`json
 {originalProposalJson}
-</original_proposal>
+\`\`\`
 
-The user has requested the following correction:
-{correctionRequest}
+## Correction Request
+"{correctionRequest}"
 
-Your job is to:
-1. Understand what needs to be corrected from the original proposal
-2. Determine if the correction changes the fundamental nature of the proposal:
-   - From "change" to "creation": User wants to create a NEW payment instead of changing an existing one
-   - From "creation" to "change": User wants to modify an EXISTING payment instead of creating a new one
-3. If the employee needs to change, find the new employee using findEmployeeByNameWithContract
-4. If the amount needs to change, update it accordingly
-5. If the effective date needs to change, parse it correctly (today is {today})
-6. Choose the correct tool based on the correction:
-   - Use change_payment_details for modifying existing payments (changeType: "change")
-   - Use create_payment for creating new payments (changeType: "creation")
+## Decision Tree
 
-IMPORTANT:
-- Extract the original quote from the proposal and reuse it unless the correction changes what was quoted
-- If changing the employee, you MUST find their contract and payment IDs first using the appropriate tools
-- If changing the effective date, ensure it's in YYYY-MM-DD format
-- ALWAYS pass existingProposalId: "{proposalId}" to either tool
-- The tool will return the corrected proposal without saving to database
-- If user says "make it a bonus" or "create a new payment" or similar, use create_payment
-- If user says "update the existing payment" or similar, use change_payment_details
-</instruction>
+### Step 1: Determine Tool
+Keywords → Tool to use:
+- "bonus", "bonus payment", "new payment" → **correct_payment_creation**
+- "change existing", "update payment" → **correct_payment_change**  
+- No keywords → Keep original type "{changeType}"
 
-<examples>
-Original: Change amount of payment Liam Davis to 3000
-Correction: "I meant 4000"
-Action: Use change_payment_details with same employee/contract/payment IDs but amount=4000
+### Step 2: Execute Correction
 
-Original: Change amount of payment Liam Davis to 3000
-Correction: "I meant Olivia, not Liam"
-Action: First find Olivia's employee ID, contract ID, and payment ID, then use change_payment_details with Olivia's IDs
+#### If using correct_payment_creation:
+1. Find employee (if name changed): \`findEmployeeByNameWithContract(name)\`
+2. Call correction: \`correct_payment_creation\` with:
+   - proposalId: "{proposalId}"
+   - employeeId: <actual ID from step 1, NOT placeholder>
+   - contractId: <actual ID from step 1, NOT placeholder>
+   - quote: <from original>
+   - title: "Bonus Payment"
+   - paymentType: "bonus"
+   - paymentTypeId: 8
+   - amount: <corrected value>
+   - frequency: SINGLE_TIME
+   - startDate: <from original or today>
 
-Original: Change amount of payment Liam Davis to 3000 effective 2025-10-01
-Correction: "I meant starting on the 20th"
-Action: Use change_payment_details with same IDs but effectiveDate="2025-10-20"
+#### If using correct_payment_change:
+1. Find employee (if name changed): \`findEmployeeByNameWithContract(name)\`
+2. Get payment (if employee changed): \`getPaymentsOfEmployee(employeeId)\`
+3. Call correction: \`correct_payment_change\` with:
+   - proposalId: "{proposalId}"
+   - employeeId: <actual ID from step 1>
+   - contractId: <actual ID from step 1>
+   - paymentId: {paymentIdInstruction}
+   - quote: <from original>
+   - amount: <corrected value>
+   - effectiveDate: <from original or today>
 
-Original: Change amount of payment Liam Davis to 3000
-Correction: "Actually make it a new bonus payment instead"
-Action: Use create_payment with title="Bonus", paymentType="bonus", amount=3000
+## Critical Rules
+- NEVER use placeholder text like "Olivia's ID" - use ACTUAL IDs from tool responses
+- NEVER call getPaymentsOfEmployee for creation type
+- ALWAYS pass exact proposalId: "{proposalId}"
 
-Original: Create new bonus payment for Liam Davis of 2000
-Correction: "Actually just update his existing salary to 2000"
-Action: First find Liam's payment IDs, then use change_payment_details with amount=2000
-</examples>
-`,
+## Examples
+
+### Correction: "bonus payment for Olivia"
+→ Use correct_payment_creation
+→ findEmployeeByNameWithContract("Olivia") returns employeeId: 360ed956..., contractId: contract_360...
+→ correct_payment_creation(proposalId, employeeId=360ed956..., contractId=contract_360..., amount=4000)
+
+### Correction: "change Olivia's salary instead"  
+→ Use correct_payment_change
+→ findEmployeeByNameWithContract("Olivia") returns employeeId: 360ed956..., contractId: contract_360...
+→ getPaymentsOfEmployee(360ed956...) returns payments including id: clrita0001, type: salary
+→ correct_payment_change(proposalId, employeeId=360ed956..., paymentId=clrita0001, amount=4000)`,
       ).format({
-        originalProposalJson: JSON.stringify(originalProposal, null, 2),
+        originalProposalJson: JSON.stringify(proposalWithoutHistory, null, 2),
         correctionRequest,
         today: new Date().toISOString().split("T")[0],
         proposalId: originalProposal.id,
+        changeType: originalProposal.changeType,
+        paymentIdInfo: extractedPaymentId
+          ? `PaymentId: ${extractedPaymentId}`
+          : "",
+        paymentIdInstruction: extractedPaymentId
+          ? `"${extractedPaymentId}" (from original)`
+          : `<from getPaymentsOfEmployee if employee changed>`,
       });
 
       const humanPrompt = await PromptTemplate.fromTemplate(
@@ -115,10 +165,9 @@ Action: First find Liam's payment IDs, then use change_payment_details with amou
         findEmployeeByNameWithContract,
         getPaymentsOfEmployee,
         getCurrentDataChangeProposals,
-        changePaymentDetails,
-        createPaymentTool,
+        correctPaymentChange,
+        correctPaymentCreation,
       ];
-
 
       logger.debug("Initializing tools for correction agent", {
         toolCount: toolDefinitions.length,
@@ -134,7 +183,12 @@ Action: First find Liam's payment IDs, then use change_payment_details with amou
         },
       });
 
-      logger.info("Invoking correction agent with React pattern");
+      logger.info("Invoking correction agent with React pattern", {
+        changeType: originalProposal.changeType,
+        proposalId: originalProposal.id,
+        hasPaymentId: !!(originalProposal as any).paymentId,
+      });
+
       const agent = buildDataCorrectionEngineGraph({ tools });
 
       const response = await agent.invoke(
@@ -236,11 +290,10 @@ Action: First find Liam's payment IDs, then use change_payment_details with amou
     },
   );
 
-async function getPaymentTypes(toolContext: any): Promise<Array<PaymentType>> {
-  const graphqlClient = createGraphQLClient({
-    accessToken: toolContext.accessToken,
-    appdataHeader: toolContext.appdataHeader,
-  });
+async function getPaymentTypes(
+  toolContext: ToolContext,
+): Promise<Array<PaymentType>> {
+  const graphqlClient = createGraphQLClient(toolContext);
 
   try {
     if (!toolContext.selectedCompanyId) {
