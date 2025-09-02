@@ -2,6 +2,7 @@ import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { createLogger } from "@the-project-b/logging";
 import { ConfigurableAnnotation, GraphState, Node } from "./graph-state.js";
 import { loadOriginalProposal, processCorrection } from "./nodes/index.js";
+import { CorrectionStatus } from "./types.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CorrectionsGraphInitialization",
@@ -19,11 +20,29 @@ export function createRitaCorrectionsGraph(getAuthUser: (config: any) => any) {
         };
       };
 
+      // Define the edge decision function for early failure
+      const loadOriginalProposalEdgeDecision = (
+        state: typeof GraphState.State,
+      ) => {
+        if (state.correctionStatus === CorrectionStatus.FAILED) {
+          logger.warn("Load original proposal failed, ending correction flow", {
+            proposalId: state.originalProposalId,
+            status: state.correctionStatus,
+          });
+          return END;
+        }
+        return "processCorrection";
+      };
+
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         .addNode("loadOriginalProposal", wrapNodeWithAuth(loadOriginalProposal))
         .addNode("processCorrection", wrapNodeWithAuth(processCorrection))
         .addEdge(START, "loadOriginalProposal")
-        .addEdge("loadOriginalProposal", "processCorrection")
+        .addConditionalEdges(
+          "loadOriginalProposal",
+          loadOriginalProposalEdgeDecision,
+          ["processCorrection", END],
+        )
         .addEdge("processCorrection", END);
 
       // Compile the graph
