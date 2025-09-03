@@ -12,7 +12,7 @@ import { ExtendedToolContext, PaymentType } from "../../tool";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
-  tool: "change_payment_details",
+  tool: "create_payment",
 });
 
 function prefixedLog(message: string, data?: any) {
@@ -38,8 +38,8 @@ export const createPaymentTool: ToolFactoryToolDefintion<
       const { selectedCompanyId } = ctx;
       const { thread_id, run_id } = config.configurable;
 
-      logger.info("[TOOL > change_payment_details]", {
-        operation: "change_payment_details",
+      logger.info("[TOOL > create_payment]", {
+        operation: "create_payment",
         threadId: thread_id,
         employeeId,
         contractId,
@@ -52,25 +52,22 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         companyId: selectedCompanyId,
       });
 
-      // const client = createGraphQLClient(ctx);
-
-      // 1) Get how many contracts the employee has
-
       const buildBaseDataChangeProps = () => ({
         id: uuid(),
         changeType: "creation" as const,
         relatedUserId: employeeId,
         relatedContractId: contractId,
-        description: `Change payment details for ${employeeId}`,
+        description: `Create payment for ${employeeId}`,
         status: "pending" as "approved" | "pending" | "rejected",
         createdAt: new Date().toISOString(),
         quote,
         runId: run_id,
+        iteration: 1, // Initial iteration for new proposals
       });
 
       const dataChangeProposal: DataChangeProposal = {
         ...buildBaseDataChangeProps(),
-        description: `Create a new payment for ${employeeId} with the following details: ${title}`,
+        description: `Create a new ${title} payment for ${employeeId}`,
         mutationQuery: createPayment(
           {
             ...parseStartDate(startDate),
@@ -184,8 +181,6 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
       }),
     },
   );
-
-// MARK: - Helper functions
 
 function paymentTypeToId(
   paymentType: PaymentType["slug"],

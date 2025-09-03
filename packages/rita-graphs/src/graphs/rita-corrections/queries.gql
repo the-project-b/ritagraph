@@ -1,0 +1,20 @@
+mutation updateRitaThreadItem($input: UpdateRitaThreadItemInput!) {
+  updateRitaThreadItem(input: $input) {
+    id
+    data
+    createdAt
+    updatedAt
+    ritaThreadId
+  }
+}
+
+query getRitaThreadItem($id: Int!) {
+  ritaThreadItem(id: $id) {
+    id
+    data
+    createdAt
+    updatedAt
+    ritaThreadId
+  }
+}
+

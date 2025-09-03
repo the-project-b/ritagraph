@@ -3,7 +3,8 @@
   "dockerfile_lines": [],
   "dependencies": ["."],
   "graphs": {
-    "rita": "./src/graphs/rita/graph.ts:graph"
+    "rita": "./src/graphs/rita/graph.ts:graph",
+    "rita-corrections": "./src/graphs/rita-corrections/graph.ts:graph"
   },
   "auth": {
     "path": "./src/graphs/rita/graph.ts:auth"

@@ -6,7 +6,7 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import { buildDataChangeEngineGraph } from "./sub-graph";
+import { buildDataRetrievalEngineGraph } from "./sub-graph";
 import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
 import {
@@ -79,7 +79,7 @@ ${dataRepresentationLayerPrompt}
         },
       });
 
-      const agent = buildDataChangeEngineGraph({ tools });
+      const agent = buildDataRetrievalEngineGraph({ tools });
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({

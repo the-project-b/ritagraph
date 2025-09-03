@@ -19,6 +19,8 @@ export type DataChangeProposal = {
   relatedContractId?: string;
   status: "approved" | "pending" | "rejected";
   runId: string; // The runId of the run that created this proposal
+  iteration: number; // Defaults to 1, increments with each correction
+  previousIterations?: Array<Omit<DataChangeProposal, "previousIterations">>; // Full history of previous proposal versions
 } & (
   | {
       changeType: "change";

@@ -78,6 +78,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         createdAt: new Date().toISOString(),
         quote,
         runId: run_id,
+        iteration: 1, // Initial iteration for new proposals
       });
 
       if (payments.payments.length === 0) {
