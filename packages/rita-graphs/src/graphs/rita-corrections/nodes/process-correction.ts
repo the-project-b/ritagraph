@@ -119,20 +119,6 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
       },
     );
 
-    const currentIteration = (originalProposal.iteration || 1) + 1;
-    const { previousIterations: _, ...originalWithoutHistory } = originalProposal;
-    const previousIterations = [
-      ...(originalProposal.previousIterations || []),
-      originalWithoutHistory,
-    ];
-
-    const versionedProposal = {
-      ...correctedProposal,
-      id: originalProposal.id,
-      iteration: currentIteration,
-      previousIterations,
-    };
-
     const client = createGraphQLClient({
       accessToken,
       appdataHeader,
@@ -142,7 +128,7 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
         id: parseInt(originalProposalId, 10),
         data: {
           type: "DATA_CHANGE_PROPOSAL",
-          proposal: versionedProposal,
+          proposal: correctedProposal,
         },
       },
     });
@@ -153,18 +139,17 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
 
     const correctionSummary = await generateCorrectionSummary(
       originalProposal,
-      versionedProposal,
+      correctedProposal,
       correctionRequest,
     );
 
     logger.info("Correction completed successfully", {
       proposalId: originalProposal.id,
       summary: correctionSummary,
-      iteration: currentIteration,
     });
 
     return {
-      correctedProposal: versionedProposal,
+      correctedProposal,
       correctionStatus: CorrectionStatus.COMPLETED,
       correctionResponseDraft: correctionSummary,
       messages: [
