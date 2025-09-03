@@ -16,8 +16,8 @@ import {
   ToolContext,
 } from "../../tool-factory.js";
 import {
-  ExtendedToolContext,
   PaymentType,
+  ExtendedToolContext,
 } from "../data-change-engine/tool.js";
 import { findEmployeeByNameWithContract } from "../data-change-engine/tools/find-employee-by-name-with-contract/tool.js";
 import { getCurrentDataChangeProposals } from "../data-change-engine/tools/get-current-data-change-proposals/tool.js";
@@ -173,7 +173,9 @@ Keywords → Tool to use:
         toolCount: toolDefinitions.length,
       });
 
-      const tools = toolFactory<ExtendedToolContext>({
+      const tools = toolFactory<
+        Omit<ExtendedToolContext, "originalMessageChain" | "preferredLanguage">
+      >({
         toolDefinitions,
         ctx: {
           ...toolContext,

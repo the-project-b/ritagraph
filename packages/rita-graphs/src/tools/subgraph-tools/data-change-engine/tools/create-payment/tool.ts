@@ -159,7 +159,7 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
         quote: z
           .string()
           .describe(
-            "Quoted phrase from the user mentioning the change. All words contributing to the change should be part of the quote. e.g. Starting september [...] Robby works 20 hours",
+            "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
           ),
         employeeId: z.string(),
         contractId: z.string(),
