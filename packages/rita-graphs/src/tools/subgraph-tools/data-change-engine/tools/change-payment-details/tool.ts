@@ -244,7 +244,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
 
       return {
         instructions: `
-These are the pending data change proposals. You can use them to approve the based on the confirmation of the user.
+These are the pending data change proposals. You can use them to approve them based on the confirmation of the user.
 ${redundantChanges}
 ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
 `,
@@ -262,7 +262,7 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
         quote: z
           .string()
           .describe(
-            "Quoted phrase from the user mentioning the change. All words contributing to the change should be part of the quote. e.g. Starting september [...] Robby works 20 hours",
+            "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
           ),
         employeeId: z.string(),
         contractId: z.string(),

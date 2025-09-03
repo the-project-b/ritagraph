@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
+  BaseMessage,
   HumanMessage,
   SystemMessage,
   ToolMessage,
@@ -13,13 +14,15 @@ import {
   toolFactory,
 } from "../../tool-factory";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool";
-import { Command } from "@langchain/langgraph";
+import { Command, getCurrentTaskInput } from "@langchain/langgraph";
 import { changePaymentDetails } from "./tools/change-payment-details/tool";
 import { getCurrentDataChangeProposals } from "./tools/get-current-data-change-proposals/tool";
 import { findEmployeeByNameWithContract } from "./tools/find-employee-by-name-with-contract/tool";
 import { createGraphQLClient } from "../../../utils/graphql/client";
 import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
 import growthbookClient from "../../../utils/growthbook";
+import { sanitizeQuoteForProposal } from "./tools/sanitize-quote-for-proposal/tool";
+// import { masterDataChangeEngine } from "../master_data_change_engine/tool";
 
 export type PaymentType = {
   id: string;
@@ -35,6 +38,8 @@ export type ExtendedToolContext = {
    * -> Less cognitive complexity for the LLM
    */
   paymentTypes: Array<PaymentType>;
+  originalMessageChain: Array<BaseMessage>;
+  preferredLanguage: "EN" | "DE";
 };
 
 /**
@@ -67,6 +72,7 @@ IMPORTANT: Do not assign the same change to multiple payments unless clearly sta
 - The title of a payment often reveals its not a standard payment.
 - If you fail to get a user by ID double check if you used the right ID.
 - If you realised you do not have any other Ids explain you are not able to find the user.
+IMPORTANT: Quotes have to be refined with the sanitize_quote_for_proposal tool.
 
 Today is the {today}
 </notes>
@@ -99,11 +105,19 @@ Means: Adjust existing payment.
         `
 Users request: {usersRequest}
 Exact words: {usersQuotedRequest}
+
+Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
       ).format({
         usersRequest,
         usersQuotedRequest,
       });
+
+      // We need to know the original message chain to get the well formatted quote
+      const callerGraphState = (await getCurrentTaskInput(config)) as {
+        messages: Array<BaseMessage>;
+        preferredLanguage: "EN" | "DE";
+      };
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemPrompt),
@@ -118,6 +132,8 @@ Exact words: {usersQuotedRequest}
         getPaymentsOfEmployee,
         getCurrentDataChangeProposals,
         changePaymentDetails,
+        sanitizeQuoteForProposal,
+        //masterDataChangeEngine,
       ];
 
       if (growthbookClient.isOn("create-payments", {})) {
@@ -130,6 +146,8 @@ Exact words: {usersQuotedRequest}
           ...toolContext,
           extendedContext: {
             paymentTypes,
+            originalMessageChain: callerGraphState.messages,
+            preferredLanguage: callerGraphState.preferredLanguage,
           },
         },
       });
