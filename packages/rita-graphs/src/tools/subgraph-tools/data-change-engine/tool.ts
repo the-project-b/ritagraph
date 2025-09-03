@@ -48,7 +48,7 @@ export type ExtendedToolContext = {
  */
 export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
-    async ({ usersRequest, usersQuotedRequest }, config) => {
+    async ({ usersRequest, usersQuotedRequest, employeeName }, config) => {
       const systemPrompt = await PromptTemplate.fromTemplate(
         `
 <instruction>
@@ -103,12 +103,14 @@ Means: Adjust existing payment.
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
+Employee Name: {employeeName}
 Users request: {usersRequest}
 Exact words: {usersQuotedRequest}
 
 Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
       ).format({
+        employeeName,
         usersRequest,
         usersQuotedRequest,
       });
@@ -176,6 +178,9 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
       description:
         "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes. If the job title was mentioned please include it.",
       schema: z.object({
+        employeeName: z
+          .string()
+          .describe("The name of the employee whose data will be changed"),
         usersRequest: z.string().describe("What the user wants to retrieve"),
         usersQuotedRequest: z
           .string()
