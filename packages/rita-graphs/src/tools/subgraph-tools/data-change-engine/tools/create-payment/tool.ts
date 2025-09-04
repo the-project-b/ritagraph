@@ -83,6 +83,11 @@ export const createPaymentTool: ToolFactoryToolDefintion<
             },
           },
           "",
+          {
+            "payment.amount": "data.properties.amount",
+            "payment.monthlyHours": "data.properties.monthlyHours",
+            "payment.frequency": "data.properties.frequency",
+          },
         ),
         properties: {
           amount: amount?.toString() ?? "",

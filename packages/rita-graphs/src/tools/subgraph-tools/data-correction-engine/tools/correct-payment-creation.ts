@@ -74,7 +74,11 @@ export const correctPaymentCreation: ToolFactoryToolDefintion = (ctx) =>
         quote,
         runId: run_id,
         iteration: 1, // Will be incremented by process-correction node
-        mutationQuery: createPayment(mutationInput, ""),
+        mutationQuery: createPayment(mutationInput, "", {
+          "payment.amount": "data.properties.amount",
+          "payment.monthlyHours": "data.properties.monthlyHours",
+          "payment.frequency": "data.properties.frequency",
+        }),
         properties: {
           amount: amount?.toString() ?? "",
           monthlyHours: monthlyHours?.toString() ?? "",
