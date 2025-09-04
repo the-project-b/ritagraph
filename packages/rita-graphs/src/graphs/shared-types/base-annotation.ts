@@ -9,6 +9,14 @@ export function AnnotationWithDefault<T>(defaultValue: T) {
   });
 }
 
+export type ChangedField =
+  | "payment.amount"
+  | "payment.monthlyHours"
+  | "payment.frequency"
+  | "employee.firstName"
+  | "employee.lastName"
+  | "employee.birthName";
+
 export type DataChangeProposal = {
   id: string;
   createdAt: string;
@@ -20,21 +28,22 @@ export type DataChangeProposal = {
   status: "approved" | "pending" | "rejected";
   runId: string; // The runId of the run that created this proposal
   iteration: number; // Defaults to 1, increments with each correction
-  previousIterations?: Array<Omit<DataChangeProposal, "previousIterations">>; // Full history of previous proposal versions
+  previousIterations?: Array<DataChangeProposal>; // Full history of previous proposal versions
+  correctionInProgress?: boolean;
 } & (
   | {
       changeType: "change";
-      statusQuoQuery: QueryDefinition; //Not defined for creation
-      mutationQuery: QueryDefinition;
-      dynamicMutationVariables?: Record<string, QueryDefinition>;
-      changedField: string; // payment.properties.amount -> this key will be replaced in the FE for translation
+      statusQuoQuery: QueryDefinition<ChangedField>; //Not defined for creation
+      mutationQuery: QueryDefinition<ChangedField>;
+      dynamicMutationVariables?: Record<string, QueryDefinition<ChangedField>>;
+      changedField: ChangedField; // payment.properties.amount -> this key will be replaced in the FE for translation
       previousValueAtApproval?: string;
       newValue: string;
       quote: string;
     }
   | {
       changeType: "creation";
-      mutationQuery: QueryDefinition;
+      mutationQuery: QueryDefinition<ChangedField>;
       properties: Record<string, string>;
       quote: string;
     }

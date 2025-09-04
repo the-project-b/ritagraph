@@ -131,6 +131,9 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
               },
             },
             "payment.properties.amount",
+            {
+              "payment.amount": "data.properties.amount",
+            },
           ),
           dynamicMutationVariables: {
             "data.properties.monthlyHours": getPayment(
@@ -165,6 +168,9 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
               },
             },
             "payment.properties.monthlyHours",
+            {
+              "payment.monthlyHours": "data.properties.monthlyHours",
+            },
           ),
           dynamicMutationVariables: {
             "data.properties.amount": getPayment(

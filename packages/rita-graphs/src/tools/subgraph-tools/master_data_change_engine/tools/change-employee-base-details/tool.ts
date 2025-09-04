@@ -78,6 +78,9 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
               },
             },
             "employee.firstName",
+            {
+              "employee.firstName": "data.personalData.firstName",
+            },
           ),
           changedField: "employee.firstName",
           newValue: firstName,
@@ -103,6 +106,9 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
               },
             },
             "employee.lastName",
+            {
+              "employee.lastName": "data.personalData.lastName",
+            },
           ),
           changedField: "employee.lastName",
           newValue: lastName,
@@ -133,6 +139,9 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
               personalData: { birthName },
             },
             "employee.birthName",
+            {
+              "employee.birthName": "data.personalData.birthName",
+            },
           ),
           changedField: "employee.birthName",
           newValue: birthName,

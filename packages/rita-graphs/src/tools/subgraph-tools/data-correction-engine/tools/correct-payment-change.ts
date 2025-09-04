@@ -84,6 +84,9 @@ export const correctPaymentChange: ToolFactoryToolDefintion = (ctx) =>
             },
           },
           "payment.properties.amount",
+          {
+            "payment.amount": "data.properties.amount",
+          },
         ),
         dynamicMutationVariables: monthlyHours
           ? undefined
