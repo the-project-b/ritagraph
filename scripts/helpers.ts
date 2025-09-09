@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 export type Example = {
   id: string;
   dataset_id: string;
@@ -35,6 +37,18 @@ function getHeaders(): Record<string, string> {
     "Content-Type": "application/json",
   };
 }
+
+export const deterministicCuid = (input: { seed: string }): string => {
+  const hash = createHash("sha256").update(input.seed).digest();
+  const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
+  let result = "c";
+  for (let i = 0; i < 24; i++) {
+    const byte = hash[i % hash.length];
+    const idx = i === 0 ? 10 + (byte % 26) : byte % 36;
+    result += chars[idx];
+  }
+  return result;
+};
 
 export async function resolveDatasetIdByName(
   datasetName: string,
