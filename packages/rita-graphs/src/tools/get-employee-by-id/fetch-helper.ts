@@ -8,7 +8,7 @@ import { Result } from "../../utils/types/result";
 export async function fetchEmployeeById(
   client: GraphQLClientType,
   companyId: string,
-  employeeId: string
+  employeeId: string,
 ): Promise<Result<GetEmployeeByIdWithExtensiveInfoQuery["employee"], Error>> {
   try {
     const { employee } = await client.getEmployeeByIdWithExtensiveInfo({
@@ -27,7 +27,7 @@ export async function fetchEmployeeById(
 export async function fetchPaymentsOfEmployee(
   client: GraphQLClientType,
   companyId: string,
-  contracts: GetEmployeeByIdWithExtensiveInfoQuery["employee"]["employeeContract"]
+  contracts: GetEmployeeByIdWithExtensiveInfoQuery["employee"]["employeeContract"],
 ): Promise<Result<GetAllPaymentsOfEmployeeQuery["payments"], Error>> {
   try {
     const { payments } = await client.getAllPaymentsOfEmployee({
