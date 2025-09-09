@@ -19,6 +19,9 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@the-project-b/logging": "*"
+    "@langchain/core": "0.3.72",
+    "@the-project-b/logging": "*",
+    "langchain": "^0.3.33",
+    "langsmith": "^0.3.63"
   }
 }
