@@ -7,11 +7,12 @@ export const createPayment: (
   variables: PaymentCreateInput,
   propertyPath: string,
   variablePathsOfRelevantProperties: Partial<Record<ChangedField, string>>,
-) => QueryDefinition<ChangedField> = (
+) => QueryDefinition = (
   variables,
   propertyPath,
   variablePathsOfRelevantProperties,
 ) => ({
+  queryId: "payment.create",
   query: gql`
     mutation PaymentCreate($data: PaymentCreateInput!) {
       paymentCreate(data: $data) {
@@ -27,7 +28,8 @@ export const createPayment: (
   variablePathsOfRelevantProperties,
 });
 
-export const placeHolderQuery: QueryDefinition<ChangedField> = {
+export const placeHolderQuery: QueryDefinition = {
+  queryId: "payment.create",
   query: "...",
   variables: {},
   propertyPath: "...",

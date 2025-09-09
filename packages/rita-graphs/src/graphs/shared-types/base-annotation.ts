@@ -9,6 +9,13 @@ export function AnnotationWithDefault<T>(defaultValue: T) {
   });
 }
 
+export type QueryId =
+  | "payment.update"
+  | "payment.create"
+  | "employee.update"
+  | "payment.get"
+  | "employee.get";
+
 export type ChangedField =
   | "payment.amount"
   | "payment.monthlyHours"
@@ -33,9 +40,9 @@ export type DataChangeProposal = {
 } & (
   | {
       changeType: "change";
-      statusQuoQuery: QueryDefinition<ChangedField>; //Not defined for creation
-      mutationQuery: QueryDefinition<ChangedField>;
-      dynamicMutationVariables?: Record<string, QueryDefinition<ChangedField>>;
+      statusQuoQuery: QueryDefinition; //Not defined for creation
+      mutationQuery: QueryDefinition;
+      dynamicMutationVariables?: Record<string, QueryDefinition>;
       changedField: ChangedField; // payment.properties.amount -> this key will be replaced in the FE for translation
       previousValueAtApproval?: string;
       newValue: string;
@@ -43,7 +50,7 @@ export type DataChangeProposal = {
     }
   | {
       changeType: "creation";
-      mutationQuery: QueryDefinition<ChangedField>;
+      mutationQuery: QueryDefinition;
       properties: Record<string, string>;
       quote: string;
     }

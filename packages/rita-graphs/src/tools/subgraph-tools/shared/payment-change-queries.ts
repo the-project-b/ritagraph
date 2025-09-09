@@ -6,7 +6,8 @@ import { ChangedField } from "../../../graphs/shared-types/base-annotation";
 export const getPayment: (
   id: string,
   propertyPath: string,
-) => QueryDefinition<ChangedField> = (id, propertyPath) => ({
+) => QueryDefinition = (id, propertyPath) => ({
+  queryId: "payment.get",
   query: gql`
     query Payment($paymentId: String!) {
       payment(id: $paymentId) {
@@ -29,11 +30,12 @@ export const updatePayment: (
   variables: PaymentUpdateInput,
   propertyPath: string,
   variablePathsOfRelevantProperties: Partial<Record<ChangedField, string>>,
-) => QueryDefinition<ChangedField> = (
+) => QueryDefinition = (
   variables,
   propertyPath,
   variablePathsOfRelevantProperties,
 ) => ({
+  queryId: "payment.update",
   query: gql`
     mutation PaymentUpdate($data: PaymentUpdateInput!) {
       paymentUpdate(data: $data) {
@@ -51,7 +53,8 @@ export const updatePayment: (
   variablePathsOfRelevantProperties,
 });
 
-export const placeHolderQuery: QueryDefinition<ChangedField> = {
+export const placeHolderQuery: QueryDefinition = {
+  queryId: "payment.update",
   query: "...",
   variables: {},
   propertyPath: "...",
