@@ -1,21 +1,24 @@
-import { Client } from "langsmith";
-import * as hub from "langchain/hub/node";
-import type { 
+import type { BaseMessage } from "@langchain/core/messages";
+import type {
   BasePromptTemplate,
   ChatPromptTemplate,
-  PromptTemplate 
+  PromptTemplate,
 } from "@langchain/core/prompts";
-import type { BaseMessage } from "@langchain/core/messages";
-import { Result } from "../../shared/types/result.js";
+import type { Logger } from "@the-project-b/logging";
+import * as hub from "langchain/hub/node";
+import { Client } from "langsmith";
 import { PersistenceError } from "../../shared/errors/domain.errors.js";
+import { Result } from "../../shared/types/result.js";
 import type {
   LangSmithClient,
-  LangSmithPrompt,
-  LangSmithPullOptions,
   LangSmithConfig,
   LangSmithMessage,
+  LangSmithMetadata,
+  LangSmithPrompt,
+  LangSmithPromptTemplate,
+  LangSmithPullOptions,
+  MessagePromptWithNestedTemplate,
 } from "./langsmith-client.types.js";
-import type { Logger } from "@the-project-b/logging";
 
 /**
  * Adapter for the actual LangSmith SDK Client.
@@ -70,21 +73,36 @@ export class LangSmithClientAdapter implements LangSmithClient {
 
       // Use the hub.pull method from langchain/hub
       const prompt = await hub.pull<BasePromptTemplate>(promptName, options);
-      
+
+      // Cast to our extended type that includes metadata
+      const runnablePrompt = prompt as LangSmithPromptTemplate;
+      const metadata: LangSmithMetadata = runnablePrompt.metadata || {};
+      const lc_kwargs = runnablePrompt.lc_kwargs || {};
+      const version =
+        options?.version ||
+        (typeof metadata.version === "string" ? metadata.version : null) ||
+        (typeof lc_kwargs.version === "string" ? lc_kwargs.version : null) ||
+        "latest";
+
       this.logger?.info("Successfully pulled prompt from LangSmith hub", {
         promptName,
         promptType: prompt.constructor.name,
         inputVariables: prompt.inputVariables,
         hasPromptMessages: "promptMessages" in prompt,
         hasTemplate: "template" in prompt,
+        metadata,
+        version,
+        lc_kwargs,
+        runnableKeys: Object.keys(runnablePrompt),
       });
 
       // Transform the LangChain prompt to our internal format
       const transformedPrompt = this.transformLangChainPrompt(
         prompt,
         promptName,
+        version,
       );
-      
+
       this.logger?.info("Transformed LangChain prompt to LangSmith format", {
         transformedPrompt,
       });
@@ -112,29 +130,37 @@ export class LangSmithClientAdapter implements LangSmithClient {
    * Type guard to check if a prompt is a ChatPromptTemplate
    */
   private isChatPromptTemplate(
-    prompt: BasePromptTemplate
+    prompt: BasePromptTemplate,
   ): prompt is ChatPromptTemplate {
-    return "promptMessages" in prompt && Array.isArray((prompt as ChatPromptTemplate).promptMessages);
+    return (
+      "promptMessages" in prompt &&
+      Array.isArray((prompt as ChatPromptTemplate).promptMessages)
+    );
   }
 
   /**
    * Type guard to check if a prompt is a simple PromptTemplate
    */
   private isPromptTemplate(
-    prompt: BasePromptTemplate
+    prompt: BasePromptTemplate,
   ): prompt is PromptTemplate {
-    return "template" in prompt && typeof (prompt as PromptTemplate).template === "string";
+    return (
+      "template" in prompt &&
+      typeof (prompt as PromptTemplate).template === "string"
+    );
   }
 
   /**
    * Transform a LangChain prompt template to our internal format.
    * @param prompt - The prompt from LangChain hub
    * @param promptName - The name of the prompt
+   * @param version - The version of the prompt
    * @returns LangSmithPrompt
    */
   private transformLangChainPrompt(
     prompt: BasePromptTemplate,
     promptName: string,
+    version: string = "latest",
   ): LangSmithPrompt {
     // Extract template content based on prompt type
     let template: string | LangSmithMessage[];
@@ -143,12 +169,12 @@ export class LangSmithClientAdapter implements LangSmithClient {
     // Check if it's a ChatPromptTemplate
     if (this.isChatPromptTemplate(prompt)) {
       const chatPrompt = prompt as ChatPromptTemplate;
-      
+
       // For now, we'll extract the first message template
       // In a chat prompt, we typically have a system message
       if (chatPrompt.promptMessages.length > 0) {
         const firstMessage = chatPrompt.promptMessages[0];
-        
+
         this.logger?.info("Examining first prompt message", {
           hasPrompt: "prompt" in firstMessage,
           hasContent: "content" in firstMessage,
@@ -156,28 +182,42 @@ export class LangSmithClientAdapter implements LangSmithClient {
           constructorName: firstMessage.constructor.name,
           keys: Object.keys(firstMessage),
         });
-        
+
         // Check if it's a message prompt template with a prompt property
-        if ("prompt" in firstMessage && typeof firstMessage.prompt === "object") {
-          const messageTemplate = firstMessage as any; // Using any temporarily to access prompt
-          this.logger?.info("Found prompt property in message", {
-            promptKeys: Object.keys(messageTemplate.prompt),
-            hasTemplate: "template" in messageTemplate.prompt,
-            templateType: typeof messageTemplate.prompt.template,
-          });
-          
-          if ("template" in messageTemplate.prompt) {
-            // This is a string template
-            template = messageTemplate.prompt.template;
+        if (
+          "prompt" in firstMessage &&
+          typeof firstMessage.prompt === "object"
+        ) {
+          const messageTemplate =
+            firstMessage as MessagePromptWithNestedTemplate;
+          if (messageTemplate.prompt) {
+            this.logger?.info("Found prompt property in message", {
+              promptKeys: Object.keys(messageTemplate.prompt),
+              hasTemplate: "template" in messageTemplate.prompt,
+              templateType: typeof messageTemplate.prompt.template,
+            });
+
+            if (messageTemplate.prompt.template) {
+              // This is a string template
+              template = messageTemplate.prompt.template;
+              // Also extract input variables from the prompt
+              if (messageTemplate.prompt.inputVariables) {
+                inputVariables = messageTemplate.prompt.inputVariables;
+              }
+            }
           } else {
             template = "";
           }
-        } else if ("content" in firstMessage && typeof firstMessage === "object") {
+        } else if (
+          "content" in firstMessage &&
+          typeof firstMessage === "object"
+        ) {
           // This is a BaseMessage with direct content
           const baseMsg = firstMessage as BaseMessage;
-          template = typeof baseMsg.content === "string" 
-            ? baseMsg.content 
-            : JSON.stringify(baseMsg.content);
+          template =
+            typeof baseMsg.content === "string"
+              ? baseMsg.content
+              : JSON.stringify(baseMsg.content);
         } else {
           // Fallback: try to get any template string
           template = "";
@@ -188,9 +228,10 @@ export class LangSmithClientAdapter implements LangSmithClient {
     } else if (this.isPromptTemplate(prompt)) {
       // Simple PromptTemplate
       const simplePrompt = prompt as PromptTemplate;
-      template = typeof simplePrompt.template === "string" 
-        ? simplePrompt.template 
-        : JSON.stringify(simplePrompt.template);
+      template =
+        typeof simplePrompt.template === "string"
+          ? simplePrompt.template
+          : JSON.stringify(simplePrompt.template);
     } else {
       // Fallback for unknown prompt types
       this.logger?.warn("Unknown prompt type, using empty template", {
@@ -208,18 +249,38 @@ export class LangSmithClientAdapter implements LangSmithClient {
     // Generate a unique ID based on the prompt name
     const id = `langsmith-${promptName.replace(/\//g, "-")}`;
 
+    // Use the properly typed interface
+    const promptWithMeta = prompt as LangSmithPromptTemplate;
+    const promptMetadata: LangSmithMetadata = promptWithMeta.metadata || {};
+    const lc_kwargs = promptWithMeta.lc_kwargs || {};
+
+    // Merge all metadata sources with proper typing
+    const mergedMetadata: LangSmithMetadata = {
+      ...lc_kwargs,
+      ...promptMetadata,
+      tags:
+        promptMetadata.tags ||
+        (Array.isArray(lc_kwargs.tags) ? lc_kwargs.tags : []),
+      version,
+      source: "langsmith",
+      promptName,
+    };
+
     return {
       id,
       name: promptName,
-      description: `Prompt pulled from LangSmith: ${promptName}`,
+      description:
+        (typeof promptMetadata.description === "string"
+          ? promptMetadata.description
+          : null) ||
+        (typeof lc_kwargs.description === "string"
+          ? lc_kwargs.description
+          : null) ||
+        `Prompt pulled from LangSmith: ${promptName}`,
       object: "prompt",
       template,
       input_variables: inputVariables,
-      metadata: {
-        tags: [],
-        version: "1.0.0",
-        source: "langsmith",
-      },
+      metadata: mergedMetadata,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

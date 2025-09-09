@@ -43,7 +43,7 @@ export class PromptMetadata {
   ): Result<PromptMetadata, ValidationError> {
     const now = new Date();
     const metadata: PromptMetadataData = {
-      version: data.version || "1.0.0",
+      version: data.version || "latest",
       tags: data.tags || [],
       owner: data.owner,
       description: data.description,
@@ -68,12 +68,9 @@ export class PromptMetadata {
   private static validate(
     data: PromptMetadataData,
   ): Result<void, ValidationError> {
-    if (!data.version || !/^\d+\.\d+\.\d+/.test(data.version)) {
+    if (!data.version || data.version.trim() === "") {
       return Result.failure(
-        new ValidationError(
-          "Version must follow semver format (e.g., 1.0.0)",
-          "version",
-        ),
+        new ValidationError("Version must be a non-empty string", "version"),
       );
     }
 

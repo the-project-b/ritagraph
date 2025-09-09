@@ -48,6 +48,10 @@ export type {
   FormattedPromptResponse,
   FormatWithTruncationParams,
 } from "./application/dto/format-prompt.dto.js";
+export type {
+  RawPromptResponse,
+  GetRawPromptParams,
+} from "./application/dto/raw-prompt.dto.js";
 
 // Services
 export { PromptRegistryService } from "./application/services/prompt-registry.service.js";
