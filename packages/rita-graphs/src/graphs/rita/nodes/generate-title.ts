@@ -8,10 +8,12 @@ import {
   createGraphQLClient,
   GraphQLClientType,
 } from "../../../utils/graphql/client.js";
-import { Result } from "../../../utils/types/result.js";
+import { Result } from "@the-project-b/prompts";
 import { getConversationMessages } from "../../../utils/format-helpers/message-filters.js";
 import { Tags } from "../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../model-config";
+import { promptService } from "../../../services/prompts/prompt.service.js";
+import { PromptRegistry } from "../../../services/prompts/prompt.registry.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Nodes",
@@ -53,24 +55,6 @@ const LANGUAGE_CONFIGS: Record<string, LanguageConfig> = {
   },
 };
 
-const TITLE_GENERATION_TEMPLATE = `You are a professional payroll system assistant. Generate a concise, descriptive title for this conversation.
-
-The user's preferred language is: {languageText}
-
-The title should:
-- Be maximum 50 characters
-- Summarize the main topic or request
-- Use professional, clear language
-- Be written in {languageText}
-- Be informative but NOT include specific numbers or amounts
-- Focus on the type of change or request, not the exact values
-
-Good examples in {languageText}:
-{examples}
-
-Conversation context (including initial request):
-{conversationContext}`;
-
 const TitleGenerationOutput = z.object({
   title: z
     .string()
@@ -82,6 +66,11 @@ const TitleGenerationOutput = z.object({
 });
 
 export const generateTitle: Node = async (state, config, getAuthUser) => {
+  // Ensure prompt registry is initialized
+  if (!PromptRegistry.isInitialized()) {
+    await PromptRegistry.initialize();
+  }
+
   const { user, token, appdataHeader } = getAuthUser(config);
   const { backupCompanyId } = getContextFromConfig(config);
   const { thread_id } =
@@ -112,14 +101,34 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
         const languageConfig =
           LANGUAGE_CONFIGS[languageCode] || LANGUAGE_CONFIGS.EN;
 
+        // Get the raw prompt template from the service
+        const rawPromptResult = await promptService.getRawPromptTemplate({
+          promptName: "prompt_service-generate-title",
+          source: "langsmith", // Use LangSmith to pull the prompt
+          correlationId: thread_id,
+        });
+
+        if (Result.isFailure(rawPromptResult)) {
+          const error = Result.unwrapFailure(rawPromptResult);
+          logger.error("Failed to get raw prompt template", {
+            threadId: thread_id,
+            error: error.message,
+          });
+          return {};
+        }
+
+        const rawPrompt = Result.unwrap(rawPromptResult);
+
+        // Format the template with variables using PromptTemplate
         const systemPrompt = await PromptTemplate.fromTemplate(
-          TITLE_GENERATION_TEMPLATE,
+          rawPrompt.template,
         ).format({
           conversationContext: conversationContext.slice(0, 2500),
           examples: languageConfig.examples.map((ex) => `- ${ex}`).join("\n"),
           languageText: languageConfig.languageText,
         });
 
+        // Create the chat prompt
         const prompt = await ChatPromptTemplate.fromMessages([
           ["system", systemPrompt],
         ]).invoke({});
@@ -141,6 +150,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
           title: response.title,
           reasoning: response.reasoning,
           userMessageCount: userMessages.length,
+          promptMetadata: rawPrompt.metadata,
         });
 
         const client = createGraphQLClient({
