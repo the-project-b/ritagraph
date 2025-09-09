@@ -353,6 +353,25 @@ export class Prompt {
   getUpdatedAt(): Date {
     return this.updatedAt;
   }
+
+  /**
+   * Gets the raw template for a specific language.
+   * @param language - The language code
+   * @returns Result<PromptTemplate, LanguageNotSupportedError> - The template or error
+   */
+  getTemplate(
+    language: LanguageCode,
+  ): Result<PromptTemplate, LanguageNotSupportedError> {
+    return this.getTemplateForLanguage(language);
+  }
+
+  /**
+   * Gets the prompt variables.
+   * @returns PromptVariables - The variables definition
+   */
+  getVariables(): PromptVariables {
+    return this.variables;
+  }
   // #endregion
 
   // #region Updates

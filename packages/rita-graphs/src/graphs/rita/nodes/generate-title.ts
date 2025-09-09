@@ -2,7 +2,7 @@ import { HumanMessage } from "@langchain/core/messages";
 import { getContextFromConfig, Node } from "../graph-state";
 import { createLogger } from "@the-project-b/logging";
 import { ChatOpenAI } from "@langchain/openai";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import {
   createGraphQLClient,
@@ -101,32 +101,36 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
         const languageConfig =
           LANGUAGE_CONFIGS[languageCode] || LANGUAGE_CONFIGS.EN;
 
-        // Use the prompt service to format the prompt
-        const promptResult = await promptService.formatPrompt({
+        // Get the raw prompt template from the service
+        const rawPromptResult = await promptService.getRawPromptTemplate({
           promptName: "prompt_service-generate-title",
           source: "langsmith", // Use LangSmith to pull the prompt
-          variables: {
-            conversationContext: conversationContext.slice(0, 2500),
-            examples: languageConfig.examples.map((ex) => `- ${ex}`).join("\n"),
-            languageText: languageConfig.languageText,
-          },
-          language: languageCode,
           correlationId: thread_id,
         });
 
-        if (Result.isFailure(promptResult)) {
-          const error = Result.unwrapFailure(promptResult);
-          logger.error("Failed to format prompt", {
+        if (Result.isFailure(rawPromptResult)) {
+          const error = Result.unwrapFailure(rawPromptResult);
+          logger.error("Failed to get raw prompt template", {
             threadId: thread_id,
             error: error.message,
           });
           return {};
         }
 
-        const formattedPrompt = Result.unwrap(promptResult);
+        const rawPrompt = Result.unwrap(rawPromptResult);
 
+        // Format the template with variables using PromptTemplate
+        const systemPrompt = await PromptTemplate.fromTemplate(
+          rawPrompt.template,
+        ).format({
+          conversationContext: conversationContext.slice(0, 2500),
+          examples: languageConfig.examples.map((ex) => `- ${ex}`).join("\n"),
+          languageText: languageConfig.languageText,
+        });
+
+        // Create the chat prompt
         const prompt = await ChatPromptTemplate.fromMessages([
-          ["system", formattedPrompt.content],
+          ["system", systemPrompt],
         ]).invoke({});
 
         const llm = new ChatOpenAI({
@@ -146,7 +150,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
           title: response.title,
           reasoning: response.reasoning,
           userMessageCount: userMessages.length,
-          promptMetadata: formattedPrompt.metadata,
+          promptMetadata: rawPrompt.metadata,
         });
 
         const client = createGraphQLClient({

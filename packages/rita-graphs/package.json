@@ -31,6 +31,7 @@
     "@modelcontextprotocol/sdk": "^1.13.0",
     "@the-project-b/graphql": "*",
     "@the-project-b/logging": "*",
+    "@the-project-b/prompts": "*",
     "graphql": "^16.11.0",
     "langsmith": "^0.3.63",
     "zod": "^3.25.28"

@@ -1,28 +1,28 @@
-import { Result } from "../../shared/types/result.js";
+import type { Logger } from "@the-project-b/logging";
 import {
-  NotFoundError,
-  PersistenceError,
-} from "../../shared/errors/domain.errors.js";
-import {
-  PromptRepository,
-  PromptFilter,
-} from "../../domain/repositories/prompt.repository.js";
-import {
-  Prompt,
   CreatePromptParams,
+  Prompt,
 } from "../../domain/entities/prompt.entity.js";
+import {
+  PromptFilter,
+  PromptRepository,
+} from "../../domain/repositories/prompt.repository.js";
+import { LanguageCode } from "../../domain/value-objects/language-code.value-object.js";
 import { PromptId } from "../../domain/value-objects/prompt-id.value-object.js";
 import { PromptCategory } from "../../domain/value-objects/prompt-metadata.value-object.js";
-import { LanguageCode } from "../../domain/value-objects/language-code.value-object.js";
 import {
   PromptVariables,
   VariableDefinition,
 } from "../../domain/value-objects/prompt-variables.value-object.js";
+import {
+  NotFoundError,
+  PersistenceError,
+} from "../../shared/errors/domain.errors.js";
+import { Result } from "../../shared/types/result.js";
 import type {
   LangSmithClient,
   LangSmithPrompt,
 } from "../clients/langsmith-client.types.js";
-import type { Logger } from "@the-project-b/logging";
 
 /**
  * Repository implementation for LangSmith prompt storage.
@@ -30,7 +30,7 @@ import type { Logger } from "@the-project-b/logging";
  */
 export class LangSmithPromptRepository implements PromptRepository {
   constructor(
-    private readonly client: LangSmithClient,
+    public readonly client: LangSmithClient,
     private readonly logger?: Logger,
   ) {}
 
@@ -100,6 +100,18 @@ export class LangSmithPromptRepository implements PromptRepository {
       }
 
       // Create prompt params
+      // Use the actual version/commit hash from LangSmith metadata
+      const metadata = langsmithPrompt.metadata || {};
+      const version =
+        typeof metadata.lc_hub_commit_hash === "string"
+          ? metadata.lc_hub_commit_hash
+          : typeof metadata.version === "string"
+            ? metadata.version
+            : "latest";
+      const description =
+        langsmithPrompt.description ||
+        `Prompt pulled from LangSmith: ${langsmithPrompt.name}`;
+
       const createParams: CreatePromptParams = {
         id: langsmithPrompt.id,
         name: langsmithPrompt.name,
@@ -109,9 +121,9 @@ export class LangSmithPromptRepository implements PromptRepository {
         },
         variables,
         metadata: {
-          version: langsmithPrompt.metadata?.version || "1.0.0",
+          version,
           tags: langsmithPrompt.metadata?.tags || [],
-          description: langsmithPrompt.description,
+          description,
         },
       };
 

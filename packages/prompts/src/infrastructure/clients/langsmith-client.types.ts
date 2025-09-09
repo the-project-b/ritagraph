@@ -1,5 +1,9 @@
-import { Result } from "../../shared/types/result.js";
+import type {
+  BaseMessagePromptTemplate,
+  BasePromptTemplate,
+} from "@langchain/core/prompts";
 import { PersistenceError } from "../../shared/errors/domain.errors.js";
+import { Result } from "../../shared/types/result.js";
 
 /**
  * Represents a message in a chat prompt.
@@ -96,4 +100,54 @@ export interface LangSmithConfig {
   apiKey: string;
   apiUrl?: string;
   workspace?: string;
+}
+
+/**
+ * Extended prompt template with LangSmith metadata.
+ * This represents the actual structure returned by hub.pull()
+ */
+export interface LangSmithPromptTemplate
+  extends Omit<BasePromptTemplate, "lc_kwargs"> {
+  metadata?: {
+    lc_hub_owner?: string;
+    lc_hub_repo?: string;
+    lc_hub_commit_hash?: string;
+    version?: string;
+    tags?: string[];
+    [key: string]: unknown;
+  };
+  lc_kwargs?: {
+    promptMessages?: BaseMessagePromptTemplate[];
+    inputVariables?: string[];
+    metadata?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Message prompt template with nested prompt structure.
+ * This represents the structure of messages in ChatPromptTemplate.
+ */
+export interface MessagePromptWithNestedTemplate
+  extends BaseMessagePromptTemplate {
+  prompt?: {
+    template?: string;
+    inputVariables?: string[];
+    template_format?: string;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Metadata extracted from LangSmith prompt.
+ */
+export interface LangSmithMetadata {
+  lc_hub_owner?: string;
+  lc_hub_repo?: string;
+  lc_hub_commit_hash?: string;
+  version?: string;
+  tags?: string[];
+  source?: string;
+  promptName?: string;
+  [key: string]: unknown;
 }
