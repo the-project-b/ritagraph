@@ -108,7 +108,11 @@ ${dataRepresentationLayerPrompt}
       description:
         "Takes a description of the data and tries to retrieve it from the database",
       schema: z.object({
-        usersRequest: z.string().describe("What the user wants to change"),
+        usersRequest: z
+          .string()
+          .describe(
+            "What information the user wants to retrieve. E.g. 'get me all employees'",
+          ),
       }),
     },
   );

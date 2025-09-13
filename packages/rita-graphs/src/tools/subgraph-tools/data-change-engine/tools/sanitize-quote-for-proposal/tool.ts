@@ -84,8 +84,8 @@ export const sanitizeQuoteForProposal = (
 Your counterparts are proposing payroll generated changes based on user inputs.
 The user often puts multiple changes into one message. 
 It is uterly important to know why a change was proposed, hence precise quotations.
-[...] is not for you to ignore but it is tool for you to indicate that you willingly omited irrelevant parts.
-You can use that in your final response.
+
+Context:
 <context>
 
 The original untouched user message:
@@ -103,6 +103,7 @@ Draft for the quote: {draftedQuote}
  - Only the parts relevant to a change should be included in the quote.
  - DO NOT FORGET THE NAME OF THE EMPLOYEE
  - IF MENTIONED DO NOT FORGET THE CONTRACT / JOB TITLE
+ - IF JOB TITLE IS NOT MENTIONED DO NOT IMPLY IT
  - if there is a list of employees often there are common related changes e.g. starting september [...] all employees get a raise.
  - IMPORTANT: If there is text in between your quote segments make sure you imply that by using "[...]".
  - DO NOT FORGET to use "[...]" to imply text in between your quote segments.
