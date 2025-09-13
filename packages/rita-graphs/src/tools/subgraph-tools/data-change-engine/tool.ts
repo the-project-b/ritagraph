@@ -48,7 +48,10 @@ export type ExtendedToolContext = {
  */
 export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
-    async ({ usersRequest, usersQuotedRequest, employeeName }, config) => {
+    async (
+      { usersChangeDescription, usersQuotedRequest, employeeName },
+      config,
+    ) => {
       const systemPrompt = await PromptTemplate.fromTemplate(
         `
 <instruction>
@@ -74,7 +77,7 @@ IMPORTANT: Do not assign the same change to multiple payments unless clearly sta
 - If you realised you do not have any other Ids explain you are not able to find the user.
 IMPORTANT: Quotes have to be refined with the sanitize_quote_for_proposal tool.
 
-Today is the {today}
+Today is the {today}, that means it is {nameOfMonth}
 </notes>
 
 <examples>
@@ -84,11 +87,14 @@ Means: Change of existing payment because of hours worked.
 User: [name] 40 stunden.
 Means: Change of existing payment in current month because of hours worked.
 --------------
+User: [name] 40 stunden im November.
+Means: Change of existing payment in November because of hours worked.
+--------------
 User: [name] gets a bonus of 100€ for the sales.
 Means: Create a new bonus type payment for the specific employee.
 --------------
-User: Bonus anpassen für [name]
-Means: Adjust existing bonus payment.
+User: Bonus anpassen für [name] ab Dezember
+Means: Adjust existing bonus payment effective from 1st December.
 --------------
 User: Amteter muss das Gehalt von 1000€ erhöht werden.
 Means: Adjust existing payment.
@@ -99,19 +105,20 @@ Means: Adjust existing payment.
 `,
       ).format({
         today: new Date().toISOString().split("T")[0],
+        nameOfMonth: new Date().toLocaleString("default", { month: "long" }),
       });
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
 Employee Name: {employeeName}
-Users request: {usersRequest}
+Users request: {usersChangeDescription}
 Exact words: {usersQuotedRequest}
 
 Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
       ).format({
         employeeName,
-        usersRequest,
+        usersChangeDescription,
         usersQuotedRequest,
       });
 
@@ -158,7 +165,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({
-          usersRequest,
+          usersChangeDescription,
         }),
       });
 
@@ -181,7 +188,11 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         employeeName: z
           .string()
           .describe("The name of the employee whose data will be changed"),
-        usersRequest: z.string().describe("What the user wants to retrieve"),
+        usersChangeDescription: z
+          .string()
+          .describe(
+            "What the user wants to change (including effective date if mentioned)",
+          ),
         usersQuotedRequest: z
           .string()
           .describe(
