@@ -22,7 +22,7 @@ import { createGraphQLClient } from "../../../utils/graphql/client";
 import { createPaymentTool as createPayment } from "./tools/create-payment/tool";
 import growthbookClient from "../../../utils/growthbook";
 import { sanitizeQuoteForProposal } from "./tools/sanitize-quote-for-proposal/tool";
-// import { masterDataChangeEngine } from "../master_data_change_engine/tool";
+import { masterDataChangeEngine } from "../master_data_change_engine/tool";
 
 export type PaymentType = {
   id: string;
@@ -142,11 +142,14 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         getCurrentDataChangeProposals,
         changePaymentDetails,
         sanitizeQuoteForProposal,
-        //masterDataChangeEngine,
       ];
 
       if (growthbookClient.isOn("create-payments", {})) {
         toolDefinitions.push(createPayment);
+      }
+
+      if (growthbookClient.isOn("master-data-changes", {})) {
+        toolDefinitions.push(masterDataChangeEngine);
       }
 
       const tools = toolFactory<ExtendedToolContext>({
