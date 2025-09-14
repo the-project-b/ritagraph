@@ -22,6 +22,7 @@ export type ChangedField =
   | "payment.frequency"
   | "employee.firstName"
   | "employee.lastName"
+  | "employee.healthInsurance"
   | "employee.birthName";
 
 export type DataChangeProposal = {

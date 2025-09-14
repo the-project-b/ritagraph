@@ -9,25 +9,26 @@ import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
 import { getEmployee, updateEmployee } from "../../queries-defintions";
 import { GetDetailedEmployeeInfoByEmployeeIdQuery } from "../../../../../generated/graphql";
+import healthInsurancesData from "../../healthInsurancesData";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
-  tool: "change_employee_base_details",
+  tool: "change_employee_insurance",
 });
 
 function prefixedLog(message: string, data?: any) {
   logger.debug(message, data);
 }
 
-export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
+export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
   tool(
     async (params, config) => {
-      const { employeeId, quote, employeeDetails } = params;
-      const { firstName, lastName, birthName } = employeeDetails;
+      const { employeeId, quote, insuranceDetails } = params;
+      const { insuranceCompanyCode } = insuranceDetails;
       const { selectedCompanyId } = ctx;
       const { thread_id, run_id } = config.configurable;
 
-      logger.info("[TOOL > change_employee_base_details]", {
+      logger.info("[TOOL > change_employee_insurance]", {
         operation: "change_payment_details",
         threadId: thread_id,
         employeeId,
@@ -59,98 +60,44 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
 
       const newProposals: Array<DataChangeProposal> = [];
 
-      // For each field that is provided, create a proposal
-      if (firstName && firstName !== employee.firstName) {
-        const dataChangeProposal: DataChangeProposal = {
-          ...buildBaseDataChangeProps(
-            formatEmployeeChange("firstName", employee.firstName, firstName),
-          ),
-          statusQuoQuery: getEmployee(
-            { employeeId: employee.id, employeeCompanyId: selectedCompanyId },
-            "employee.firstName",
-          ),
-          mutationQuery: updateEmployee(
-            {
-              companyId: selectedCompanyId,
-              userId: employee.id,
-              personalData: {
-                firstName,
-              },
-            },
-            "employee.firstName",
-            {
-              "employee.firstName": "data.personalData.firstName",
-            },
-          ),
-          changedField: "employee.firstName",
-          newValue: firstName,
-        };
-        newProposals.push(dataChangeProposal);
-      }
-
-      if (lastName && lastName !== employee.lastName) {
-        const dataChangeProposal: DataChangeProposal = {
-          ...buildBaseDataChangeProps(
-            formatEmployeeChange("lastName", employee.lastName, lastName),
-          ),
-          statusQuoQuery: getEmployee(
-            { employeeId: employee.id, employeeCompanyId: selectedCompanyId },
-            "employee.lastName",
-          ),
-          mutationQuery: updateEmployee(
-            {
-              companyId: selectedCompanyId,
-              userId: employee.id,
-              personalData: {
-                lastName,
-              },
-            },
-            "employee.lastName",
-            {
-              "employee.lastName": "data.personalData.lastName",
-            },
-          ),
-          changedField: "employee.lastName",
-          newValue: lastName,
-        };
-        newProposals.push(dataChangeProposal);
-      }
-
       if (
-        birthName &&
-        birthName !== employee.employeePersonalData[0].birthName
+        insuranceCompanyCode &&
+        insuranceCompanyCode !==
+          employee.employeePersonalData[0].resolvedHealthInsurance?.code
       ) {
+        const employeeChangeDescription = formatEmployeeChange(
+          "healthInsurance",
+          healthInsuranceByCode(
+            employee.employeePersonalData[0].resolvedHealthInsurance?.code,
+          )?.label ?? "Not yet defined",
+          healthInsuranceByCode(insuranceCompanyCode)?.label,
+        );
+
         const dataChangeProposal: DataChangeProposal = {
-          ...buildBaseDataChangeProps(
-            formatEmployeeChange(
-              "birthName",
-              employee.employeePersonalData[0].birthName,
-              birthName,
-            ),
-          ),
+          ...buildBaseDataChangeProps(employeeChangeDescription),
           statusQuoQuery: getEmployee(
             { employeeId: employee.id, employeeCompanyId: selectedCompanyId },
-            "employee.employeePersonalData.0.birthName",
+            "employee.employeePersonalData.0.healthInsurance",
           ),
           mutationQuery: updateEmployee(
             {
               companyId: selectedCompanyId,
               userId: employee.id,
-              personalData: { birthName },
+              personalData: { healthInsurance: insuranceCompanyCode },
             },
-            "employee.birthName",
+            "employee.healthInsurance",
             {
-              "employee.birthName": "data.personalData.birthName",
+              "employee.healthInsurance": "data.personalData.healthInsurance",
             },
           ),
-          changedField: "employee.birthName",
-          newValue: birthName,
+          changedField: "employee.healthInsurance",
+          newValue: insuranceCompanyCode,
         };
         newProposals.push(dataChangeProposal);
       }
 
       const redundantChanges = determineAndExplainRedundantChanges(
-        employeeDetails,
+        insuranceDetails,
         employee,
       );
 
@@ -210,9 +157,9 @@ ${redundantChanges}
       };
     },
     {
-      name: "change_employee_base_details",
+      name: "change_employee_insurance",
       description:
-        "Change base details about the employee. This includes name, email, address, phone number, etc. ONLY CHANGE THE ONES MENTIONED IN THE REQUEST.",
+        "Change insurance details about the employee. This includes insurance type, insurance company, insurance policy number, etc. ONLY CHANGE THE ONES MENTIONED IN THE REQUEST.",
       schema: z.object({
         employeeId: z.string(),
         quote: z
@@ -220,10 +167,8 @@ ${redundantChanges}
           .describe(
             "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
           ),
-        employeeDetails: z.object({
-          firstName: z.string().optional(),
-          lastName: z.string().optional(),
-          birthName: z.string().optional(),
+        insuranceDetails: z.object({
+          insuranceCompanyCode: z.string(),
         }),
       }),
     },
@@ -237,6 +182,10 @@ function formatEmployeeChange(
   newValue: string,
 ) {
   return `Change ${fieldName} from ${previousValue} to ${newValue}`;
+}
+
+function healthInsuranceByCode(code: string) {
+  return healthInsurancesData.find((insurance) => insurance.code === code);
 }
 
 function determineAndExplainRedundantChanges(
