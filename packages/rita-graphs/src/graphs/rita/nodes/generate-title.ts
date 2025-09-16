@@ -103,7 +103,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
 
         // Get the raw prompt template from the service
         const rawPromptResult = await promptService.getRawPromptTemplate({
-          promptName: "prompt_service-generate-title",
+          promptName: "ritagraph-generate-title",
           source: "langsmith", // Use LangSmith to pull the prompt
           correlationId: thread_id,
         });
