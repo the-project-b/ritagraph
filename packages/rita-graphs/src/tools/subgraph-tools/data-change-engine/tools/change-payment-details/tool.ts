@@ -283,7 +283,7 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
           .string()
           .optional()
           .describe(
-            "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format",
+            "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format. E.g. 'e.g. for October' => '2025-10-01'",
           ),
       }),
     },

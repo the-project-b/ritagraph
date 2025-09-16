@@ -11,6 +11,8 @@ import { buildDataRetrievalEngineGraph } from "./sub-graph";
 import { ToolFactoryToolDefintion, toolFactory } from "../../tool-factory";
 import { Command, getCurrentTaskInput } from "@langchain/langgraph";
 import { changeEmployeeBaseDetails } from "./tools/change-employee-base-details/tool";
+import { changeEmployeeInsurance } from "./tools/change-employee-insurance/tool";
+import { findInsuranceCompanyCodeByName } from "./tools/find-insurance-company-code-by-name/tool";
 
 export type ExtendedToolContext = {
   originalMessageChain: Array<BaseMessage>;
@@ -23,7 +25,7 @@ export type ExtendedToolContext = {
  */
 export const masterDataChangeEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
-    async ({ usersRequest, quote, employeeId }, config) => {
+    async ({ usersChangeDescription, quote, employeeId }, config) => {
       const systemPrompt = await PromptTemplate.fromTemplate(
         `
 <instruction>
@@ -52,14 +54,14 @@ No examples yet.
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
-Users request: {usersRequest}
+Users request: {usersChangeDescription}
 Quote: {quote}
 Employee ID: {employeeId}
 
 Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
       ).format({
-        usersRequest,
+        usersChangeDescription,
         quote,
         employeeId,
       });
@@ -75,7 +77,11 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         new HumanMessage(humanPrompt),
       ]);
 
-      const toolDefinitions = [changeEmployeeBaseDetails];
+      const toolDefinitions = [
+        changeEmployeeBaseDetails,
+        changeEmployeeInsurance,
+        findInsuranceCompanyCodeByName,
+      ];
 
       const tools = toolFactory<ExtendedToolContext>({
         toolDefinitions,
@@ -92,7 +98,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
 
       const response = await agent.invoke({
         messages: await messagePrompt.formatMessages({
-          usersRequest,
+          usersChangeDescription,
         }),
       });
 
@@ -112,7 +118,9 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
       description:
         "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes. If the job title was mentioned please include it.",
       schema: z.object({
-        usersRequest: z.string().describe("What the user wants to retrieve"),
+        usersChangeDescription: z
+          .string()
+          .describe("What the user wants to change"),
         employeeId: z
           .string()
           .describe(
