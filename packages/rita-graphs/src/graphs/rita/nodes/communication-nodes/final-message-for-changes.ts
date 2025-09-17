@@ -7,11 +7,13 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
-import { Result } from "../../../../utils/types/result.js";
+import { Result as LocalResult } from "../../../../utils/types/result.js";
+import { Result } from "@the-project-b/prompts";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { createGraphQLClient } from "../../../../utils/graphql/client.js";
 import { DataChangeProposal } from "../../../shared-types/base-annotation.js";
 import { getProposalsOfThatRun } from "./final-message-edge-decision.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -101,45 +103,31 @@ export const finalMessageForChanges: Node = async (
   );
   let proposals: Array<DataChangeProposal> = [];
 
-  if (Result.isFailure(proposalsResult)) {
+  if (LocalResult.isFailure(proposalsResult)) {
     logger.error("Failed to get proposals of that run", {
-      error: Result.unwrapFailure(proposalsResult),
+      error: LocalResult.unwrapFailure(proposalsResult),
     });
     proposals = [];
   } else {
-    proposals = Result.unwrap(proposalsResult);
+    proposals = LocalResult.unwrap(proposalsResult);
   }
 
+  // Fetch prompt from LangSmith
+  const rawPromptResult = await promptService.getRawPromptTemplate({
+    promptName: "ritagraph-final-message-for-changes",
+    source: "langsmith",
+  });
+
+  if (Result.isFailure(rawPromptResult)) {
+    const error = Result.unwrapFailure(rawPromptResult);
+    throw new Error(
+      `Failed to fetch prompt 'ritagraph-final-message-for-changes' from LangSmith: ${error.message}`,
+    );
+  }
+
+  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `Respond to the users request.
-
-Guidelines:
- - Be concise but friendly.
- - Do not say "I will get back to you" or "I will send you an email" or anything like that.
- - If you could not find information say so
- - There will never be "pending" operations only thigns to be approved or rejected by the user.
- - Do not claim or say that there is an operation pending.
- - NEVER include ids like UUIDs in the response.
- - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
- - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
- - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
-
-#examples - when all changes that the user mentioned are listed
-{examples}
-#/examples
-
-#examples - when some changes are missing
-{examplesForMissingInformation}
-#/examples
-
-# List of changes (only for you to cross check if the user mentioned the same changes)
-{listOfChanges}
-
-
-Speak in {language}.
-
-Drafted Response: {draftedResponse}
-  `,
+    rawPrompt.template,
   ).format({
     examples: examples[preferredLanguage],
     examplesForMissingInformation:
@@ -148,6 +136,45 @@ Drafted Response: {draftedResponse}
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
   });
+
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `Respond to the users request.
+  //
+  // Guidelines:
+  //  - Be concise but friendly.
+  //  - Do not say "I will get back to you" or "I will send you an email" or anything like that.
+  //  - If you could not find information say so
+  //  - There will never be "pending" operations only thigns to be approved or rejected by the user.
+  //  - Do not claim or say that there is an operation pending.
+  //  - NEVER include ids like UUIDs in the response.
+  //  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
+  //  - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
+  //  - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
+  //
+  // #examples - when all changes that the user mentioned are listed
+  // {examples}
+  // #/examples
+  //
+  // #examples - when some changes are missing
+  // {examplesForMissingInformation}
+  // #/examples
+  //
+  // # List of changes (only for you to cross check if the user mentioned the same changes)
+  // {listOfChanges}
+  //
+  //
+  // Speak in {language}.
+  //
+  // Drafted Response: {draftedResponse}
+  //   `,
+  // ).format({
+  //   examples: examples[preferredLanguage],
+  //   examplesForMissingInformation:
+  //     examplesForMissingInformation[preferredLanguage],
+  //   listOfChanges: proposals.map((i) => i.description).join("\n"),
+  //   language: localeToLanguage(preferredLanguage),
+  //   draftedResponse: workflowEngineResponseDraft,
+  // });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
@@ -175,9 +202,9 @@ Drafted Response: {draftedResponse}
     },
   });
 
-  if (Result.isFailure(appendMessageResult)) {
+  if (LocalResult.isFailure(appendMessageResult)) {
     logger.error("Failed to append message as thread item", {
-      error: Result.unwrapFailure(appendMessageResult),
+      error: LocalResult.unwrapFailure(appendMessageResult),
     });
   }
 

@@ -10,6 +10,8 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
 import { Tags } from "../../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
+import { Result } from "@the-project-b/prompts";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -43,40 +45,22 @@ export const quickUpdate: WorkflowEngineNode = async (
     .filter((i) => i instanceof HumanMessage)
     .at(-1);
 
+  // Fetch prompt from LangSmith
+  const rawPromptResult = await promptService.getRawPromptTemplate({
+    promptName: "ritagraph-quick-update",
+    source: "langsmith",
+  });
+
+  if (Result.isFailure(rawPromptResult)) {
+    const error = Result.unwrapFailure(rawPromptResult);
+    throw new Error(
+      `Failed to fetch prompt 'ritagraph-quick-update' from LangSmith: ${error.message}`,
+    );
+  }
+
+  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `You are a Payroll Specialist Assistant.
-You are part of a bigger system. 
-Your job is to update the user on what the system is doing at the moment.
-In german use "du" and "deine" instead of "Sie" and "Ihre".
-Always End the message with a new line so that the consecutive string concatenation works.
-NEVER Address the user directly you are just representing the thought process of the system.
-NEVER MENTION IDs or UUIDs.
-DO NOT MENTION "<List>" tags. Just say "list" instead.
-NEVER SAY Changes are applied they are always only prepared.
-
-------
-Initial user message: {initialUserMessage}
-
-Your last message was: {lastMessage}
-
-The task engine messages were: {taskEngineMessages}
-
-------
-
-<Examples>
-- Looking for information, calling tools, etc.
-- Hmm I don't know x yet I need search for it.
-- Okay found it, now I can do y
-- I continue to do y
-- In order to do y I need to find z
-- I need to find z in order to do y
-- I am looking for information about the user's payroll
-- I found some employees that match the criteria
-</Examples>
-
-Give brief updates. Not more then 1 sentence. You can connect the previous thought with the current one.
-Speak in {language}.
-`,
+    rawPrompt.template,
   ).format({
     initialUserMessage: initialUserMessage?.content.toString() ?? "No message",
     taskEngineMessages: taskEngineMessages
@@ -92,6 +76,56 @@ tool called: ${i.lc_kwargs.tool_calls?.map((i) => i.name).join(", ") ?? "none"}
     language: localeToLanguage(preferredLanguage),
     lastMessage: lastAiMessage?.content.toString() ?? "No message",
   });
+
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `You are a Payroll Specialist Assistant.
+  // You are part of a bigger system.
+  // Your job is to update the user on what the system is doing at the moment.
+  // In german use "du" and "deine" instead of "Sie" and "Ihre".
+  // Always End the message with a new line so that the consecutive string concatenation works.
+  // NEVER Address the user directly you are just representing the thought process of the system.
+  // NEVER MENTION IDs or UUIDs.
+  // DO NOT MENTION "<List>" tags. Just say "list" instead.
+  // NEVER SAY Changes are applied they are always only prepared.
+  //
+  // ------
+  // Initial user message: {initialUserMessage}
+  //
+  // Your last message was: {lastMessage}
+  //
+  // The task engine messages were: {taskEngineMessages}
+  //
+  // ------
+  //
+  // <Examples>
+  // - Looking for information, calling tools, etc.
+  // - Hmm I don't know x yet I need search for it.
+  // - Okay found it, now I can do y
+  // - I continue to do y
+  // - In order to do y I need to find z
+  // - I need to find z in order to do y
+  // - I am looking for information about the user's payroll
+  // - I found some employees that match the criteria
+  // </Examples>
+  //
+  // Give brief updates. Not more then 1 sentence. You can connect the previous thought with the current one.
+  // Speak in {language}.
+  // `,
+  // ).format({
+  //   initialUserMessage: initialUserMessage?.content.toString() ?? "No message",
+  //   taskEngineMessages: taskEngineMessages
+  //     .slice(-4)
+  //     .map(
+  //       (i) => `
+  // Thought: ${i.content.toString()}
+  // tool called: ${i.lc_kwargs.tool_calls?.map((i) => i.name).join(", ") ?? "none"}
+  //     `,
+  //     )
+  //     .join("\n"),
+  //
+  //   language: localeToLanguage(preferredLanguage),
+  //   lastMessage: lastAiMessage?.content.toString() ?? "No message",
+  // });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
