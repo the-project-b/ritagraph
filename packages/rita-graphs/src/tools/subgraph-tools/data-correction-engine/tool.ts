@@ -8,6 +8,8 @@ import { tool } from "@langchain/core/tools";
 import { Command } from "@langchain/langgraph";
 import { createLogger } from "@the-project-b/logging";
 import { z } from "zod";
+import { promptService } from "../../../services/prompts/prompt.service";
+import { Result } from "@the-project-b/prompts";
 import { createGraphQLClient } from "../../../utils/graphql/client.js";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool.js";
 import {
@@ -70,77 +72,25 @@ export const correctionEngine: ToolFactoryToolDefintion = (toolContext) =>
         "Building correction prompt with cleaned proposal (removed previousIterations)",
       );
 
+      // Fetch prompt from LangSmith
+      const rawPromptResult = await promptService.getRawPromptTemplate({
+        promptName: "ritagraph-data-correction-engine",
+        source: "langsmith",
+      });
+
+      if (Result.isFailure(rawPromptResult)) {
+        const error = Result.unwrapFailure(rawPromptResult);
+        throw new Error(
+          `Failed to fetch prompt 'ritagraph-data-correction-engine' from LangSmith: ${error.message}`,
+        );
+      }
+
+      const rawPrompt = Result.unwrap(rawPromptResult);
       const systemPrompt = await PromptTemplate.fromTemplate(
-        `## Role
-You correct data change proposals based on user feedback.
-
-## Current Proposal
-Type: {changeType}
-{paymentIdInfo}
-\`\`\`json
-{originalProposalJson}
-\`\`\`
-
-## Correction Request
-"{correctionRequest}"
-
-## Decision Tree
-
-### Step 1: Determine Tool
-Keywords → Tool to use:
-- "bonus", "bonus payment", "new payment" → **correct_payment_creation**
-- "change existing", "update payment" → **correct_payment_change**  
-- No keywords → Keep original type "{changeType}"
-
-### Step 2: Execute Correction
-
-#### If using correct_payment_creation:
-1. Find employee (if name changed): \`findEmployeeByNameWithContract(name)\`
-2. Call correction: \`correct_payment_creation\` with:
-   - proposalId: "{proposalId}"
-   - employeeId: <actual ID from step 1, NOT placeholder>
-   - contractId: <actual ID from step 1, NOT placeholder>
-   - quote: <from original>
-   - title: "Bonus Payment"
-   - paymentType: "bonus"
-   - paymentTypeId: 8
-   - amount: <corrected value>
-   - frequency: SINGLE_TIME
-   - startDate: <from original or today>
-
-#### If using correct_payment_change:
-1. Find employee (if name changed): \`findEmployeeByNameWithContract(name)\`
-2. Get payment (if employee changed): \`getPaymentsOfEmployee(employeeId)\`
-3. Call correction: \`correct_payment_change\` with:
-   - proposalId: "{proposalId}"
-   - employeeId: <actual ID from step 1>
-   - contractId: <actual ID from step 1>
-   - paymentId: {paymentIdInstruction}
-   - quote: <from original>
-   - amount: <corrected value>
-   - effectiveDate: <from original or today>
-
-## Critical Rules
-- NEVER use placeholder text like "Olivia's ID" - use ACTUAL IDs from tool responses
-- NEVER call getPaymentsOfEmployee for creation type
-- ALWAYS pass exact proposalId: "{proposalId}"
-
-## Examples
-
-### Correction: "bonus payment for Olivia"
-→ Use correct_payment_creation
-→ findEmployeeByNameWithContract("Olivia") returns employeeId: 360ed956..., contractId: contract_360...
-→ correct_payment_creation(proposalId, employeeId=360ed956..., contractId=contract_360..., amount=4000)
-
-### Correction: "change Olivia's salary instead"  
-→ Use correct_payment_change
-→ findEmployeeByNameWithContract("Olivia") returns employeeId: 360ed956..., contractId: contract_360...
-→ getPaymentsOfEmployee(360ed956...) returns payments including id: clrita0001, type: salary
-→ correct_payment_change(proposalId, employeeId=360ed956..., paymentId=clrita0001, amount=4000)`,
+        rawPrompt.template,
       ).format({
         originalProposalJson: JSON.stringify(proposalWithoutHistory, null, 2),
         correctionRequest,
-        today: new Date().toISOString().split("T")[0],
         proposalId: originalProposal.id,
         changeType: originalProposal.changeType,
         paymentIdInfo: extractedPaymentId
@@ -150,6 +100,26 @@ Keywords → Tool to use:
           ? `"${extractedPaymentId}" (from original)`
           : `<from getPaymentsOfEmployee if employee changed>`,
       });
+
+      // Original hardcoded prompt - kept for reference
+      // const systemPrompt = await PromptTemplate.fromTemplate(
+      //   `## Role
+      // You correct data change proposals based on user feedback.
+      // ...
+      // → correct_payment_change(proposalId, employeeId=360ed956..., paymentId=clrita0001, amount=4000)`,
+      // ).format({
+      //   originalProposalJson: JSON.stringify(proposalWithoutHistory, null, 2),
+      //   correctionRequest,
+      //   today: new Date().toISOString().split("T")[0],
+      //   proposalId: originalProposal.id,
+      //   changeType: originalProposal.changeType,
+      //   paymentIdInfo: extractedPaymentId
+      //     ? `PaymentId: ${extractedPaymentId}`
+      //     : "",
+      //   paymentIdInstruction: extractedPaymentId
+      //     ? `"${extractedPaymentId}" (from original)`
+      //     : `<from getPaymentsOfEmployee if employee changed>`,
+      // });
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `Please correct this proposal: {correctionRequest}`,
