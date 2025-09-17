@@ -110,11 +110,9 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
 
         if (Result.isFailure(rawPromptResult)) {
           const error = Result.unwrapFailure(rawPromptResult);
-          logger.error("Failed to get raw prompt template", {
-            threadId: thread_id,
-            error: error.message,
-          });
-          return {};
+          throw new Error(
+            `Failed to fetch prompt 'ritagraph-generate-title' from LangSmith: ${error.message}`,
+          );
         }
 
         const rawPrompt = Result.unwrap(rawPromptResult);
