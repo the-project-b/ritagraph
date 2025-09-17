@@ -13,6 +13,8 @@ import { Command, getCurrentTaskInput } from "@langchain/langgraph";
 import { changeEmployeeBaseDetails } from "./tools/change-employee-base-details/tool";
 import { changeEmployeeInsurance } from "./tools/change-employee-insurance/tool";
 import { findInsuranceCompanyCodeByName } from "./tools/find-insurance-company-code-by-name/tool";
+import { promptService } from "../../../services/prompts/prompt.service";
+import { Result } from "@the-project-b/prompts";
 
 export type ExtendedToolContext = {
   originalMessageChain: Array<BaseMessage>;
@@ -26,31 +28,51 @@ export type ExtendedToolContext = {
 export const masterDataChangeEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersChangeDescription, quote, employeeId }, config) => {
+      // Fetch prompt from LangSmith
+      const rawPromptResult = await promptService.getRawPromptTemplate({
+        promptName: "ritagraph-master-data-change-engine",
+        source: "langsmith",
+      });
+
+      if (Result.isFailure(rawPromptResult)) {
+        const error = Result.unwrapFailure(rawPromptResult);
+        throw new Error(
+          `Failed to fetch prompt 'ritagraph-master-data-change-engine' from LangSmith: ${error.message}`,
+        );
+      }
+
+      const rawPrompt = Result.unwrap(rawPromptResult);
       const systemPrompt = await PromptTemplate.fromTemplate(
-        `
-<instruction>
-You are part of a payroll assistant system.
-You job is it schedule data changes (mutations).
-You get a vague request from the user and you have to resolve it using your tools.
-
-1) Make sure you understand which fields have been mentioned and which tools have to be called.
-2) Schedule (propose) changes
-
-IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
-</instruction>
-
-<notes>
-IMPORTANT: Do not make the same change multiple times.
-Today is the {today}
-</notes>
-
-<examples>
-No examples yet.
-</examples>
-`,
+        rawPrompt.template,
       ).format({
         today: new Date().toISOString().split("T")[0],
       });
+
+      // const systemPrompt = await PromptTemplate.fromTemplate(
+      //   `
+      // <instruction>
+      // You are part of a payroll assistant system.
+      // You job is it schedule data changes (mutations).
+      // You get a vague request from the user and you have to resolve it using your tools.
+      //
+      // 1) Make sure you understand which fields have been mentioned and which tools have to be called.
+      // 2) Schedule (propose) changes
+      //
+      // IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
+      // </instruction>
+      //
+      // <notes>
+      // IMPORTANT: Do not make the same change multiple times.
+      // Today is the {today}
+      // </notes>
+      //
+      // <examples>
+      // No examples yet.
+      // </examples>
+      // `,
+      // ).format({
+      //   today: new Date().toISOString().split("T")[0],
+      // });
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
