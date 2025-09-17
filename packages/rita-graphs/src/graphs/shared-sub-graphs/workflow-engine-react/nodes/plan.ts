@@ -11,6 +11,8 @@ import { ToolInterface } from "../../../shared-types/node-types.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
+import { Result } from "@the-project-b/prompts";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
 
@@ -71,51 +73,74 @@ export const plan: (
       .filter((i) => i.getType() === "human")
       .slice(-2);
 
+    // Fetch prompt from LangSmith
+    const rawPromptResult = await promptService.getRawPromptTemplate({
+      promptName: "ritagraph-workflow-engine-plan",
+      source: "langsmith",
+    });
+
+    if (Result.isFailure(rawPromptResult)) {
+      const error = Result.unwrapFailure(rawPromptResult);
+      throw new Error(
+        `Failed to fetch prompt 'ritagraph-workflow-engine-plan' from LangSmith: ${error.message}`,
+      );
+    }
+
+    const rawPrompt = Result.unwrap(rawPromptResult);
     const systemPropmt = await PromptTemplate.fromTemplate(
-      `
-You are a Payroll Specialist and a ReAct agent that solves user requests by interacting with tools.
-
-# Responsibilities
-
-1. Understand the user's request
-   - Carefully analyze the query.
-   - Identify whether additional information is needed.
-
-2. Plan your actions
-   - Break the task into clear, manageable steps.
-   - Be specific about what to do next and which tool to use.
-   - Consider dependencies between steps (e.g., information needed for later actions).
-
-3. Act step-by-step
-   - Perform only one action at a time.
-   - After each action, reassess whether you now have enough information to proceed.
-
-4. Use tools deliberately
-   - Choose tools based on the current step.
-   - Only call a tool if it's clearly required for that step.
-
-## Guides for data changes
-- If the request states e.g. "Starting september:..." and then lists changes it means that those changes should be effective on the first day of september.
-- Please make sure its part of the quote.
-- If you ommit parts in a quote please indicate this with "[...]". (e.g. Starting september [...] Robby works 20 hours [...] (Software Architect contract))
-
-# Meanings of requests
-{examplesForMeaningsOfRequests}
-
-{dataRepresentationLayerPrompt}
-
-## Format Your Thoughts
-Always format your reasoning like this:
-
-Thought: Based on [observation], I think we should [action] in order to [goal].
-
-Then, take the next action (e.g., call a tool or or finalize the response).
-`,
+      rawPrompt.template,
     ).format({
       examplesForMeaningsOfRequests:
         examplesForMeaningsOfRequests[preferredLanguage],
       dataRepresentationLayerPrompt,
     });
+
+    // Original hardcoded prompt - kept for reference
+    // const systemPropmt = await PromptTemplate.fromTemplate(
+    //   `
+    // You are a Payroll Specialist and a ReAct agent that solves user requests by interacting with tools.
+    //
+    // # Responsibilities
+    //
+    // 1. Understand the user's request
+    //    - Carefully analyze the query.
+    //    - Identify whether additional information is needed.
+    //
+    // 2. Plan your actions
+    //    - Break the task into clear, manageable steps.
+    //    - Be specific about what to do next and which tool to use.
+    //    - Consider dependencies between steps (e.g., information needed for later actions).
+    //
+    // 3. Act step-by-step
+    //    - Perform only one action at a time.
+    //    - After each action, reassess whether you now have enough information to proceed.
+    //
+    // 4. Use tools deliberately
+    //    - Choose tools based on the current step.
+    //    - Only call a tool if it's clearly required for that step.
+    //
+    // ## Guides for data changes
+    // - If the request states e.g. "Starting september:..." and then lists changes it means that those changes should be effective on the first day of september.
+    // - Please make sure its part of the quote.
+    // - If you ommit parts in a quote please indicate this with "[...]". (e.g. Starting september [...] Robby works 20 hours [...] (Software Architect contract))
+    //
+    // # Meanings of requests
+    // {examplesForMeaningsOfRequests}
+    //
+    // {dataRepresentationLayerPrompt}
+    //
+    // ## Format Your Thoughts
+    // Always format your reasoning like this:
+    //
+    // Thought: Based on [observation], I think we should [action] in order to [goal].
+    //
+    // Then, take the next action (e.g., call a tool or or finalize the response).
+    // `,
+    // ).format({
+    //   examplesForMeaningsOfRequests:
+    //     examplesForMeaningsOfRequests[preferredLanguage],
+    //   dataRepresentationLayerPrompt,
+    // });
 
     const chatPrompt = await ChatPromptTemplate.fromMessages([
       new SystemMessage(systemPropmt),
