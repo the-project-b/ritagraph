@@ -176,7 +176,7 @@ export class LangSmithService {
         },
       };
 
-      const result: any = await graph.invoke(graphInput, config);
+      const result = await graph.invoke(graphInput, config);
 
       const lastMessage = Array.isArray(result?.messages)
         ? result.messages[result.messages.length - 1]
@@ -293,25 +293,25 @@ export class LangSmithService {
       splits,
     });
 
-    const experimentResults: any = await evaluate(target as any, {
+    const experimentResults = await evaluate(target, {
       ...evaluationConfig,
       data: exampleGenerator,
     });
 
-    const results: any[] = [];
+    const results = [];
     for (const item of experimentResults.results ?? []) {
       const run = item.run;
       const evalResults = item.evaluationResults;
       if (!run) continue;
 
-      const scores = (evalResults?.results ?? []).map((score: any) => ({
+      const scores = (evalResults?.results ?? []).map((score) => ({
         key: score.key,
         score: String(score.score),
         comment: score.comment,
       }));
 
-      const startTime = run.start_time ?? 0;
-      const endTime = run.end_time ?? 0;
+      const startTime = Number(run.start_time ?? 0);
+      const endTime = Number(run.end_time ?? 0);
       const latency = endTime > 0 && startTime > 0 ? endTime - startTime : 0;
       const totalTokens = run.total_tokens ?? 0;
 
