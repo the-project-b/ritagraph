@@ -7,6 +7,8 @@ import { onHumanMessage } from "../../../../../utils/message-filter";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { BASE_MODEL_CONFIG } from "../../../../../graphs/model-config";
 import { ChatOpenAI } from "@langchain/openai";
+import { promptService } from "../../../../../services/prompts/prompt.service";
+import { Result } from "@the-project-b/prompts";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -79,46 +81,69 @@ export const sanitizeQuoteForProposal = (
         .filter(onHumanMessage)
         .slice(-1)[0];
 
+      // Fetch prompt from LangSmith
+      const rawPromptResult = await promptService.getRawPromptTemplate({
+        promptName: "ritagraph-sanitize-quote-proposal",
+        source: "langsmith",
+      });
+
+      if (Result.isFailure(rawPromptResult)) {
+        const error = Result.unwrapFailure(rawPromptResult);
+        throw new Error(
+          `Failed to fetch prompt 'ritagraph-sanitize-quote-proposal' from LangSmith: ${error.message}`,
+        );
+      }
+
+      const rawPrompt = Result.unwrap(rawPromptResult);
       const prompt = await PromptTemplate.fromTemplate(
-        `You are part of a Payroll Specialist system.
-Your counterparts are proposing payroll generated changes based on user inputs.
-The user often puts multiple changes into one message. 
-It is uterly important to know why a change was proposed, hence precise quotations.
-
-Context:
-<context>
-
-The original untouched user message:
-{lastUserMessage}
---------------------------------
-Since one quote only refers to one change you need to create a quote for this:
-Intepreted user request: {usersRequest}
-Draft for the quote: {draftedQuote}
-
-</context>
-
-<rules>
- - A quote should adhere to this format: "Starting september [...] Robby works 20 hours [...] (Software Architect contract)"
- - If temporals are defined they need to be included in the quote.
- - Only the parts relevant to a change should be included in the quote.
- - DO NOT FORGET THE NAME OF THE EMPLOYEE
- - IF MENTIONED DO NOT FORGET THE CONTRACT / JOB TITLE
- - IF JOB TITLE IS NOT MENTIONED DO NOT IMPLY IT
- - if there is a list of employees often there are common related changes e.g. starting september [...] all employees get a raise.
- - IMPORTANT: If there is text in between your quote segments make sure you imply that by using "[...]".
- - DO NOT FORGET to use "[...]" to imply text in between your quote segments.
- - Example for [...]: "This is a long text that has some relevant parts like relevant" -> "long text [...] relevant"
- - Use eliptical quotes (chicago style)
-</rules>
-
-{examples}
-`,
+        rawPrompt.template,
       ).format({
         lastUserMessage: lastUserMessage.content,
         usersRequest,
         draftedQuote,
         examples: translatedExamples[preferredLanguage],
       });
+
+      // const prompt = await PromptTemplate.fromTemplate(
+      //   `You are part of a Payroll Specialist system.
+      // Your counterparts are proposing payroll generated changes based on user inputs.
+      // The user often puts multiple changes into one message.
+      // It is uterly important to know why a change was proposed, hence precise quotations.
+      //
+      // Context:
+      // <context>
+      //
+      // The original untouched user message:
+      // {lastUserMessage}
+      // --------------------------------
+      // Since one quote only refers to one change you need to create a quote for this:
+      // Intepreted user request: {usersRequest}
+      // Draft for the quote: {draftedQuote}
+      //
+      // </context>
+      //
+      // <rules>
+      //  - A quote should adhere to this format: "Starting september [...] Robby works 20 hours [...] (Software Architect contract)"
+      //  - If temporals are defined they need to be included in the quote.
+      //  - Only the parts relevant to a change should be included in the quote.
+      //  - DO NOT FORGET THE NAME OF THE EMPLOYEE
+      //  - IF MENTIONED DO NOT FORGET THE CONTRACT / JOB TITLE
+      //  - IF JOB TITLE IS NOT MENTIONED DO NOT IMPLY IT
+      //  - if there is a list of employees often there are common related changes e.g. starting september [...] all employees get a raise.
+      //  - IMPORTANT: If there is text in between your quote segments make sure you imply that by using "[...]".
+      //  - DO NOT FORGET to use "[...]" to imply text in between your quote segments.
+      //  - Example for [...]: "This is a long text that has some relevant parts like relevant" -> "long text [...] relevant"
+      //  - Use eliptical quotes (chicago style)
+      // </rules>
+      //
+      // {examples}
+      // `,
+      // ).format({
+      //   lastUserMessage: lastUserMessage.content,
+      //   usersRequest,
+      //   draftedQuote,
+      //   examples: translatedExamples[preferredLanguage],
+      // });
 
       const llm = new ChatOpenAI({
         ...BASE_MODEL_CONFIG,
