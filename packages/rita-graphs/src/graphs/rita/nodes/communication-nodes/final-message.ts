@@ -8,8 +8,10 @@ import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
-import { Result } from "../../../../utils/types/result.js";
+import { Result as LocalResult } from "../../../../utils/types/result.js"; // idk, we could make a 'types' local package?
+import { Result } from "@the-project-b/prompts";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -74,34 +76,57 @@ export const finalMessage: Node = async (
 
   // We can assume that we have no change requests scheduled, it could also be an errors
 
+  // Fetch prompt from LangSmith
+  const rawPromptResult = await promptService.getRawPromptTemplate({
+    promptName: "ritagraph-final-message",
+    source: "langsmith",
+  });
+
+  if (Result.isFailure(rawPromptResult)) {
+    const error = Result.unwrapFailure(rawPromptResult);
+    throw new Error(
+      `Failed to fetch prompt 'ritagraph-final-message' from LangSmith: ${error.message}`,
+    );
+  }
+
+  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `You are a Payroll Specialist Assistant. Your job is to formulate the final response to the user.
-
-Guidelines:
- - Be concise but friendly.
- - Do not say "I will get back to you" or "I will send you an email" or anything like that.
- - If you could not find information say so
- - There will never be "pending" operations only thigns to be approved or rejected by the user.
- - Do not claim or say that there is an operation pending.
- - NEVER include ids like UUIDs in the response.
- - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
-
-#examples - For other cases like listing information
-{examples}
-#/examples
-
-{dataRepresentationLayerPrompt}
-
-Speak in {language}.
-
-Drafted Response: {draftedResponse}
-  `,
+    rawPrompt.template,
   ).format({
     examples: examples[preferredLanguage],
     dataRepresentationLayerPrompt,
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
   });
+
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `You are a Payroll Specialist Assistant. Your job is to formulate the final response to the user.
+  //
+  // Guidelines:
+  //  - Be concise but friendly.
+  //  - Do not say "I will get back to you" or "I will send you an email" or anything like that.
+  //  - If you could not find information say so
+  //  - There will never be "pending" operations only thigns to be approved or rejected by the user.
+  //  - Do not claim or say that there is an operation pending.
+  //  - NEVER include ids like UUIDs in the response.
+  //  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
+  //
+  // #examples - For other cases like listing information
+  // {examples}
+  // #/examples
+  //
+  // {dataRepresentationLayerPrompt}
+  //
+  // Speak in {language}.
+  //
+  // Drafted Response: {draftedResponse}
+  //   `,
+  // ).format({
+  //   examples: examples[preferredLanguage],
+  //   dataRepresentationLayerPrompt,
+  //   language: localeToLanguage(preferredLanguage),
+  //   draftedResponse: workflowEngineResponseDraft,
+  // });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
@@ -129,9 +154,9 @@ Drafted Response: {draftedResponse}
     },
   });
 
-  if (Result.isFailure(appendMessageResult)) {
+  if (LocalResult.isFailure(appendMessageResult)) {
     logger.error("Failed to append message as thread item", {
-      error: Result.unwrapFailure(appendMessageResult),
+      error: LocalResult.unwrapFailure(appendMessageResult),
     });
   }
 
