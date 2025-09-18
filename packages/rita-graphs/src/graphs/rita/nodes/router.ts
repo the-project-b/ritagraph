@@ -6,7 +6,6 @@ import { SystemMessage } from "@langchain/core/messages";
 import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
 import { BASE_MODEL_CONFIG } from "../../model-config.js";
 import { promptService } from "../../../services/prompts/prompt.service.js";
-import { Result } from "@the-project-b/prompts";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -17,19 +16,11 @@ export const router: Node = async (state) => {
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-router",
     source: "langsmith",
   });
 
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-router' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({});

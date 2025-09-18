@@ -7,8 +7,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
-import { Result as LocalResult } from "../../../../utils/types/result.js";
-import { Result } from "@the-project-b/prompts";
+import { Result } from "../../../../utils/types/result.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
 
@@ -46,19 +45,10 @@ export const quickResponse: Node = async (
   });
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-quick-response",
     source: "langsmith",
   });
-
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-quick-response' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({ language: localeToLanguage(preferredLanguage) });
@@ -96,9 +86,9 @@ export const quickResponse: Node = async (
     },
   });
 
-  if (LocalResult.isFailure(appendMessageResult)) {
+  if (Result.isFailure(appendMessageResult)) {
     logger.error("Failed to append message as thread item", {
-      error: LocalResult.unwrapFailure(appendMessageResult),
+      error: Result.unwrapFailure(appendMessageResult),
     });
   }
 

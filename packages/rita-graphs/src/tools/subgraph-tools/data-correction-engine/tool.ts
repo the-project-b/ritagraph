@@ -9,7 +9,6 @@ import { Command } from "@langchain/langgraph";
 import { createLogger } from "@the-project-b/logging";
 import { z } from "zod";
 import { promptService } from "../../../services/prompts/prompt.service";
-import { Result } from "@the-project-b/prompts";
 import { createGraphQLClient } from "../../../utils/graphql/client.js";
 import { getPaymentsOfEmployee } from "../../get-payments-of-employee/tool.js";
 import {
@@ -73,19 +72,10 @@ export const correctionEngine: ToolFactoryToolDefintion = (toolContext) =>
       );
 
       // Fetch prompt from LangSmith
-      const rawPromptResult = await promptService.getRawPromptTemplate({
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-data-correction-engine",
         source: "langsmith",
       });
-
-      if (Result.isFailure(rawPromptResult)) {
-        const error = Result.unwrapFailure(rawPromptResult);
-        throw new Error(
-          `Failed to fetch prompt 'ritagraph-data-correction-engine' from LangSmith: ${error.message}`,
-        );
-      }
-
-      const rawPrompt = Result.unwrap(rawPromptResult);
       const systemPrompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,
       ).format({

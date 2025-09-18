@@ -7,8 +7,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
-import { Result as LocalResult } from "../../../../utils/types/result.js";
-import { Result } from "@the-project-b/prompts";
+import { Result } from "../../../../utils/types/result.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { createGraphQLClient } from "../../../../utils/graphql/client.js";
 import { DataChangeProposal } from "../../../shared-types/base-annotation.js";
@@ -103,29 +102,20 @@ export const finalMessageForChanges: Node = async (
   );
   let proposals: Array<DataChangeProposal> = [];
 
-  if (LocalResult.isFailure(proposalsResult)) {
+  if (Result.isFailure(proposalsResult)) {
     logger.error("Failed to get proposals of that run", {
-      error: LocalResult.unwrapFailure(proposalsResult),
+      error: Result.unwrapFailure(proposalsResult),
     });
     proposals = [];
   } else {
-    proposals = LocalResult.unwrap(proposalsResult);
+    proposals = Result.unwrap(proposalsResult);
   }
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-final-message-for-changes",
     source: "langsmith",
   });
-
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-final-message-for-changes' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({
@@ -202,9 +192,9 @@ export const finalMessageForChanges: Node = async (
     },
   });
 
-  if (LocalResult.isFailure(appendMessageResult)) {
+  if (Result.isFailure(appendMessageResult)) {
     logger.error("Failed to append message as thread item", {
-      error: LocalResult.unwrapFailure(appendMessageResult),
+      error: Result.unwrapFailure(appendMessageResult),
     });
   }
 

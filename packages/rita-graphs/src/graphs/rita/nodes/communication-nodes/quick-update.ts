@@ -11,7 +11,6 @@ import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-r
 import { Tags } from "../../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
-import { Result } from "@the-project-b/prompts";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -46,19 +45,10 @@ export const quickUpdate: WorkflowEngineNode = async (
     .at(-1);
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-quick-update",
     source: "langsmith",
   });
-
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-quick-update' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({

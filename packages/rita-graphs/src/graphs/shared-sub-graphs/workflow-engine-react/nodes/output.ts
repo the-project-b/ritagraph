@@ -6,7 +6,6 @@ import { dataRepresentationLayerPrompt } from "../../../../utils/data-representa
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
-import { Result } from "@the-project-b/prompts";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "WorkflowEngine",
@@ -32,19 +31,10 @@ export const output: WorkflowEngineNode = async (
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-workflow-engine-output",
     source: "langsmith",
   });
-
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-workflow-engine-output' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({

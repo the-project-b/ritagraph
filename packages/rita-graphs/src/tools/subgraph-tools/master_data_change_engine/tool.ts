@@ -14,7 +14,6 @@ import { changeEmployeeBaseDetails } from "./tools/change-employee-base-details/
 import { changeEmployeeInsurance } from "./tools/change-employee-insurance/tool";
 import { findInsuranceCompanyCodeByName } from "./tools/find-insurance-company-code-by-name/tool";
 import { promptService } from "../../../services/prompts/prompt.service";
-import { Result } from "@the-project-b/prompts";
 
 export type ExtendedToolContext = {
   originalMessageChain: Array<BaseMessage>;
@@ -29,19 +28,10 @@ export const masterDataChangeEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersChangeDescription, quote, employeeId }, config) => {
       // Fetch prompt from LangSmith
-      const rawPromptResult = await promptService.getRawPromptTemplate({
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-master-data-change-engine",
         source: "langsmith",
       });
-
-      if (Result.isFailure(rawPromptResult)) {
-        const error = Result.unwrapFailure(rawPromptResult);
-        throw new Error(
-          `Failed to fetch prompt 'ritagraph-master-data-change-engine' from LangSmith: ${error.message}`,
-        );
-      }
-
-      const rawPrompt = Result.unwrap(rawPromptResult);
       const systemPrompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,
       ).format({

@@ -8,7 +8,6 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { BASE_MODEL_CONFIG } from "../../../../../graphs/model-config";
 import { ChatOpenAI } from "@langchain/openai";
 import { promptService } from "../../../../../services/prompts/prompt.service";
-import { Result } from "@the-project-b/prompts";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -82,19 +81,10 @@ export const sanitizeQuoteForProposal = (
         .slice(-1)[0];
 
       // Fetch prompt from LangSmith
-      const rawPromptResult = await promptService.getRawPromptTemplate({
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-sanitize-quote-proposal",
         source: "langsmith",
       });
-
-      if (Result.isFailure(rawPromptResult)) {
-        const error = Result.unwrapFailure(rawPromptResult);
-        throw new Error(
-          `Failed to fetch prompt 'ritagraph-sanitize-quote-proposal' from LangSmith: ${error.message}`,
-        );
-      }
-
-      const rawPrompt = Result.unwrap(rawPromptResult);
       const prompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,
       ).format({

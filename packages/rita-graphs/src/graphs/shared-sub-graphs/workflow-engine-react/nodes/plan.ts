@@ -12,7 +12,6 @@ import { dataRepresentationLayerPrompt } from "../../../../utils/data-representa
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
-import { Result } from "@the-project-b/prompts";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
 
@@ -74,19 +73,10 @@ export const plan: (
       .slice(-2);
 
     // Fetch prompt from LangSmith
-    const rawPromptResult = await promptService.getRawPromptTemplate({
+    const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
       promptName: "ritagraph-workflow-engine-plan",
       source: "langsmith",
     });
-
-    if (Result.isFailure(rawPromptResult)) {
-      const error = Result.unwrapFailure(rawPromptResult);
-      throw new Error(
-        `Failed to fetch prompt 'ritagraph-workflow-engine-plan' from LangSmith: ${error.message}`,
-      );
-    }
-
-    const rawPrompt = Result.unwrap(rawPromptResult);
     const systemPropmt = await PromptTemplate.fromTemplate(
       rawPrompt.template,
     ).format({

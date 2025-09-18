@@ -8,8 +8,7 @@ import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
-import { Result as LocalResult } from "../../../../utils/types/result.js"; // idk, we could make a 'types' local package?
-import { Result } from "@the-project-b/prompts";
+import { Result } from "../../../../utils/types/result.js"; // idk, we could make a 'types' local package?
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
 
@@ -77,19 +76,10 @@ export const finalMessage: Node = async (
   // We can assume that we have no change requests scheduled, it could also be an errors
 
   // Fetch prompt from LangSmith
-  const rawPromptResult = await promptService.getRawPromptTemplate({
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-final-message",
     source: "langsmith",
   });
-
-  if (Result.isFailure(rawPromptResult)) {
-    const error = Result.unwrapFailure(rawPromptResult);
-    throw new Error(
-      `Failed to fetch prompt 'ritagraph-final-message' from LangSmith: ${error.message}`,
-    );
-  }
-
-  const rawPrompt = Result.unwrap(rawPromptResult);
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({
@@ -154,9 +144,9 @@ export const finalMessage: Node = async (
     },
   });
 
-  if (LocalResult.isFailure(appendMessageResult)) {
+  if (Result.isFailure(appendMessageResult)) {
     logger.error("Failed to append message as thread item", {
-      error: LocalResult.unwrapFailure(appendMessageResult),
+      error: Result.unwrapFailure(appendMessageResult),
     });
   }
 
