@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import {
   HumanMessage,
   SystemMessage,
@@ -20,6 +20,7 @@ import { getActiveEmployeesWithContracts } from "../../get-active-employees-with
 import { DataRepresentationLayerEntity } from "../../../utils/data-representation-layer";
 import { getAllEmployees } from "../../get-all-employees-drl/tool";
 import { dataRepresentationLayerPrompt } from "../../../utils/data-representation-layer/prompt-helper";
+import { promptService } from "../../../services/prompts/prompt.service";
 
 export type ExtendedToolContext = {
   addItemToDataRepresentationLayer: (
@@ -35,16 +36,28 @@ export type ExtendedToolContext = {
 export const dataRetrievalEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async ({ usersRequest }, config) => {
-      const systemPrompt = `
-You are part of a Payroll assistant system.
-Your job is to retrieve data from the database about employees, contracts payments and more.
-You get a vague request from the user and you have to resolve it using your tools.
-Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
+      // Fetch prompt from LangSmith
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+        promptName: "ritagraph-data-retrieval-engine",
+        source: "langsmith",
+      });
+      const systemPrompt = await PromptTemplate.fromTemplate(
+        rawPrompt.template,
+      ).format({
+        dataRepresentationLayerPrompt,
+      });
 
-Only your final response will be shown to the rest of the system. Make sure it includes the relevant data (e.g. <List .../> or other placeholders that you plan to show)
-
-${dataRepresentationLayerPrompt}
-      `;
+      // Original hardcoded prompt - kept for reference
+      // const systemPrompt = `
+      // You are part of a Payroll assistant system.
+      // Your job is to retrieve data from the database about employees, contracts payments and more.
+      // You get a vague request from the user and you have to resolve it using your tools.
+      // Employees can have multiple contracts and per contract multiple payments so it is important to figure out which contract was meant.
+      //
+      // Only your final response will be shown to the rest of the system. Make sure it includes the relevant data (e.g. <List .../> or other placeholders that you plan to show)
+      //
+      // ${dataRepresentationLayerPrompt}
+      //       `;
 
       const messagePrompt = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemPrompt),

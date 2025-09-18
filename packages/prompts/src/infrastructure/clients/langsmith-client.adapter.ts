@@ -152,6 +152,16 @@ export class LangSmithClientAdapter implements LangSmithClient {
 
   /**
    * Transform a LangChain prompt template to our internal format.
+   *
+   * Message Selection Logic (for ChatPromptTemplates):
+   * - Production mode (NODE_ENV === "production"): Always use first message
+   * - Development mode (NODE_ENV !== "production"):
+   *   - If exactly 2 messages: Use second message (development prompt)
+   *   - Otherwise: Use first message
+   *
+   * This allows storing both production and development prompts in the same
+   * LangSmith prompt template for easy comparison and iteration.
+   *
    * @param prompt - The prompt from LangChain hub
    * @param promptName - The name of the prompt
    * @param version - The version of the prompt
@@ -162,34 +172,54 @@ export class LangSmithClientAdapter implements LangSmithClient {
     promptName: string,
     version: string = "latest",
   ): LangSmithPrompt {
-    // Extract template content based on prompt type
     let template: string | LangSmithMessage[];
     let inputVariables: string[] = [];
 
-    // Check if it's a ChatPromptTemplate
     if (this.isChatPromptTemplate(prompt)) {
       const chatPrompt = prompt as ChatPromptTemplate;
 
-      // For now, we'll extract the first message template
-      // In a chat prompt, we typically have a system message
       if (chatPrompt.promptMessages.length > 0) {
-        const firstMessage = chatPrompt.promptMessages[0];
+        const messageCount = chatPrompt.promptMessages.length;
+        const isProduction = process.env.NODE_ENV === "production";
+        const selectedMessageIndex =
+          !isProduction && messageCount === 2 ? 1 : 0;
 
-        this.logger?.info("Examining first prompt message", {
-          hasPrompt: "prompt" in firstMessage,
-          hasContent: "content" in firstMessage,
-          hasTemplate: "template" in firstMessage,
-          constructorName: firstMessage.constructor.name,
-          keys: Object.keys(firstMessage),
-        });
+        if (selectedMessageIndex === 1) {
+          this.logger?.info("Using development prompt (second message)", {
+            promptName,
+            messageCount,
+            selectedIndex: selectedMessageIndex,
+            NODE_ENV: process.env.NODE_ENV,
+          });
+        } else {
+          this.logger?.info("Using production prompt (first message)", {
+            promptName,
+            messageCount,
+            selectedIndex: selectedMessageIndex,
+            NODE_ENV: process.env.NODE_ENV,
+            reason: isProduction ? "production mode" : "not exactly 2 messages",
+          });
+        }
+
+        const selectedMessage = chatPrompt.promptMessages[selectedMessageIndex];
+
+        // Commented out but keeping around for more verbose debugging
+        // this.logger?.info("Examining selected prompt message", {
+        //   hasPrompt: "prompt" in selectedMessage,
+        //   hasContent: "content" in selectedMessage,
+        //   hasTemplate: "template" in selectedMessage,
+        //   constructorName: selectedMessage.constructor.name,
+        //   keys: Object.keys(selectedMessage),
+        //   messageIndex: selectedMessageIndex,
+        // });
 
         // Check if it's a message prompt template with a prompt property
         if (
-          "prompt" in firstMessage &&
-          typeof firstMessage.prompt === "object"
+          "prompt" in selectedMessage &&
+          typeof selectedMessage.prompt === "object"
         ) {
           const messageTemplate =
-            firstMessage as MessagePromptWithNestedTemplate;
+            selectedMessage as MessagePromptWithNestedTemplate;
           if (messageTemplate.prompt) {
             this.logger?.info("Found prompt property in message", {
               promptKeys: Object.keys(messageTemplate.prompt),
@@ -209,11 +239,11 @@ export class LangSmithClientAdapter implements LangSmithClient {
             template = "";
           }
         } else if (
-          "content" in firstMessage &&
-          typeof firstMessage === "object"
+          "content" in selectedMessage &&
+          typeof selectedMessage === "object"
         ) {
           // This is a BaseMessage with direct content
-          const baseMsg = firstMessage as BaseMessage;
+          const baseMsg = selectedMessage as BaseMessage;
           template =
             typeof baseMsg.content === "string"
               ? baseMsg.content

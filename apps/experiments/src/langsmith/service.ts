@@ -293,25 +293,25 @@ export class LangSmithService {
       splits,
     });
 
-    const experimentResults: any = await evaluate(target as any, {
+    const experimentResults = await evaluate(target, {
       ...evaluationConfig,
       data: exampleGenerator,
     });
 
-    const results: any[] = [];
+    const results = [];
     for (const item of experimentResults.results ?? []) {
       const run = item.run;
       const evalResults = item.evaluationResults;
       if (!run) continue;
 
-      const scores = (evalResults?.results ?? []).map((score: any) => ({
+      const scores = (evalResults?.results ?? []).map((score) => ({
         key: score.key,
         score: String(score.score),
         comment: score.comment,
       }));
 
-      const startTime = run.start_time ?? 0;
-      const endTime = run.end_time ?? 0;
+      const startTime = Number(run.start_time ?? 0);
+      const endTime = Number(run.end_time ?? 0);
       const latency = endTime > 0 && startTime > 0 ? endTime - startTime : 0;
       const totalTokens = run.total_tokens ?? 0;
 
@@ -327,41 +327,13 @@ export class LangSmithService {
       });
     }
 
-    const manager = experimentResults?.manager;
-    const langsmithClient = manager?.client;
-    const experiment = manager?._experiment;
-    const experimentName = experiment?.name ?? "Unnamed Experiment";
-
-    const webUrl = langsmithClient?.webUrl;
-    const tenantId = langsmithClient?._tenantId;
-    const datasetId = experiment?.reference_dataset_id;
-    const experimentId = experiment?.id;
-
-    let url = "";
-    if (webUrl && tenantId && datasetId && experimentId) {
-      url = `${webUrl}/o/${tenantId}/datasets/${datasetId}/compare?selectedSessions=${experimentId}`;
-    }
-    if (!url) {
-      logger.warn(
-        "Could not construct LangSmith results URL, providing fallback",
-        {
-          operation: "constructResultsUrl",
-          hasWebUrl: !!webUrl,
-          hasTenantId: !!tenantId,
-          hasDatasetId: !!datasetId,
-          hasExperimentId: !!experimentId,
-          experimentName,
-          graphName,
-          datasetName,
-        },
-      );
-      url = webUrl ? `${webUrl}/projects` : "URL not available";
-    }
+    const experimentName = experimentResults.experimentName;
+    const experimentId = experimentResults.results[0].run.id;
 
     return {
-      url,
+      url: "deprecated - please see langsmith dashboard directly",
       experimentName,
-      experimentId: experimentId || "unknown",
+      experimentId,
       results,
     };
   }

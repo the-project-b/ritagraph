@@ -10,6 +10,7 @@ import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
 
 const MAX_REFLECTION_STEPS = 3;
 
@@ -45,42 +46,55 @@ export const reflect: WorkflowEngineNode = async (state, config) => {
 
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
+  // Fetch prompt from LangSmith
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+    promptName: "ritagraph-workflow-engine-reflect",
+    source: "langsmith",
+  });
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `
-You are part of Payroll Specialist Assistant.
-Your counterpart is using tools to solve the users request.
-
-You are checking if the counterpart has come up with enough information or is missing the point.
-
-{dataRepresentationLayerPrompt}
-
-#guidelines:
-- Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.
-- If not reflect on what information is missing or what is required to solve the users request.
-- If the counter-part says its unable to find or provide the information then ACCEPT.
-- If you already called IMPROVE multiple times it is time to ACCEPT, because the counterpart is not able to solve the users request.
-#/guidelines
-
-#examples
-User: Change hours for John, Marie & Eric to 40 hours per week.
-Counterpart: Here are John, Marie.
-You: IMPROVE -> Find eric or explain mentioning why Eric is missing?
----------
-User: Change hours for John, Marie & Eric to 40 hours per week.
-Counterpart: Here are John, Marie but I could not find Eric.
-You: ACCEPT
-#/examples
-
-You have been called IMPROVE for {reflectionStepCount}/2 times.
-
-Respond in JSON format with the following fields:
-- decision: ACCEPT or IMPROVE
-- reflection: The suggestion for the counter-part if decision is IMPROVE
-`,
+    rawPrompt.template,
   ).format({
     reflectionStepCount: state.reflectionStepCount,
     dataRepresentationLayerPrompt,
   });
+
+  // Original hardcoded prompt - kept for reference
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `
+  // You are part of Payroll Specialist Assistant.
+  // Your counterpart is using tools to solve the users request.
+  //
+  // You are checking if the counterpart has come up with enough information or is missing the point.
+  //
+  // {dataRepresentationLayerPrompt}
+  //
+  // #guidelines:
+  // - Don't be too strict and don't ask for information that the user has not asked for unless it is obviously missing.
+  // - If not reflect on what information is missing or what is required to solve the users request.
+  // - If the counter-part says its unable to find or provide the information then ACCEPT.
+  // - If you already called IMPROVE multiple times it is time to ACCEPT, because the counterpart is not able to solve the users request.
+  // #/guidelines
+  //
+  // #examples
+  // User: Change hours for John, Marie & Eric to 40 hours per week.
+  // Counterpart: Here are John, Marie.
+  // You: IMPROVE -> Find eric or explain mentioning why Eric is missing?
+  // ---------
+  // User: Change hours for John, Marie & Eric to 40 hours per week.
+  // Counterpart: Here are John, Marie but I could not find Eric.
+  // You: ACCEPT
+  // #/examples
+  //
+  // You have been called IMPROVE for {reflectionStepCount}/2 times.
+  //
+  // Respond in JSON format with the following fields:
+  // - decision: ACCEPT or IMPROVE
+  // - reflection: The suggestion for the counter-part if decision is IMPROVE
+  // `,
+  // ).format({
+  //   reflectionStepCount: state.reflectionStepCount,
+  //   dataRepresentationLayerPrompt,
+  // });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),

@@ -5,6 +5,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "WorkflowEngine",
@@ -36,21 +37,32 @@ export const abortOutput: WorkflowEngineNode = async (
 
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
+  // Fetch prompt from LangSmith
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+    promptName: "ritagraph-workflow-engine-abort-output",
+    source: "langsmith",
+  });
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `
-The previous agent has ran its maximum number of loops.
-Extract all the relevant information from the previous thought process and tool calls.
-Make sure you find and extract all the information that is relevant to the users request.
-In case the agent has not found parts or all of the required information, explain what is missing 
-and that you could not retrieve it.
-
-{dataRepresentationLayerPrompt}
-
-Put this into a brief response draft.
-`,
+    rawPrompt.template,
   ).format({
     dataRepresentationLayerPrompt,
   });
+
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `
+  // The previous agent has ran its maximum number of loops.
+  // Extract all the relevant information from the previous thought process and tool calls.
+  // Make sure you find and extract all the information that is relevant to the users request.
+  // In case the agent has not found parts or all of the required information, explain what is missing
+  // and that you could not retrieve it.
+  //
+  // {dataRepresentationLayerPrompt}
+  //
+  // Put this into a brief response draft.
+  // `,
+  // ).format({
+  //   dataRepresentationLayerPrompt,
+  // });
 
   const chatPrompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),

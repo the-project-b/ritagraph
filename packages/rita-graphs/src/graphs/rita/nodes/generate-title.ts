@@ -8,7 +8,7 @@ import {
   createGraphQLClient,
   GraphQLClientType,
 } from "../../../utils/graphql/client.js";
-import { Result } from "@the-project-b/prompts";
+import { Result } from "../../../utils/types/result.js";
 import { getConversationMessages } from "../../../utils/format-helpers/message-filters.js";
 import { Tags } from "../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../model-config";
@@ -102,22 +102,11 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
           LANGUAGE_CONFIGS[languageCode] || LANGUAGE_CONFIGS.EN;
 
         // Get the raw prompt template from the service
-        const rawPromptResult = await promptService.getRawPromptTemplate({
-          promptName: "prompt_service-generate-title",
+        const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+          promptName: "ritagraph-generate-title",
           source: "langsmith", // Use LangSmith to pull the prompt
           correlationId: thread_id,
         });
-
-        if (Result.isFailure(rawPromptResult)) {
-          const error = Result.unwrapFailure(rawPromptResult);
-          logger.error("Failed to get raw prompt template", {
-            threadId: thread_id,
-            error: error.message,
-          });
-          return {};
-        }
-
-        const rawPrompt = Result.unwrap(rawPromptResult);
 
         // Format the template with variables using PromptTemplate
         const systemPrompt = await PromptTemplate.fromTemplate(

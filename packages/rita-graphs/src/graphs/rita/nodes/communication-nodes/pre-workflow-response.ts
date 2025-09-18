@@ -7,6 +7,7 @@ import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-lan
 import { onBaseMessages } from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import { promptService } from "../../../../services/prompts/prompt.service.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -32,16 +33,25 @@ export const preWorkflowResponse: Node = async ({
     tags: [Tags.THOUGHT],
   });
 
+  // Fetch prompt from LangSmith
+  const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+    promptName: "ritagraph-pre-workflow-response",
+    source: "langsmith",
+  });
   const systemPrompt = await PromptTemplate.fromTemplate(
-    `You are a Payroll Specialist Assistant.
-Acknowledge the user's request and inform them that you are going to work on it.
-Example:
-Thanks, I will get to work on x, give me a moment.
-In german use "du" and "deine" instead of "Sie" and "Ihre".
-
-Speak in {language}.
-`,
+    rawPrompt.template,
   ).format({ language: localeToLanguage(preferredLanguage) });
+
+  // const systemPrompt = await PromptTemplate.fromTemplate(
+  //   `You are a Payroll Specialist Assistant.
+  // Acknowledge the user's request and inform them that you are going to work on it.
+  // Example:
+  // Thanks, I will get to work on x, give me a moment.
+  // In german use "du" and "deine" instead of "Sie" and "Ihre".
+  //
+  // Speak in {language}.
+  // `,
+  // ).format({ language: localeToLanguage(preferredLanguage) });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),

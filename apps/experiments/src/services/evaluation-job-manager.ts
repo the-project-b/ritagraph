@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { evaluate } from "langsmith/evaluation";
+import { evaluate, EvaluateOptions } from "langsmith/evaluation";
 import { createLogger } from "@the-project-b/logging";
 import {
   AsyncEvaluationResult,
@@ -290,15 +290,6 @@ export class EvaluationJobManager {
         usedPrompts,
       });
 
-      // Prepare evaluation config for concurrent execution
-      const evaluationConfig = {
-        evaluators,
-        experimentPrefix:
-          job.input.experimentPrefix || `eval-${job.input.graphName}`,
-        maxConcurrency: job.input.maxConcurrency || 10, // Enable concurrent processing of examples
-        numRepetitions: job.input.numRepetitions || 1, // Number of times to run each example
-      };
-
       // Verify dataset still exists before attempting to list examples
       try {
         const datasetStillExists = await langsmithService.getDataset(
@@ -362,11 +353,18 @@ export class EvaluationJobManager {
         splits: job.input.splits,
       });
 
-      // Use LangSmith's evaluate function with concurrency
-      const experimentResults = await evaluate(target as any, {
+      // Prepare evaluation config for concurrent execution
+      const evaluationConfig: EvaluateOptions = {
         data: exampleGenerator,
-        ...evaluationConfig,
-      });
+        evaluators,
+        experimentPrefix:
+          job.input.experimentPrefix || `eval-${job.input.graphName}`,
+        maxConcurrency: job.input.maxConcurrency || 10, // Enable concurrent processing of examples
+        numRepetitions: job.input.numRepetitions || 1, // Number of times to run each example
+      };
+
+      // Use LangSmith's evaluate function with concurrency
+      const experimentResults = await evaluate(target, evaluationConfig);
 
       // Transform results to match our schema
       const results = await this.transformExperimentResults(experimentResults);
