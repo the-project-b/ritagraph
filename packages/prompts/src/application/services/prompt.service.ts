@@ -294,6 +294,26 @@ export class PromptService {
   }
 
   /**
+   * Gets a raw prompt template without variable substitution, throwing an error if not found.
+   * This is a convenience method that throws instead of returning a Result.
+   * @param params - Parameters for getting the raw prompt
+   * @returns Promise<RawPromptResponse>
+   * @throws Error if the prompt cannot be retrieved
+   */
+  async getRawPromptTemplateOrThrow(
+    params: GetRawPromptParams,
+  ): Promise<RawPromptResponse> {
+    const result = await this.getRawPromptTemplate(params);
+    if (Result.isFailure(result)) {
+      const error = Result.unwrapFailure(result);
+      throw new Error(
+        `Failed to fetch prompt '${params.promptName}' from ${params.source || this.defaultSource}: ${error.message}`,
+      );
+    }
+    return Result.unwrap(result);
+  }
+
+  /**
    * Gets a raw prompt template without variable substitution.
    * This method returns the raw template string along with metadata
    * about the prompt version and source.
