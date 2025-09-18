@@ -176,7 +176,7 @@ export class LangSmithService {
         },
       };
 
-      const result = await graph.invoke(graphInput, config);
+      const result: any = await graph.invoke(graphInput, config);
 
       const lastMessage = Array.isArray(result?.messages)
         ? result.messages[result.messages.length - 1]
@@ -327,41 +327,13 @@ export class LangSmithService {
       });
     }
 
-    const manager = experimentResults?.manager;
-    const langsmithClient = manager?.client;
-    const experiment = manager?._experiment;
-    const experimentName = experiment?.name ?? "Unnamed Experiment";
-
-    const webUrl = langsmithClient?.webUrl;
-    const tenantId = langsmithClient?._tenantId;
-    const datasetId = experiment?.reference_dataset_id;
-    const experimentId = experiment?.id;
-
-    let url = "";
-    if (webUrl && tenantId && datasetId && experimentId) {
-      url = `${webUrl}/o/${tenantId}/datasets/${datasetId}/compare?selectedSessions=${experimentId}`;
-    }
-    if (!url) {
-      logger.warn(
-        "Could not construct LangSmith results URL, providing fallback",
-        {
-          operation: "constructResultsUrl",
-          hasWebUrl: !!webUrl,
-          hasTenantId: !!tenantId,
-          hasDatasetId: !!datasetId,
-          hasExperimentId: !!experimentId,
-          experimentName,
-          graphName,
-          datasetName,
-        },
-      );
-      url = webUrl ? `${webUrl}/projects` : "URL not available";
-    }
+    const experimentName = experimentResults.experimentName;
+    const experimentId = experimentResults.results[0].run.id;
 
     return {
-      url,
+      url: "deprecated - please see langsmith dashboard directly",
       experimentName,
-      experimentId: experimentId || "unknown",
+      experimentId,
       results,
     };
   }
