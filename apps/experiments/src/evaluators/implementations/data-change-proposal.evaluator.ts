@@ -18,9 +18,9 @@ import {
 import { ProposalFormatter } from "../helpers/proposal-formatter.js";
 import {
   ValidationConfig,
-  TransformerStrategy,
   applyAddTransformers,
 } from "../helpers/validation-config.js";
+import { DEFAULT_TRANSFORMER_MAPPINGS } from "../helpers/transformer-registry.js";
 import { DataChangeProposal } from "./types.js";
 
 // Create logger instance with evaluation context
@@ -31,17 +31,9 @@ const logger = createEvaluationLogger(
 
 /**
  * Default validation configuration for data change proposals.
- * Edit this configuration to customize validation behavior.
+ * Uses transformer registry keys instead of inline functions.
  */
-function getDefaultValidationConfig(now: Date = new Date()): ValidationConfig {
-  const utcYear = now.getUTCFullYear();
-  const utcMonth = now.getUTCMonth();
-  const utcDay = now.getUTCDate();
-
-  const todayAtUtcMidnight = new Date(
-    Date.UTC(utcYear, utcMonth, utcDay, 0, 0, 0, 0),
-  ).toISOString();
-
+function getDefaultValidationConfig(): ValidationConfig {
   return {
     normalization: [
       {
@@ -67,26 +59,7 @@ function getDefaultValidationConfig(now: Date = new Date()): ValidationConfig {
 
     ignorePaths: [],
 
-    transformers: {
-      "mutationVariables.data.effectiveDate": {
-        transform: () => todayAtUtcMidnight,
-        strategy: TransformerStrategy.AddMissingOnly,
-        when: {
-          path: "changeType",
-          equals: "change",
-        },
-        conditionTarget: "actual", // Check the actual LLM output's changeType
-      },
-      "mutationVariables.data.startDate": {
-        transform: () => todayAtUtcMidnight,
-        strategy: TransformerStrategy.AddMissingOnly,
-        when: {
-          path: "changeType",
-          equals: "creation",
-        },
-        conditionTarget: "actual", // Check the actual LLM output's changeType
-      },
-    },
+    transformers: DEFAULT_TRANSFORMER_MAPPINGS,
   };
 }
 
@@ -211,23 +184,24 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         operation: "evaluate.processExpected",
         expectedCount: expectedProposals.length,
         actualCount: normalizedActualProposals.length,
-        firstExpectedKeys: expectedProposals.length > 0 ? Object.keys(expectedProposals[0]) : [],
+        firstExpectedKeys:
+          expectedProposals.length > 0 ? Object.keys(expectedProposals[0]) : [],
       });
 
       // Normalize expected proposals to ensure they have changeType field
       const normalizedExpectedProposals = expectedProposals.map((p) => {
         const proposal = p as any;
-        
+
         // If already has changeType, keep as is
         if (proposal.changeType) {
           return proposal as NormalizedProposal;
         }
-        
+
         // Infer changeType from structure
         // If has changedField, it's a "change" type
         // Otherwise it's a "creation" type
         const inferredType = proposal.changedField ? "change" : "creation";
-        
+
         return {
           ...proposal,
           changeType: inferredType,
@@ -236,11 +210,15 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
 
       // Apply transformers to add missing fields like dates
       // Now we can use conditionTarget: "actual" to check actual proposal's changeType
-      logger.debug("Applying transformers to expected proposals with actual conditions", {
-        operation: "evaluate.applyTransformers",
-        beforeCount: normalizedExpectedProposals.length,
-        transformerCount: Object.keys(validationConfig.transformers || {}).length,
-      });
+      logger.debug(
+        "Applying transformers to expected proposals with actual conditions",
+        {
+          operation: "evaluate.applyTransformers",
+          beforeCount: normalizedExpectedProposals.length,
+          transformerCount: Object.keys(validationConfig.transformers || {})
+            .length,
+        },
+      );
 
       expectedProposals = applyAddTransformers(
         normalizedExpectedProposals,

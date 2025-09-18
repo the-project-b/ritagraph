@@ -6,6 +6,7 @@ import {
   pathMatchesPattern,
   setValueAtPath,
 } from "./object-utils.js";
+import { TransformerRegistry } from "./transformer-registry.js";
 
 const logger = createEvaluationLogger("experiments", "ValidationConfig");
 
@@ -145,11 +146,16 @@ export interface ValidationConfig {
 
   /**
    * Path-specific transformer configurations
-   * Can be either a simple function (backward compatible) or full config
+   * Can be either:
+   * - A transformer key string referencing a registered transformer
+   * - A simple function (backward compatible)
+   * - A full TransformerConfig object
    */
   transformers?: Record<
     string,
-    ((value: any, context?: TransformerContext) => any) | TransformerConfig
+    | string
+    | ((value: any, context?: TransformerContext) => any)
+    | TransformerConfig
   >;
 }
 
@@ -169,6 +175,10 @@ export function shouldIgnorePath(
   path: string,
   config: ValidationConfig,
 ): boolean {
+  if (!config.ignorePaths || config.ignorePaths.length === 0) {
+    return false;
+  }
+
   const isIgnored = config.ignorePaths.some((ignorePath) =>
     pathMatchesPattern(path, ignorePath),
   );
@@ -268,9 +278,46 @@ function strategyToConfig(
  */
 function normalizeTransformer(
   transformer:
+    | string
     | ((value: unknown, context?: TransformerContext) => unknown)
     | TransformerConfig,
-): TransformerConfig {
+): TransformerConfig | null {
+  if (typeof transformer === "string") {
+    const registered = TransformerRegistry.get(transformer);
+    if (!registered) {
+      logger.warn("Transformer key not found in registry", {
+        operation: "normalizeTransformer",
+        key: transformer,
+        availableKeys: TransformerRegistry.getKeys(),
+      });
+      return null;
+    }
+
+    const config: TransformerConfig = {
+      transform: registered.transform,
+      onMissing: "skip",
+      applyTo: "both",
+      onExisting: "transform",
+    };
+
+    if (registered.strategy) {
+      const strategyConfig = strategyToConfig(
+        registered.strategy as TransformerStrategy,
+      );
+      Object.assign(config, strategyConfig);
+    }
+
+    if (registered.when) {
+      config.when = registered.when as TransformerCondition;
+    }
+
+    if (registered.conditionTarget) {
+      config.conditionTarget = registered.conditionTarget;
+    }
+
+    return config;
+  }
+
   if (typeof transformer === "function") {
     return {
       transform: transformer,
@@ -280,18 +327,15 @@ function normalizeTransformer(
     };
   }
 
-  // If strategy is specified, use it to set the config
   if (transformer.strategy) {
     const strategyConfig = strategyToConfig(transformer.strategy);
     return {
       transform: transformer.transform,
       ...strategyConfig,
-      // Allow explicit overrides even with strategy
       ...transformer,
     };
   }
 
-  // Default values for legacy config
   return {
     onExisting: "transform",
     onMissing: "skip",
@@ -310,12 +354,14 @@ export function getPathTransformer(
   if (!config.transformers) return undefined;
 
   if (config.transformers[path]) {
-    return normalizeTransformer(config.transformers[path]);
+    const normalized = normalizeTransformer(config.transformers[path]);
+    return normalized || undefined;
   }
 
   for (const [pattern, transformer] of Object.entries(config.transformers)) {
     if (pathMatchesPattern(path, pattern)) {
-      return normalizeTransformer(transformer);
+      const normalized = normalizeTransformer(transformer);
+      return normalized || undefined;
     }
   }
 
@@ -417,7 +463,7 @@ export function normalizeWithConfig(
 /**
  * Applies transformers that add missing fields to proposals
  * This is similar to the old substituteSituationAwareExpectedValues
- * 
+ *
  * @param proposals - The proposals to transform
  * @param config - Validation configuration with transformers
  * @param isExpected - Whether these are expected proposals (true) or actual (false)
@@ -471,21 +517,28 @@ export function applyAddTransformers(
       // Determine which proposal to check conditions against
       let proposalForCondition = modified;
       const conditionTarget = transformerConfig.conditionTarget || "self";
-      
+
       if (conditionTarget === "actual" && isExpected && pairedProposal) {
         // We're transforming expected, but want to check condition on actual
         proposalForCondition = pairedProposal;
-      } else if (conditionTarget === "expected" && !isExpected && pairedProposal) {
+      } else if (
+        conditionTarget === "expected" &&
+        !isExpected &&
+        pairedProposal
+      ) {
         // We're transforming actual, but want to check condition on expected
         proposalForCondition = pairedProposal;
       } else if (conditionTarget !== "self" && !pairedProposal) {
-        logger.debug("Cannot check condition on paired proposal - not provided", {
-          operation: "applyAddTransformers.noPairedProposal",
-          proposalIndex: index,
-          path,
-          conditionTarget,
-          side,
-        });
+        logger.debug(
+          "Cannot check condition on paired proposal - not provided",
+          {
+            operation: "applyAddTransformers.noPairedProposal",
+            proposalIndex: index,
+            path,
+            conditionTarget,
+            side,
+          },
+        );
         continue;
       }
 
@@ -561,6 +614,47 @@ export function applyAddTransformers(
 
     return modified;
   });
+}
+
+/**
+ * Merges validation configs with proper priority handling
+ * Priority: proposal > example > global
+ * Empty objects {} mean "no transformers/paths"
+ */
+export function mergeValidationConfigs(
+  globalConfig: ValidationConfig,
+  exampleConfig?: ValidationConfig,
+  proposalOverrides?: {
+    ignorePaths?: string[];
+    transformers?: Record<string, string>;
+  },
+): ValidationConfig {
+  let finalConfig = globalConfig;
+
+  if (exampleConfig) {
+    finalConfig = {
+      ...globalConfig,
+      ignorePaths: exampleConfig.ignorePaths || [],
+      transformers: exampleConfig.transformers || {},
+    };
+  }
+
+  if (proposalOverrides) {
+    if (proposalOverrides.ignorePaths !== undefined) {
+      finalConfig = {
+        ...finalConfig,
+        ignorePaths: proposalOverrides.ignorePaths,
+      };
+    }
+    if (proposalOverrides.transformers !== undefined) {
+      finalConfig = {
+        ...finalConfig,
+        transformers: proposalOverrides.transformers,
+      };
+    }
+  }
+
+  return finalConfig;
 }
 
 export function applyTransformer(

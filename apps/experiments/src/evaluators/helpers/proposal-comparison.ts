@@ -33,11 +33,12 @@ export type NormalizedProposal =
     };
 
 /**
- * Proposal with optional ignore paths metadata
- * This is used for test data where we can override ignore paths per proposal
+ * Proposal with optional validation metadata
+ * This is used for test data where we can override validation config per proposal
  */
 export type ProposalWithMetadata = NormalizedProposal & {
   ignorePaths?: string[] | string;
+  transformers?: Record<string, string>;
 };
 
 /**
@@ -87,40 +88,59 @@ export interface ProposalComparisonResult {
 }
 
 /**
- * Extracts ignorePaths from a proposal and creates a merged config
+ * Extracts validation overrides from a proposal and creates a merged config
  */
 function getMergedConfig(
   proposal: ProposalWithMetadata | NormalizedProposal,
   baseConfig?: ValidationConfig,
 ): ValidationConfig | undefined {
-  // Check if proposal has ignorePaths metadata
-  const proposalIgnorePathsRaw = (proposal as ProposalWithMetadata).ignorePaths;
+  const proposalWithMeta = proposal as ProposalWithMetadata;
+  const proposalIgnorePathsRaw = proposalWithMeta.ignorePaths;
+  const proposalTransformers = proposalWithMeta.transformers;
 
-  // If no ignorePaths in proposal, use base config as-is
-  if (proposalIgnorePathsRaw === undefined) {
+  const hasIgnoreOverride = proposalIgnorePathsRaw !== undefined;
+  const hasTransformerOverride = proposalTransformers !== undefined;
+
+  if (!hasIgnoreOverride && !hasTransformerOverride) {
     return baseConfig;
   }
 
-  // Normalize ignorePaths to always be an array (handle both string and array inputs)
-  const proposalIgnorePaths = Array.isArray(proposalIgnorePathsRaw)
-    ? proposalIgnorePathsRaw
-    : typeof proposalIgnorePathsRaw === "string"
-      ? [proposalIgnorePathsRaw]
-      : [];
-
-  // If ignorePaths is defined (even as empty array), override base config
   const mergedConfig: ValidationConfig = {
-    ...(baseConfig || { ignorePaths: [], transformers: {} }),
-    ignorePaths: proposalIgnorePaths, // Override with proposal-specific paths
+    ...baseConfig,
+    ignorePaths: baseConfig?.ignorePaths || [],
+    transformers: baseConfig?.transformers || {},
   };
 
-  logger.debug("Using per-proposal ignorePaths override", {
-    operation: "getMergedConfig",
-    baseIgnorePaths: baseConfig?.ignorePaths || [],
-    proposalIgnorePaths,
-    rawValue: proposalIgnorePathsRaw,
-    changeType: proposal.changeType,
-  });
+  if (hasIgnoreOverride) {
+    const proposalIgnorePaths = Array.isArray(proposalIgnorePathsRaw)
+      ? proposalIgnorePathsRaw
+      : typeof proposalIgnorePathsRaw === "string"
+        ? [proposalIgnorePathsRaw]
+        : [];
+
+    mergedConfig.ignorePaths = proposalIgnorePaths;
+
+    logger.debug("Using per-proposal ignorePaths override", {
+      operation: "getMergedConfig.ignorePaths",
+      baseIgnorePaths: baseConfig?.ignorePaths || [],
+      proposalIgnorePaths,
+      rawValue: proposalIgnorePathsRaw,
+      changeType: proposal.changeType,
+    });
+  }
+
+  if (hasTransformerOverride) {
+    mergedConfig.transformers = proposalTransformers;
+
+    logger.debug("Using per-proposal transformers override", {
+      operation: "getMergedConfig.transformers",
+      baseTransformers: baseConfig?.transformers
+        ? Object.keys(baseConfig.transformers)
+        : [],
+      proposalTransformers: Object.keys(proposalTransformers),
+      changeType: proposal.changeType,
+    });
+  }
 
   return mergedConfig;
 }
@@ -131,7 +151,8 @@ function getMergedConfig(
 function stripMetadata(
   proposal: ProposalWithMetadata | NormalizedProposal,
 ): NormalizedProposal {
-  const { ignorePaths, ...cleanProposal } = proposal as ProposalWithMetadata;
+  const { ignorePaths, transformers, ...cleanProposal } =
+    proposal as ProposalWithMetadata;
   return cleanProposal as NormalizedProposal;
 }
 
