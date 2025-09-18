@@ -40,7 +40,99 @@ function getTodayAtUtcMidnight(): string {
 }
 
 /**
- * Predefined transformer definitions
+ * Predefined transformer definitions registry
+ *
+ * TRANSFORMER CONFIGURATION GUIDE:
+ *
+ * Each transformer can be configured with the following properties:
+ *
+ * 1. STRATEGIES - Controls when and how transformations are applied:
+ *
+ *    - "add-missing-only": Adds field to expected proposals ONLY if missing.
+ *      Use case: Default values like dates that should match exactly when explicitly set.
+ *      Example: Adding today's date when not specified, but respecting explicit dates.
+ *
+ *    - "transform-always": Transforms existing values on both expected and actual.
+ *      Use case: Format standardization like uppercase/lowercase/trim.
+ *      Example: Ensuring consistent string casing regardless of input.
+ *
+ *    - "transform-existing": Only transforms if field exists, ignores missing fields.
+ *      Use case: Optional field normalization.
+ *      Example: Trimming whitespace only on fields that are present.
+ *
+ * 2. CONDITIONAL APPLICATION - The 'when' property:
+ *
+ *    Controls when a transformer should apply based on proposal content:
+ *
+ *    when: {
+ *      path: "changeType",        // Path to check in the proposal
+ *      equals: "change",          // Value must equal this (or array for OR logic)
+ *      notEquals: "creation",     // Value must NOT equal this
+ *      exists: true               // Path must exist (regardless of value)
+ *    }
+ *
+ * 3. CONDITION TARGET - The 'conditionTarget' property:
+ *
+ *    Determines which proposal to check the 'when' condition against:
+ *
+ *    - "self" (default): Check condition on the proposal being transformed
+ *    - "actual": Check condition on the actual (LLM output) proposal
+ *    - "expected": Check condition on the expected proposal
+ *
+ *    Key insight: "actual" is crucial when adding fields to expected proposals
+ *    based on what the LLM generated, solving the chicken-and-egg problem.
+ *
+ * 4. THREE-LAYER USAGE SYSTEM:
+ *
+ *    Priority: Proposal > Example > Global (defined in code)
+ *
+ *    Layer 1 - Global (in evaluator code):
+ *    ```typescript
+ *    transformers: {
+ *      "mutationVariables.data.effectiveDate": "transformer-today-utc-for-change"
+ *    }
+ *    ```
+ *
+ *    Layer 2 - Example level (in LangSmith dataset):
+ *    ```json
+ *    {
+ *      "validationConfig": {
+ *        "transformers": {
+ *          "relatedUserId": "transformer-uppercase",
+ *          "mutationVariables.data.effectiveDate": "transformer-today-utc"
+ *        }
+ *      }
+ *    }
+ *    ```
+ *
+ *    Layer 3 - Proposal level (on individual proposals):
+ *    ```json
+ *    {
+ *      "expectedDataProposal": [{
+ *        "changeType": "change",
+ *        "transformers": {
+ *          "relatedUserId": "transformer-lowercase"
+ *        }
+ *      }]
+ *    }
+ *    ```
+ *
+ * 5. EMPTY OBJECT OVERRIDE:
+ *
+ *    Using `transformers: {}` means NO transformers apply at that level.
+ *    This completely overrides parent layers with "no transformation".
+ *
+ * COMMON PATTERNS:
+ *
+ * Pattern 1 - Conditional date addition:
+ *   Use "add-missing-only" + "conditionTarget: actual" + when condition
+ *   to add dates to expected based on LLM's changeType.
+ *
+ * Pattern 2 - Format normalization:
+ *   Use "transform-always" for consistent formatting across all proposals.
+ *
+ * Pattern 3 - Proposal-specific overrides:
+ *   Set transformers on individual proposals to handle special cases.
  */
 const TRANSFORMER_DEFINITIONS: RegisteredTransformer[] = [
   {

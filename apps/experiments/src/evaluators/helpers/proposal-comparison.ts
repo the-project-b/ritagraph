@@ -106,7 +106,9 @@ function getMergedConfig(
   }
 
   const mergedConfig: ValidationConfig = {
-    ...(baseConfig || { ignorePaths: [], transformers: {} }),
+    ...baseConfig,
+    ignorePaths: baseConfig?.ignorePaths || [],
+    transformers: baseConfig?.transformers || {},
   };
 
   if (hasIgnoreOverride) {

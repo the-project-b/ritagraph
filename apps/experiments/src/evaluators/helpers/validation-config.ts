@@ -175,6 +175,10 @@ export function shouldIgnorePath(
   path: string,
   config: ValidationConfig,
 ): boolean {
+  if (!config.ignorePaths || config.ignorePaths.length === 0) {
+    return false;
+  }
+
   const isIgnored = config.ignorePaths.some((ignorePath) =>
     pathMatchesPattern(path, ignorePath),
   );
@@ -630,7 +634,7 @@ export function mergeValidationConfigs(
   if (exampleConfig) {
     finalConfig = {
       ...globalConfig,
-      ignorePaths: exampleConfig.ignorePaths,
+      ignorePaths: exampleConfig.ignorePaths || [],
       transformers: exampleConfig.transformers || {},
     };
   }
