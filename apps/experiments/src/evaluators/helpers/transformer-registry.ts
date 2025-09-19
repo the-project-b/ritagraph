@@ -1,4 +1,8 @@
 import { TransformerContext } from "./validation-config.js";
+import {
+  TemplateVariableRegistry,
+  TemplateContext as TemplateVarContext,
+} from "./template-variable-registry.js";
 
 /**
  * Predefined transformer function type
@@ -233,17 +237,41 @@ export class TransformerRegistry {
   );
 
   /**
-   * Get a transformer by its key
+   * Get a transformer by its key, with support for dynamic template-based transformers
    */
   static get(key: string): RegisteredTransformer | undefined {
-    return this.transformers.get(key);
+    const existing = this.transformers.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    if (key.startsWith("transformer-template-")) {
+      const templateExpression = key.replace("transformer-template-", "");
+      const dynamicTransformer =
+        this.createTemplateTransformer(templateExpression);
+      if (dynamicTransformer) {
+        this.transformers.set(key, dynamicTransformer);
+        return dynamicTransformer;
+      }
+    }
+
+    return undefined;
   }
 
   /**
    * Check if a transformer exists
    */
   static has(key: string): boolean {
-    return this.transformers.has(key);
+    if (this.transformers.has(key)) {
+      return true;
+    }
+
+    if (key.startsWith("transformer-template-")) {
+      const templateExpression = key.replace("transformer-template-", "");
+      return this.canCreateTemplateTransformer(templateExpression);
+    }
+
+    return false;
   }
 
   /**
@@ -258,6 +286,55 @@ export class TransformerRegistry {
    */
   static getAll(): RegisteredTransformer[] {
     return Array.from(this.transformers.values());
+  }
+
+  /**
+   * Create a dynamic transformer from a template variable expression
+   */
+  private static createTemplateTransformer(
+    expression: string,
+  ): RegisteredTransformer | null {
+    const context: TemplateVarContext = {
+      currentDate: new Date(),
+    };
+
+    const testResult = TemplateVariableRegistry.evaluateExpression(
+      expression,
+      context,
+    );
+    if (!testResult) {
+      return null;
+    }
+
+    return {
+      key: `transformer-template-${expression}`,
+      description: `Dynamic transformer for template expression: ${expression}`,
+      transform: (value, transformerContext) => {
+        const evalContext: TemplateVarContext = {
+          currentDate: transformerContext?.currentDate || new Date(),
+        };
+
+        const result = TemplateVariableRegistry.evaluateExpression(
+          expression,
+          evalContext,
+        );
+        return result ? result.dataValue : value;
+      },
+      strategy: "add-missing-only",
+    };
+  }
+
+  /**
+   * Check if a template transformer can be created
+   */
+  private static canCreateTemplateTransformer(expression: string): boolean {
+    const context: TemplateVarContext = {
+      currentDate: new Date(),
+    };
+
+    return (
+      TemplateVariableRegistry.evaluateExpression(expression, context) !== null
+    );
   }
 }
 
