@@ -174,6 +174,11 @@ export function pathMatchesPattern(path: string, pattern: string): boolean {
     return path.startsWith(`${prefix}.`) || path === prefix;
   }
 
+  if (pattern.startsWith("*.")) {
+    const suffix = pattern.slice(2);
+    return path.endsWith(`.${suffix}`);
+  }
+
   return false;
 }
 

@@ -10,6 +10,8 @@ import { getAuthUser } from "../security/auth.js";
 import { createGraphQLClient } from "../graphql/index.js";
 
 import { GraphQLErrors } from "../graphql/errors.js";
+import { TemplateProcessor } from "../evaluators/helpers/template-processor.js";
+import { TemplateContext } from "../evaluators/helpers/template-variable-registry.js";
 import type { GraphQLContext } from "../types/context.js";
 import type {
   DatasetExperiment,
@@ -141,7 +143,31 @@ export class LangSmithService {
     );
 
     const target = async (inputs: Record<string, any>) => {
-      const question = inputs.question;
+      let question = inputs.question;
+
+      const templateContext: TemplateContext = {
+        currentDate: new Date(),
+      };
+
+      if (question && typeof question === "string") {
+        const templateResult = TemplateProcessor.process(
+          question,
+          templateContext,
+        );
+        question = templateResult.processed;
+
+        if (templateResult.replacements.length > 0) {
+          logger.debug("Template variables processed in question", {
+            operation: "processTemplates",
+            original: templateResult.original,
+            processed: templateResult.processed,
+            replacements: templateResult.replacements.map((r) => ({
+              expression: r.expression,
+              value: r.result.displayValue,
+            })),
+          });
+        }
+      }
 
       const examplePreferredLanguage = inputs.preferredLanguage;
 
