@@ -19,6 +19,7 @@ import { ProposalFormatter } from "../helpers/proposal-formatter.js";
 import {
   ValidationConfig,
   applyAddTransformers,
+  mergeValidationConfigs,
 } from "../helpers/validation-config.js";
 import { DEFAULT_TRANSFORMER_MAPPINGS } from "../helpers/transformer-registry.js";
 import { DataChangeProposal } from "./types.js";
@@ -192,24 +193,27 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
       const normalizedExpectedProposals = expectedProposals.map((p) => {
         const proposal = p as any;
 
+        // Extract per-proposal transformers and ignorePaths (Layer 3 config)
+        const { transformers, ignorePaths, ...cleanProposal } = proposal;
+
         // If already has changeType, keep as is
-        if (proposal.changeType) {
-          return proposal as NormalizedProposal;
+        if (cleanProposal.changeType) {
+          return cleanProposal as NormalizedProposal;
         }
 
         // Infer changeType from structure
         // If has changedField, it's a "change" type
         // Otherwise it's a "creation" type
-        const inferredType = proposal.changedField ? "change" : "creation";
+        const inferredType = cleanProposal.changedField ? "change" : "creation";
 
         return {
-          ...proposal,
+          ...cleanProposal,
           changeType: inferredType,
         } as NormalizedProposal;
       });
 
       // Apply transformers to add missing fields like dates
-      // Now we can use conditionTarget: "actual" to check actual proposal's changeType
+      // Process each proposal with its own transformer configuration (three-layer system)
       logger.debug(
         "Applying transformers to expected proposals with actual conditions",
         {
@@ -220,12 +224,42 @@ export const dataChangeProposalEvaluator: TypedEvaluator<
         },
       );
 
-      expectedProposals = applyAddTransformers(
-        normalizedExpectedProposals,
-        validationConfig,
-        true,
-        normalizedActualProposals, // Pass actual proposals for condition checking
+      // Apply transformers with three-layer configuration system
+      const transformedExpectedProposals = expectedProposals.map(
+        (originalProposal, index) => {
+          const proposal = originalProposal as any;
+          const normalizedProposal = normalizedExpectedProposals[index];
+
+          // Extract per-proposal config (Layer 3)
+          const {
+            transformers: proposalTransformers,
+            ignorePaths: proposalIgnorePaths,
+            ..._
+          } = proposal;
+
+          // Merge configurations: Global (Layer 1) < Example (Layer 2) < Proposal (Layer 3)
+          const mergedConfig = mergeValidationConfigs(
+            getDefaultValidationConfig(),
+            validationConfig,
+            {
+              transformers: proposalTransformers,
+              ignorePaths: proposalIgnorePaths,
+            },
+          );
+
+          // Apply the merged configuration
+          const [transformed] = applyAddTransformers(
+            [normalizedProposal],
+            mergedConfig,
+            true,
+            normalizedActualProposals.slice(index, index + 1), // Pass corresponding actual proposal
+          );
+
+          return transformed;
+        },
       );
+
+      expectedProposals = transformedExpectedProposals;
 
       // Log the exact structure we receive to understand the data shape
       if (actualProposals.length > 0) {
