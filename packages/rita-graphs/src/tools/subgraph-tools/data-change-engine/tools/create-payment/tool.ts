@@ -9,6 +9,10 @@ import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
 import { ExtendedToolContext, PaymentType } from "../../tool";
+import {
+  AgentActionType,
+  AgentLogEventTag,
+} from "../../../../../utils/agent-action-logger/AgentActionLogger";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -35,7 +39,7 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         startDate,
         quote,
       } = params;
-      const { selectedCompanyId } = ctx;
+      const { selectedCompanyId, agentActionLogger } = ctx;
       const { thread_id, run_id } = config.configurable;
 
       logger.info("[TOOL > create_payment]", {
@@ -50,6 +54,15 @@ export const createPaymentTool: ToolFactoryToolDefintion<
         frequency,
         startDate,
         companyId: selectedCompanyId,
+      });
+
+      agentActionLogger.appendLog({
+        description: `Creating payment for employeeId: ${employeeId}. Based on the user quote: ${quote}`,
+        actionName: "create_payment",
+        actionType: AgentActionType.TOOL_CALL_ENTER,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
       });
 
       const buildBaseDataChangeProps = () => ({
@@ -107,7 +120,24 @@ export const createPaymentTool: ToolFactoryToolDefintion<
           },
         });
 
+      agentActionLogger.appendLog({
+        description: `Created proposal for: ${dataChangeProposal.description}`,
+        actionName: "create_payment",
+        actionType: AgentActionType.TOOL_CALL_LOG,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+      });
+
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "create_payment",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
         return {
           error: "Failed to create thread items - tool call unavailable.",
         };
@@ -127,6 +157,15 @@ export const createPaymentTool: ToolFactoryToolDefintion<
           .map((item) => Result.unwrapFailure(item))
           .join("\n");
 
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "create_payment",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
+
         logger.error(
           "Failed to create thread items for the data change proposals",
           {
@@ -144,6 +183,15 @@ export const createPaymentTool: ToolFactoryToolDefintion<
       }
 
       prefixedLog("dataChangeProposals", dataChangeProposal);
+
+      agentActionLogger.appendLog({
+        description: `Payment change proposals created.`,
+        actionName: "create_payment",
+        actionType: AgentActionType.TOOL_CALL_RESPONSE,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+      });
 
       return {
         instructions: `

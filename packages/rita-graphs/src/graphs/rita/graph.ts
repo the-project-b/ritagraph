@@ -37,6 +37,7 @@ import { toolFactory } from "../../tools/tool-factory.js";
 import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-engine/tool.js";
 import { findEmployee } from "../../tools/find-employee/tool.js";
 import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-message-edge-decision.js";
+import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -47,6 +48,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
   return async function fetchTools(
     companyId: string,
     config: AnnotationRoot<any>,
+    agentActionLogger: AgentActionLogger,
   ): Promise<Array<ToolInterface>> {
     const authUser = getAuthUser(config);
 
@@ -54,6 +56,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
       accessToken: authUser.token,
       selectedCompanyId: companyId,
       appdataHeader: authUser.appdataHeader,
+      agentActionLogger,
     };
 
     const tools = toolFactory<undefined>({
@@ -101,6 +104,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
             configAnnotation: ConfigurableAnnotation,
             quickUpdateNode: quickUpdate,
             preWorkflowResponse,
+            getAuthUser,
           }),
           {
             ends: ["finalMessage"],

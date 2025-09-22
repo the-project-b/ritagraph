@@ -323,10 +323,11 @@ export class PromptService {
   async getRawPromptTemplate(
     params: GetRawPromptParams,
   ): Promise<Result<RawPromptResponse, NotFoundError>> {
+    /*
     this.logger?.debug("Getting raw prompt template", {
       promptName: params.promptName,
       source: params.source || this.defaultSource,
-    });
+    });*/
 
     const targetSource = params.source || this.defaultSource;
 
