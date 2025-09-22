@@ -34,14 +34,39 @@ export interface FieldExtractor<T = any> {
 }
 
 /**
+ * Complex condition for normalization matching
+ */
+export interface NormalizationCondition {
+  /**
+   * The changeType to match (required)
+   */
+  changeType: string;
+
+  /**
+   * Additional field conditions
+   */
+  [field: string]:
+    | string
+    | {
+        startsWith?: string;
+        endsWith?: string;
+        contains?: string;
+        equals?: string;
+      };
+}
+
+/**
  * Normalization configuration for a specific proposal type
  */
 export interface NormalizationConfig {
   /**
-   * Discriminator field value to match (e.g., 'change' or 'creation')
-   * If not specified, this config applies to all proposals
+   * Discriminator for when this config should apply.
+   * Can be:
+   * - A simple string (e.g., 'change', 'creation') to match changeType
+   * - A complex condition object for more specific matching
+   * - undefined to apply to all proposals
    */
-  when?: string;
+  when?: string | NormalizationCondition;
 
   /**
    * Fields to extract and their mappings
@@ -60,6 +85,8 @@ export enum TransformerStrategy {
   TransformAlways = "transform-always",
   /** Only transform if field exists, ignore if missing */
   TransformExisting = "transform-existing",
+  /** Add to expected if actual has it, for dynamic validation */
+  AddIfActualHas = "add-if-actual-has",
 }
 
 /**
@@ -150,12 +177,14 @@ export interface ValidationConfig {
    * - A transformer key string referencing a registered transformer
    * - A simple function (backward compatible)
    * - A full TransformerConfig object
+   * - An enhanced config object with key and strategy override
    */
   transformers?: Record<
     string,
     | string
     | ((value: any, context?: TransformerContext) => any)
     | TransformerConfig
+    | { key: string; strategy?: TransformerStrategy }
   >;
 }
 
@@ -250,7 +279,10 @@ function shouldApplyTransformer(
  */
 function strategyToConfig(
   strategy: TransformerStrategy,
-): Pick<TransformerConfig, "onMissing" | "onExisting" | "applyTo"> {
+): Pick<
+  TransformerConfig,
+  "onMissing" | "onExisting" | "applyTo" | "conditionTarget"
+> {
   switch (strategy) {
     case TransformerStrategy.AddMissingOnly:
       return {
@@ -270,6 +302,13 @@ function strategyToConfig(
         onExisting: "transform",
         applyTo: "both",
       };
+    case TransformerStrategy.AddIfActualHas:
+      return {
+        onMissing: "add",
+        onExisting: "skip",
+        applyTo: "expected",
+        conditionTarget: "actual",
+      };
   }
 }
 
@@ -280,8 +319,65 @@ function normalizeTransformer(
   transformer:
     | string
     | ((value: unknown, context?: TransformerContext) => unknown)
-    | TransformerConfig,
+    | TransformerConfig
+    | { key: string; strategy?: TransformerStrategy },
 ): TransformerConfig | null {
+  // Handle enhanced config with key and strategy override
+  if (
+    typeof transformer === "object" &&
+    transformer !== null &&
+    "key" in transformer &&
+    !("transform" in transformer)
+  ) {
+    // This is the enhanced config format: { key: string; strategy?: TransformerStrategy }
+    const registered = TransformerRegistry.get(transformer.key);
+    if (!registered) {
+      logger.warn("Transformer key not found in registry", {
+        operation: "normalizeTransformer",
+        key: transformer.key,
+        availableKeys: TransformerRegistry.getKeys(),
+      });
+      return null;
+    }
+
+    const config: TransformerConfig = {
+      transform: registered.transform,
+      onMissing: "skip",
+      applyTo: "both",
+      onExisting: "transform",
+    };
+
+    // Apply registered strategy first
+    if (registered.strategy) {
+      const strategyConfig = strategyToConfig(
+        registered.strategy as TransformerStrategy,
+      );
+      Object.assign(config, strategyConfig);
+    }
+
+    // Then apply override strategy if provided
+    if (transformer.strategy) {
+      const overrideConfig = strategyToConfig(transformer.strategy);
+      Object.assign(config, overrideConfig);
+      logger.debug("Applied strategy override for transformer", {
+        operation: "normalizeTransformer.strategyOverride",
+        key: transformer.key,
+        registeredStrategy: registered.strategy,
+        overrideStrategy: transformer.strategy,
+      });
+    }
+
+    if (registered.when) {
+      config.when = registered.when as TransformerCondition;
+    }
+
+    if (registered.conditionTarget) {
+      config.conditionTarget = registered.conditionTarget;
+    }
+
+    return config;
+  }
+
   if (typeof transformer === "string") {
     const registered = TransformerRegistry.get(transformer);
     if (!registered) {
@@ -387,10 +483,66 @@ export function normalizeWithConfig(
 
   for (const nc of config.normalization) {
     if (!nc.when) {
+      // Default config (no condition)
       normConfig = nc;
-    } else if (proposal.changeType === nc.when) {
-      normConfig = nc;
-      break;
+    } else if (typeof nc.when === "string") {
+      // Simple string match on changeType
+      if (proposal.changeType === nc.when) {
+        normConfig = nc;
+        break;
+      }
+    } else {
+      // Complex condition matching
+      const condition = nc.when as NormalizationCondition;
+
+      // Check changeType first (required)
+      if (proposal.changeType !== condition.changeType) {
+        continue;
+      }
+
+      // Check additional field conditions
+      let allConditionsMet = true;
+      for (const [field, matcher] of Object.entries(condition)) {
+        if (field === "changeType") continue; // Already checked
+
+        const fieldValue = proposal[field];
+        if (fieldValue === undefined) {
+          allConditionsMet = false;
+          break;
+        }
+
+        if (typeof matcher === "string") {
+          // Simple equality
+          if (fieldValue !== matcher) {
+            allConditionsMet = false;
+            break;
+          }
+        } else if (typeof matcher === "object") {
+          // Complex matcher
+          const strValue = String(fieldValue);
+          if (matcher.startsWith && !strValue.startsWith(matcher.startsWith)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.endsWith && !strValue.endsWith(matcher.endsWith)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.contains && !strValue.includes(matcher.contains)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.equals && strValue !== matcher.equals) {
+            allConditionsMet = false;
+            break;
+          }
+        }
+      }
+
+      if (allConditionsMet) {
+        normConfig = nc;
+        break; // First match wins
+      }
     }
   }
 
@@ -398,7 +550,11 @@ export function normalizeWithConfig(
     logger.warn("No normalization config found for proposal", {
       operation: "normalizeWithConfig.noMatch",
       changeType: proposal.changeType,
-      availableConfigs: config.normalization.map((nc) => nc.when || "default"),
+      availableConfigs: config.normalization.map((nc) => {
+        if (!nc.when) return "default";
+        if (typeof nc.when === "string") return nc.when;
+        return `${nc.when.changeType}:complex`;
+      }),
     });
     return proposal;
   }
@@ -406,7 +562,11 @@ export function normalizeWithConfig(
   logger.debug("Applying normalization", {
     operation: "normalizeWithConfig.start",
     changeType: proposal.changeType,
-    configType: normConfig.when || "default",
+    configType: !normConfig.when
+      ? "default"
+      : typeof normConfig.when === "string"
+        ? normConfig.when
+        : `${normConfig.when.changeType}:complex`,
     fieldCount: Object.keys(normConfig.fields).length,
   });
 
