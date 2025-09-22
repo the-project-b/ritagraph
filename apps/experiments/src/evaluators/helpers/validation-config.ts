@@ -423,21 +423,9 @@ function normalizeTransformer(
     };
   }
 
-  if (transformer.strategy) {
-    const strategyConfig = strategyToConfig(transformer.strategy);
-    return {
-      transform: transformer.transform,
-      ...strategyConfig,
-      ...transformer,
-    };
-  }
-
-  return {
-    onExisting: "transform",
-    onMissing: "skip",
-    applyTo: "both",
-    ...transformer,
-  };
+  // At this point, transformer is a TransformerConfig object
+  // (since we've handled string, enhanced config, and function above)
+  return transformer as TransformerConfig;
 }
 
 /**
