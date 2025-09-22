@@ -103,9 +103,9 @@ export class LangSmithClientAdapter implements LangSmithClient {
         version,
       );
 
-      this.logger?.info("Transformed LangChain prompt to LangSmith format", {
-        transformedPrompt,
-      });
+      // this.logger?.info("Transformed LangChain prompt to LangSmith format", {
+      //   transformedPrompt,
+      // });
 
       return Result.success(transformedPrompt);
     } catch (error) {
