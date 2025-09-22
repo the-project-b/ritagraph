@@ -125,6 +125,8 @@ export const finalMessageForChanges: Node = async (
     listOfChanges: proposals.map((i) => i.description).join("\n"),
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
+    agentLogs: "", // TODO: Remove after implementation of the side of Pascal
+    amountOfChangeProposals: proposals.length, // TODO: Remove after implementation of the side of Pascal
   });
 
   // const systemPrompt = await PromptTemplate.fromTemplate(

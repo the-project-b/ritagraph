@@ -1,6 +1,14 @@
+import { createLogger } from "@the-project-b/logging";
+import {
+  RitaThreadStatus,
+  RitaThreadTriggerType,
+} from "@the-project-b/rita-graphs";
 import { randomUUID } from "crypto";
 import { evaluate, EvaluateOptions } from "langsmith/evaluation";
-import { createLogger } from "@the-project-b/logging";
+import { TemplateProcessor } from "../evaluators/helpers/template-processor.js";
+import { TemplateContext } from "../evaluators/helpers/template-variable-registry.js";
+import { createGraphQLClient } from "../graphql/index.js";
+import type { GraphQLContext } from "../types/context.js";
 import {
   AsyncEvaluationResult,
   EvaluationJobDetails,
@@ -9,12 +17,6 @@ import {
   RunEvaluationInput,
   UsedPromptInfo,
 } from "../types/index.js";
-import type { GraphQLContext } from "../types/context.js";
-import {
-  RitaThreadStatus,
-  RitaThreadTriggerType,
-} from "@the-project-b/rita-graphs";
-import { createGraphQLClient } from "../graphql/index.js";
 
 const logger = createLogger({ service: "experiments" }).child({
   module: "EvaluationJobManager",
@@ -430,12 +432,34 @@ export class EvaluationJobManager {
       const exampleId = `q-${inputs.question?.substring(0, 20).replace(/\s+/g, "-")}-${Date.now()}`;
 
       // Expect the 'question' key directly from the input
-      const question = inputs.question;
+      let question = inputs.question;
       if (!question || typeof question !== "string") {
         throw new Error(
           `Input must contain a 'question' field with a string value. Available keys: ${Object.keys(inputs).join(", ")}`,
         );
       }
+
+      const templateContext: TemplateContext = {
+        currentDate: new Date(),
+      };
+
+      const templateResult = TemplateProcessor.process(
+        question,
+        templateContext,
+      );
+      question = templateResult.processed;
+
+      logger.info("Template processing in async evaluation", {
+        operation: "createTargetFunction.templateProcessing",
+        exampleId,
+        originalQuestion: inputs.question,
+        processedQuestion: question,
+        hasReplacements: templateResult?.replacements?.length > 0,
+        replacements: templateResult?.replacements?.map((r: any) => ({
+          expression: r.expression,
+          value: r.result.displayValue,
+        })),
+      });
 
       // Check if this specific example has a preferredLanguage override
       const examplePreferredLanguage = inputs.preferredLanguage;
@@ -574,6 +598,17 @@ export class EvaluationJobManager {
         answer,
         dataChangeProposals,
         threadTitle: threadItemsResult?.thread?.title || null,
+        processedInput:
+          templateResult?.replacements?.length > 0 ? question : undefined,
+        templateReplacements:
+          templateResult?.replacements?.length > 0
+            ? templateResult.replacements
+                .map(
+                  (r: any) =>
+                    `{{${r.expression}}} → "${r.result.displayValue}"`,
+                )
+                .join(", ")
+            : undefined,
       };
     };
   }
