@@ -18,7 +18,6 @@ export const router: Node = async (state) => {
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-router",
-    source: "langsmith",
   });
 
   const systemPrompt = await PromptTemplate.fromTemplate(

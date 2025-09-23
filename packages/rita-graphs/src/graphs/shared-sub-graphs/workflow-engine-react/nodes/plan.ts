@@ -107,7 +107,6 @@ export const plan: (
     // Fetch prompt from LangSmith
     const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
       promptName: "ritagraph-workflow-engine-plan",
-      source: "langsmith",
     });
     const systemPrompt = await PromptTemplate.fromTemplate(
       rawPrompt.template,

@@ -82,7 +82,6 @@ export const sanitizeQuoteForProposal = (
       // Fetch prompt from LangSmith
       const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-sanitize-quote-proposal",
-        source: "langsmith",
       });
       const prompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,

@@ -49,7 +49,6 @@ export const reflect: WorkflowEngineNode = async (state, config) => {
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-workflow-engine-reflect",
-    source: "langsmith",
   });
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,

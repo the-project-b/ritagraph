@@ -121,7 +121,6 @@ export const finalMessageForChanges: Node = async (
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-final-message-for-changes",
-    source: "langsmith",
   });
 
   const numberOfProposals = proposals.length;
