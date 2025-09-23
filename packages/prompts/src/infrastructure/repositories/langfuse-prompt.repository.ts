@@ -213,25 +213,42 @@ export class LangFusePromptRepository implements PromptRepository {
   /**
    * Finds a prompt by its name.
    * @param name - The prompt name to search for
+   * @param options - Optional fetch options (e.g., label for versioning)
    * @returns Promise<Result<Prompt, NotFoundError>>
    */
-  async findByName(name: string): Promise<Result<Prompt, NotFoundError>> {
-    const promptResult = await this.client.getPrompt(name);
+  async findByName(
+    name: string,
+    options?: { label?: string },
+  ): Promise<Result<Prompt, NotFoundError>> {
+    const promptResult = await this.client.getPrompt(
+      name,
+      undefined,
+      options?.label ? { label: options.label } : undefined,
+    );
 
     if (Result.isFailure(promptResult)) {
       this.logger?.error("Failed to fetch prompt from LangFuse", {
         name,
+        label: options?.label,
         error: Result.unwrapFailure(promptResult),
       });
       return Result.failure(new NotFoundError("Prompt", name));
     }
 
     const langfusePrompt = Result.unwrap(promptResult);
+
+    this.logger?.debug("Fetched prompt from LangFuse", {
+      name,
+      label: options?.label,
+      version: langfusePrompt.version,
+    });
+
     const domainPromptResult = this.convertToDomainPrompt(langfusePrompt);
 
     if (Result.isFailure(domainPromptResult)) {
       this.logger?.error("Failed to convert LangFuse prompt to domain", {
         name,
+        label: options?.label,
         error: Result.unwrapFailure(domainPromptResult),
       });
       return Result.failure(new NotFoundError("Prompt", name));

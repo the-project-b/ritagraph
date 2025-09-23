@@ -47,6 +47,7 @@ export interface FormatPromptParams {
   variables?: Record<string, unknown>;
   language?: string;
   maxLength?: number;
+  label?: string;
   correlationId?: string;
 }
 
@@ -131,6 +132,7 @@ export class PromptService {
     this.logger?.debug("Formatting prompt", {
       promptName: params.promptName,
       source: params.source || this.defaultSource,
+      label: params.label,
     });
 
     const repoResult = this.getRepository(params.source);
@@ -141,7 +143,10 @@ export class PromptService {
     const repository = Result.unwrap(repoResult);
 
     // Find the prompt by name
-    const promptResult = await repository.findByName(params.promptName);
+    const promptResult = await repository.findByName(
+      params.promptName,
+      params.label ? { label: params.label } : undefined,
+    );
     if (Result.isFailure(promptResult)) {
       return Result.failure(Result.unwrapFailure(promptResult));
     }
@@ -262,11 +267,13 @@ export class PromptService {
    * Gets a prompt by name from the specified source.
    * @param name - The prompt name
    * @param source - The source to query
+   * @param label - Optional label for versioning (e.g., "production", "latest")
    * @returns Promise<Result<Prompt, NotFoundError>>
    */
   async getPromptByName(
     name: string,
     source?: PromptSource,
+    label?: string,
   ): Promise<Result<Prompt, NotFoundError>> {
     const repoResult = this.getRepository(source);
     if (Result.isFailure(repoResult)) {
@@ -274,7 +281,7 @@ export class PromptService {
     }
 
     const repository = Result.unwrap(repoResult);
-    return repository.findByName(name);
+    return repository.findByName(name, label ? { label } : undefined);
   }
 
   /**
@@ -402,7 +409,10 @@ export class PromptService {
 
     const repository = Result.unwrap(repoResult);
 
-    const promptResult = await repository.findByName(params.promptName);
+    const promptResult = await repository.findByName(
+      params.promptName,
+      params.label ? { label: params.label } : undefined,
+    );
     if (Result.isFailure(promptResult)) {
       return Result.failure(Result.unwrapFailure(promptResult));
     }
@@ -451,6 +461,7 @@ export class PromptService {
       promptName: params.promptName,
       source: params.source || this.defaultSource,
       version: response.metadata.version,
+      label: params.label,
     });
 
     return Result.success(response);

@@ -70,6 +70,12 @@ export interface GetRawPromptParams {
   source?: string;
 
   /**
+   * Optional label to fetch a specific version (e.g., "production", "latest", "andries").
+   * Only applicable for sources that support labels (e.g., LangFuse).
+   */
+  label?: string;
+
+  /**
    * Optional correlation ID for tracking.
    */
   correlationId?: string;
