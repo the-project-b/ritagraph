@@ -16,6 +16,10 @@ import {
 import { Result } from "../../../../../utils/types/result";
 import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
+import {
+  AgentActionType,
+  AgentLogEventTag,
+} from "../../../../../utils/agent-action-logger/AgentActionLogger";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -39,7 +43,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         effectiveDate,
         quote,
       } = params;
-      const { selectedCompanyId } = ctx;
+      const { selectedCompanyId, agentActionLogger } = ctx;
       const { thread_id, run_id } = config.configurable;
 
       logger.info("[TOOL > change_payment_details]", {
@@ -49,6 +53,15 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         paymentId,
         contractId,
         companyId: selectedCompanyId,
+      });
+
+      agentActionLogger.appendLog({
+        description: `Proposing payment change for employeeId: ${employeeId}. Based on the user quote: ${quote}`,
+        actionName: "change_payment_details",
+        actionType: AgentActionType.TOOL_CALL_ENTER,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
       });
 
       const client = createGraphQLClient(ctx);
@@ -101,6 +114,14 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
       }
 
       if (!payment) {
+        agentActionLogger.appendLog({
+          description: `But payment does not exist. Action was not possible. Maybe wrong id was picked. Agent will likely retry this already with different ids. No action from user needed.`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
         return {
           error: `This payment does not exist. Those are the existing paymentIds payments: ${JSON.stringify(
             payments.payments,
@@ -145,6 +166,15 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           newValue: newAmount.toFixed(2).toString(),
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       if (
@@ -182,6 +212,15 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           newValue: newMonthlyHours.toString(),
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       if (newFrequency && newFrequency !== payment.frequency) {
@@ -195,6 +234,15 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         };
 
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       const redundantChanges = determineAndExplainRedundantChanges(
@@ -210,6 +258,14 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
         });
 
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
         return {
           error: "Failed to create thread items - tool call unavailable.",
         };
@@ -241,12 +297,30 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           },
         );
 
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "change_payment_details",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
+
         return {
           error: "Failed to create thread items for the data change proposals.",
         };
       }
 
       prefixedLog("dataChangeProposals", newProposals);
+
+      agentActionLogger.appendLog({
+        description: `Payment change proposals created.`,
+        actionName: "change_payment_details",
+        actionType: AgentActionType.TOOL_CALL_RESPONSE,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+      });
 
       return {
         instructions: `

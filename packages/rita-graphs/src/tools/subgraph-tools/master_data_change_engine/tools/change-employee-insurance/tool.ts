@@ -10,6 +10,11 @@ import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/app
 import { getEmployee, updateEmployee } from "../../queries-defintions";
 import { GetDetailedEmployeeInfoByEmployeeIdQuery } from "../../../../../generated/graphql";
 import healthInsurancesData from "../../healthInsurancesData";
+import {
+  AgentActionType,
+  AgentLogEventTag,
+} from "../../../../../utils/agent-action-logger/AgentActionLogger";
+import { parseEffectiveDate } from "../../../shared/payment-logic";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -23,9 +28,9 @@ function prefixedLog(message: string, data?: any) {
 export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
   tool(
     async (params, config) => {
-      const { employeeId, quote, insuranceDetails } = params;
+      const { employeeId, quote, insuranceDetails, effectiveDate } = params;
       const { insuranceCompanyCode } = insuranceDetails;
-      const { selectedCompanyId } = ctx;
+      const { selectedCompanyId, agentActionLogger } = ctx;
       const { thread_id, run_id } = config.configurable;
 
       logger.info("[TOOL > change_employee_insurance]", {
@@ -33,6 +38,22 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
         threadId: thread_id,
         employeeId,
         companyId: selectedCompanyId,
+      });
+
+      if (Number.isNaN(Number(insuranceCompanyCode))) {
+        return {
+          error:
+            "The insurance company code is not a valid number. Please provide a valid number. Use the find-insurance-company-code-by-name tool to get the code and try again. If you are misisng the insurance company name mabye you need to ask the user again.",
+        };
+      }
+
+      agentActionLogger.appendLog({
+        description: `Proposing insurance change for employeeId: ${employeeId}. Based on the user quote: ${quote}`,
+        actionName: "change_employee_insurance",
+        actionType: AgentActionType.TOOL_CALL_ENTER,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
       });
 
       const client = createGraphQLClient(ctx);
@@ -59,12 +80,11 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
       });
 
       const newProposals: Array<DataChangeProposal> = [];
+      const valueAlreadyDesiredValue =
+        insuranceCompanyCode ===
+        employee.employeePersonalData[0].resolvedHealthInsurance?.code;
 
-      if (
-        insuranceCompanyCode &&
-        insuranceCompanyCode !==
-          employee.employeePersonalData[0].resolvedHealthInsurance?.code
-      ) {
+      if (insuranceCompanyCode && !valueAlreadyDesiredValue) {
         const employeeChangeDescription = formatEmployeeChange(
           "healthInsurance",
           healthInsuranceByCode(
@@ -72,6 +92,17 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
           )?.label ?? "Not yet defined",
           healthInsuranceByCode(insuranceCompanyCode)?.label,
         );
+
+        const effectiveDateVariables = effectiveDate
+          ? {
+              effectiveFromFields: [
+                {
+                  date: parseEffectiveDate(effectiveDate).effectiveDate,
+                  fieldName: "healthInsurance",
+                },
+              ],
+            }
+          : {};
 
         const dataChangeProposal: DataChangeProposal = {
           ...buildBaseDataChangeProps(employeeChangeDescription),
@@ -83,7 +114,10 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
             {
               companyId: selectedCompanyId,
               userId: employee.id,
-              personalData: { healthInsurance: insuranceCompanyCode },
+              personalData: {
+                healthInsurance: insuranceCompanyCode,
+                ...effectiveDateVariables,
+              },
             },
             "employee.healthInsurance",
             {
@@ -94,8 +128,27 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
           newValue: insuranceCompanyCode,
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_employee_insurance",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
+      if (valueAlreadyDesiredValue) {
+        agentActionLogger.appendLog({
+          description: `Insurance change for ${employee.firstName} ${employee.lastName} already has the desired value. So no proposal will be created.`,
+          actionName: "change_employee_insurance",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
+      }
       const redundantChanges = determineAndExplainRedundantChanges(
         insuranceDetails,
         employee,
@@ -109,6 +162,14 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
         });
 
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "change_employee_insurance",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
         return {
           error: "Failed to create thread items - tool call unavailable.",
         };
@@ -168,8 +229,18 @@ ${redundantChanges}
             "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
           ),
         insuranceDetails: z.object({
-          insuranceCompanyCode: z.string(),
+          insuranceCompanyCode: z
+            .string()
+            .describe(
+              "The insurance company code. (NOT the name of the insurance company). Use find-insurance-company-code-by-name tool to get the code.",
+            ),
         }),
+        effectiveDate: z
+          .string()
+          .describe(
+            "The effective date of the change. YYYY-MM-DD format if left empty, it will be today's date.",
+          )
+          .optional(),
       }),
     },
   );

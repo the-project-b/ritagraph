@@ -12,7 +12,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { plan, planEdgeDecision } from "./nodes/plan.js";
 import { output } from "./nodes/output.js";
 import { emptyNode } from "../../../utility-nodes/empty-node.js";
-import { Node, ToolInterface } from "../../shared-types/node-types.js";
+import { NodeWithAuth, ToolInterface } from "../../shared-types/node-types.js";
 import {
   AnnotationWithDefault,
   BaseGraphAnnotation,
@@ -20,6 +20,8 @@ import {
 import { abortOutput } from "./nodes/abort-output.js";
 import { isAIMessage } from "@langchain/core/messages";
 import { createLogger } from "@the-project-b/logging";
+import AgentActionLogger from "../../../utils/agent-action-logger/AgentActionLogger.js";
+import { extractRequest } from "./nodes/extract-request.js";
 
 export const workflowEngineState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
@@ -28,20 +30,23 @@ export const workflowEngineState = Annotation.Root({
   reflectionStepCount: AnnotationWithDefault<number>(0),
   taskEngineLoopCounter: AnnotationWithDefault<number>(0),
   workflowEngineResponseDraft: Annotation<string | undefined>(),
+  sanitizedUserRequest: Annotation<string | undefined>(),
 });
 
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
 
-export type WorkflowEngineNode = Node<WorkflowEngineStateType, any>;
+export type WorkflowEngineNode = NodeWithAuth<WorkflowEngineStateType, any>;
 
 type BuildWorkflowEngineReActParams = {
   fetchTools: (
     companyId: string,
     config: AnnotationRoot<any>,
+    agentActionLogger: AgentActionLogger,
   ) => Promise<Array<ToolInterface>>;
   preWorkflowResponse?: WorkflowEngineNode;
   quickUpdateNode?: WorkflowEngineNode;
   configAnnotation: AnnotationRoot<any>;
+  getAuthUser: (config: any) => any;
 };
 
 export function buildWorkflowEngineReAct({
@@ -49,11 +54,18 @@ export function buildWorkflowEngineReAct({
   preWorkflowResponse,
   configAnnotation,
   quickUpdateNode,
+  getAuthUser,
 }: BuildWorkflowEngineReActParams) {
   const logger = createLogger({ service: "rita-graphs" }).child({
     module: "WorkflowEngine",
     component: "SubGraph",
   });
+
+  const wrapNodeWithAuth = (node: WorkflowEngineNode) => {
+    return async (state, config) => {
+      return node(state, config, getAuthUser);
+    };
+  };
 
   // Updated toolsNode to fetch authenticated tools at runtime
 
@@ -70,7 +82,12 @@ export function buildWorkflowEngineReAct({
         );
       }
 
-      const tools = await fetchTools(state.selectedCompanyId, config);
+      const tools = await fetchTools(
+        state.selectedCompanyId,
+        config,
+        state.agentActionLogger,
+      );
+
       const toolNode = new ToolNode(tools);
       const result = await toolNode.invoke({
         messages: state.taskEngineMessages,
@@ -138,14 +155,19 @@ export function buildWorkflowEngineReAct({
   const subGraph = new StateGraph(workflowEngineState, configAnnotation);
 
   subGraph
-    .addNode("preWorkflowResponse", preWorkflowResponse ?? emptyNode)
-    .addNode("plan", plan(fetchTools))
-    .addNode("output", output)
-    .addNode("abortOutput", abortOutput)
-    .addNode("tools", toolsNode)
-    .addNode("quickUpdate", quickUpdateNode ?? emptyNode)
+    .addNode(
+      "preWorkflowResponse",
+      wrapNodeWithAuth(preWorkflowResponse ?? emptyNode),
+    )
+    .addNode("extractRequest", wrapNodeWithAuth(extractRequest))
+    .addNode("plan", wrapNodeWithAuth(plan(fetchTools)))
+    .addNode("output", wrapNodeWithAuth(output))
+    .addNode("abortOutput", wrapNodeWithAuth(abortOutput))
+    .addNode("tools", wrapNodeWithAuth(toolsNode))
+    .addNode("quickUpdate", wrapNodeWithAuth(quickUpdateNode ?? emptyNode))
     .addEdge(START, "preWorkflowResponse")
-    .addEdge("preWorkflowResponse", "plan")
+    .addEdge("preWorkflowResponse", "extractRequest")
+    .addEdge("extractRequest", "plan")
     .addEdge("tools", "plan")
     .addEdge("plan", "quickUpdate")
     .addConditionalEdges("plan", planEdgeDecision, [

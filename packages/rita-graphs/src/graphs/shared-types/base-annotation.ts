@@ -1,6 +1,9 @@
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
 import { QueryDefinition } from "../../utils/types/query-defintion";
 import { DataRepresentationLayerEntity } from "../../utils/data-representation-layer";
+import AgentActionLogger, {
+  AgentLogEvent,
+} from "../../utils/agent-action-logger/AgentActionLogger";
 
 export function AnnotationWithDefault<T>(defaultValue: T) {
   return Annotation<T>({
@@ -71,6 +74,11 @@ export const BaseGraphAnnotation = Annotation.Root({
   routingDecision: Annotation<
     "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
   >(),
+  // When the run is finished we can store all the logs in agentActionEvents and a new run then initializes agentActionLogger with the events
+  agentActionLogger: AnnotationWithDefault<AgentActionLogger>(
+    AgentActionLogger.fromLogs([]),
+  ),
+  agentActionEvents: AnnotationWithDefault<Array<AgentLogEvent>>([]),
   dataRepresentationLayerStorage: AnnotationWithDefault<
     Record<string, DataRepresentationLayerEntity>
   >({}),

@@ -50,7 +50,12 @@ export type ExtendedToolContext = {
 export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
     async (
-      { usersChangeDescription, usersQuotedRequest, employeeName },
+      {
+        usersChangeDescription,
+        usersQuotedRequest,
+        employeeName,
+        effectiveDate,
+      },
       config,
     ) => {
       // Fetch prompt from LangSmith
@@ -127,6 +132,7 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
 Employee Name: {employeeName}
 Users request: {usersChangeDescription}
 Exact words: {usersQuotedRequest}
+{effectiveDate}
 
 Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
@@ -134,6 +140,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         employeeName,
         usersChangeDescription,
         usersQuotedRequest,
+        effectiveDate: `${effectiveDate ? `Effective date: ${effectiveDate}` : ""}`,
       });
 
       // We need to know the original message chain to get the well formatted quote
@@ -210,6 +217,12 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
           .describe(
             "What the user wants to change (including effective date if mentioned)",
           ),
+        effectiveDate: z
+          .string()
+          .describe(
+            "Text form (users words) of when the change should be effective. If not mentioned leave blank.",
+          )
+          .optional(),
         usersQuotedRequest: z
           .string()
           .describe(

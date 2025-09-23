@@ -11,7 +11,7 @@ import { ToolContext } from "../tools/tool-factory";
 type AppendDataChangeProposalsAsThreadItemsParams = {
   dataChangeProposals: Array<DataChangeProposal>;
   langgraphThreadId: string;
-  context: ToolContext;
+  context: Omit<ToolContext, "agentActionLogger">;
   orderOffset?: number;
 };
 
@@ -54,7 +54,7 @@ export async function appendDataChangeProposalsAsThreadItems({
 type AppendMessageAsThreadItemParams = {
   message: BaseMessage;
   langgraphThreadId: string;
-  context: ToolContext;
+  context: Omit<ToolContext, "agentActionLogger">;
   orderOffset?: number;
 };
 

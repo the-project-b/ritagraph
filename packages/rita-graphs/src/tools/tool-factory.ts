@@ -1,5 +1,6 @@
 import { ToolInterface } from "@langchain/core/tools";
 import { createLogger } from "@the-project-b/logging";
+import AgentActionLogger from "../utils/agent-action-logger/AgentActionLogger";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -9,6 +10,7 @@ const logger = createLogger({ service: "rita-graphs" }).child({
 export type ToolContext<T = undefined> = {
   accessToken: string;
   selectedCompanyId: string;
+  agentActionLogger: AgentActionLogger;
   appdataHeader?: string; // Optional appdata header for impersonation context
   extendedContext?: T;
 };

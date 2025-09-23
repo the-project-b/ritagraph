@@ -53,6 +53,7 @@ export const finalMessage: Node = async (
     preferredLanguage,
     messages,
     selectedCompanyId,
+    agentActionLogger,
   },
   config,
   getAuthUser,
@@ -152,5 +153,7 @@ export const finalMessage: Node = async (
 
   return {
     messages: [...messages, responseMessage],
+    // Storing the logs for the next run
+    agentActionEvents: agentActionLogger.getLogs(),
   };
 };

@@ -14,6 +14,7 @@ import { changeEmployeeBaseDetails } from "./tools/change-employee-base-details/
 import { changeEmployeeInsurance } from "./tools/change-employee-insurance/tool";
 import { findInsuranceCompanyCodeByName } from "./tools/find-insurance-company-code-by-name/tool";
 import { promptService } from "../../../services/prompts/prompt.service";
+import { AgentActionType } from "../../../utils/agent-action-logger/AgentActionLogger";
 
 export type ExtendedToolContext = {
   originalMessageChain: Array<BaseMessage>;
@@ -26,7 +27,20 @@ export type ExtendedToolContext = {
  */
 export const masterDataChangeEngine: ToolFactoryToolDefintion = (toolContext) =>
   tool(
-    async ({ usersChangeDescription, quote, employeeId }, config) => {
+    async (
+      { usersChangeDescription, quote, employeeId, effectiveDate },
+      config,
+    ) => {
+      const { agentActionLogger } = toolContext;
+
+      agentActionLogger.appendLog({
+        description: `Agent requested master data change proposal -> Started workflow. Description: ${usersChangeDescription}`,
+        actionName: "master_data_change_engine",
+        actionType: AgentActionType.TOOL_CALL_ENTER,
+        relationId: config.toolCall.id,
+        runId: config.configurable.run_id,
+      });
+
       // Fetch prompt from LangSmith
       const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-master-data-change-engine",
@@ -38,41 +52,17 @@ export const masterDataChangeEngine: ToolFactoryToolDefintion = (toolContext) =>
         today: new Date().toISOString().split("T")[0],
       });
 
-      // const systemPrompt = await PromptTemplate.fromTemplate(
-      //   `
-      // <instruction>
-      // You are part of a payroll assistant system.
-      // You job is it schedule data changes (mutations).
-      // You get a vague request from the user and you have to resolve it using your tools.
-      //
-      // 1) Make sure you understand which fields have been mentioned and which tools have to be called.
-      // 2) Schedule (propose) changes
-      //
-      // IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
-      // </instruction>
-      //
-      // <notes>
-      // IMPORTANT: Do not make the same change multiple times.
-      // Today is the {today}
-      // </notes>
-      //
-      // <examples>
-      // No examples yet.
-      // </examples>
-      // `,
-      // ).format({
-      //   today: new Date().toISOString().split("T")[0],
-      // });
-
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
 Users request: {usersChangeDescription}
 Quote: {quote}
 Employee ID: {employeeId}
+{effectiveDate}
 
 Remember to put those into the sanitize_quote_for_proposal tool to get a well formatted quote.
       `,
       ).format({
+        effectiveDate: `${effectiveDate ? `Effective date: ${effectiveDate}` : ""}`,
         usersChangeDescription,
         quote,
         employeeId,
@@ -128,7 +118,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
     {
       name: "master_data_change_engine",
       description:
-        "Takes a description of the data change and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes. If the job title was mentioned please include it.",
+        "Takes a description of the data changes (related to master data changes e.g. name, email, insurance) and resolves it into a list of data change proposals that can be approved by the user. It is better to call this tool mutliple times for each employee that has changes.",
       schema: z.object({
         usersChangeDescription: z
           .string()
@@ -138,6 +128,12 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
           .describe(
             "The id (e.g. uuid) of the employee you want to change. Keep in mind you can get that id by finding the employee by name first",
           ),
+        effectiveDate: z
+          .string()
+          .describe(
+            "Text form (users words) of when the change should be effective. If not mentioned leave blank.",
+          )
+          .optional(),
         quote: z
           .string()
           .describe(

@@ -9,6 +9,12 @@ export type Node<State, Config> = (
   config: Config,
 ) => Promise<NodeReturn<State>> | NodeReturn<State>;
 
+export type NodeWithAuth<State, Config> = (
+  state: State,
+  config: Config,
+  getAuthUser: (config: any) => any,
+) => Promise<NodeReturn<State>> | NodeReturn<State>;
+
 export type ToolInterface =
   | StructuredToolInterface
   | DynamicTool
