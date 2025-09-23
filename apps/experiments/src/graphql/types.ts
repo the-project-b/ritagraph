@@ -183,7 +183,7 @@ export interface Resolvers {
     getAllJobs: GetAllJobsResolver;
   };
   Mutation: {
-    runEvaluation: RunEvaluationResolver;
+    // runEvaluation: RunEvaluationResolver;
     runEvaluationAsync: RunEvaluationAsyncResolver;
     deleteExperimentRuns: DeleteExperimentRunsResolver;
   };
