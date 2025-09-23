@@ -21,6 +21,9 @@ primary_region = "fra"
   GRAPHQL_MCP_ENDPOINT = "https://project-b-rita-dev.fly.dev/sse"
   LOGGING_OUTPUT_FORMAT = "json"
   LOGGING_SINGLE_LINE = "true"
+  PROMPT_SOURCE = "langfuse"
+  LANGFUSE_TARGET_LABEL = "production"
+  LANGFUSE_BASE_URL = "https://cloud.langfuse.com"
 
 [[vm]]
   size = "shared-cpu-2x"
