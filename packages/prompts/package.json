@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@langchain/core": "0.3.72",
+    "@langfuse/client": "^4.2.0",
     "@the-project-b/logging": "*",
     "langchain": "^0.3.33",
     "langsmith": "^0.3.63"

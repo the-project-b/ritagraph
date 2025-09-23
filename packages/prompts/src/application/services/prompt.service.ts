@@ -438,9 +438,9 @@ export class PromptService {
       template: templateString,
       inputVariables: variables ? variables.getNames() : [],
       metadata: {
-        id: prompt.getName(), // For in-memory prompts, use name as ID
+        id: prompt.getName(),
         name: prompt.getName(),
-        version: "in-memory", // Fixed version for in-memory prompts
+        version: prompt.getMetadata().getVersion() || "1",
         source: params.source || this.defaultSource,
         correlationId: params.correlationId,
         retrievedAt: new Date().toISOString(),

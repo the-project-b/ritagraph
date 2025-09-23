@@ -122,12 +122,8 @@ export class LangFusePromptRepository implements PromptRepository {
         }
       }
 
-      const version = langfusePrompt.version
-        ? `v${langfusePrompt.version}`
-        : "latest";
-
       const createParams: CreatePromptParams = {
-        id: langfusePrompt.id,
+        id: langfusePrompt.name,
         name: langfusePrompt.name,
         category: PromptCategory.SYSTEM,
         templates: {
@@ -135,9 +131,9 @@ export class LangFusePromptRepository implements PromptRepository {
         },
         variables,
         metadata: {
-          version,
+          version: String(langfusePrompt.version),
           tags: langfusePrompt.tags || langfusePrompt.labels || [],
-          description: `Prompt pulled from LangFuse: ${langfusePrompt.name}`,
+          description: "LangFuse prompt",
         },
       };
 
