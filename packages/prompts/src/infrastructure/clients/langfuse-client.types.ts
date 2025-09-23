@@ -84,48 +84,17 @@ export function isChatPrompt(
 }
 
 /**
- * Base options for fetching prompts.
+ * Options for fetching prompts from LangFuse.
  */
-interface BaseLangFusePullOptions {
+export interface LangFusePullOptions {
+  type?: "text" | "chat";
   version?: number;
   label?: string;
   cacheTtlSeconds?: number;
   maxRetries?: number;
   fetchTimeoutMs?: number;
-}
-
-/**
- * Options for fetching text prompts.
- */
-export interface TextLangFusePullOptions extends BaseLangFusePullOptions {
-  type: "text";
-  fallback?: string;
-}
-
-/**
- * Options for fetching chat prompts.
- */
-export interface ChatLangFusePullOptions extends BaseLangFusePullOptions {
-  type: "chat";
-  fallback?: LangFuseMessage[];
-}
-
-/**
- * Options without explicit type (will be inferred from usage).
- */
-export interface UnspecifiedLangFusePullOptions
-  extends BaseLangFusePullOptions {
-  type?: never;
   fallback?: string | LangFuseMessage[];
 }
-
-/**
- * Discriminated union for pull options.
- */
-export type LangFusePullOptions =
-  | TextLangFusePullOptions
-  | ChatLangFusePullOptions
-  | UnspecifiedLangFusePullOptions;
 
 /**
  * Compiled prompt from LangFuse after variable substitution.

@@ -8,7 +8,6 @@ import { PersistenceError } from "../../shared/errors/domain.errors.js";
 import { Result } from "../../shared/types/result.js";
 import type {
   ChatLangFusePrompt,
-  ChatLangFusePullOptions,
   CreateChatPromptParams,
   CreateTextPromptParams,
   LangFuseClient,
@@ -18,8 +17,6 @@ import type {
   LangFusePrompt,
   LangFusePullOptions,
   TextLangFusePrompt,
-  TextLangFusePullOptions,
-  UnspecifiedLangFusePullOptions,
 } from "./langfuse-client.types.js";
 import { isTextPromptClient } from "./langfuse-client.types.js";
 
@@ -88,7 +85,7 @@ export class LangFuseClientAdapter implements LangFuseClient {
    * Gets a prompt from LangFuse by name.
    * @param promptName - The name of the prompt
    * @param version - Optional version number
-   * @param options - Additional options for fetching
+   * @param options - Optional options for fetching
    * @returns Promise<Result<LangFusePrompt, PersistenceError>>
    */
   async getPrompt(
@@ -97,7 +94,6 @@ export class LangFuseClientAdapter implements LangFuseClient {
     options?: LangFusePullOptions,
   ): Promise<Result<LangFusePrompt, PersistenceError>> {
     try {
-      // Use provided label or fall back to environment-based default
       const effectiveLabel =
         options?.label || (version ? undefined : this.defaultLabel);
 
@@ -105,60 +101,44 @@ export class LangFuseClientAdapter implements LangFuseClient {
         promptName,
         version,
         label: effectiveLabel,
-        options,
       });
 
-      // Determine prompt type and fetch accordingly
-      if (options?.type === "chat") {
-        const chatOptions: ChatLangFusePullOptions = {
-          ...options,
-          type: "chat",
-          label: effectiveLabel,
-        };
-        const promptClient = await this.fetchChatPrompt(
-          promptName,
-          version,
-          chatOptions,
-        );
-        return Result.success(
-          this.transformChatPromptClient(promptClient, promptName),
-        );
-      } else if (options?.type === "text") {
-        const textOptions: TextLangFusePullOptions = {
-          ...options,
-          type: "text",
-          label: effectiveLabel,
-        };
-        const promptClient = await this.fetchTextPrompt(
-          promptName,
-          version,
-          textOptions,
-        );
-        return Result.success(
-          this.transformTextPromptClient(promptClient, promptName),
-        );
-      } else {
-        const unspecifiedOptions = options as
-          | UnspecifiedLangFusePullOptions
-          | undefined;
-        const promptClient = await this.client.prompt.get(promptName, {
-          version,
-          label: effectiveLabel,
-          cacheTtlSeconds: unspecifiedOptions?.cacheTtlSeconds,
-          maxRetries: unspecifiedOptions?.maxRetries,
-          fetchTimeoutMs: unspecifiedOptions?.fetchTimeoutMs,
-        });
+      // SDK requires different overloads for text vs chat
+      const promptClient = await (options?.type === "chat"
+        ? this.client.prompt.get(promptName, {
+            version,
+            label: effectiveLabel,
+            type: "chat",
+            cacheTtlSeconds: options?.cacheTtlSeconds,
+            maxRetries: options?.maxRetries,
+            fetchTimeoutMs: options?.fetchTimeoutMs,
+            fallback: options?.fallback as LangFuseMessage[] | undefined,
+          })
+        : options?.type === "text"
+          ? this.client.prompt.get(promptName, {
+              version,
+              label: effectiveLabel,
+              type: "text",
+              cacheTtlSeconds: options?.cacheTtlSeconds,
+              maxRetries: options?.maxRetries,
+              fetchTimeoutMs: options?.fetchTimeoutMs,
+              fallback: options?.fallback as string | undefined,
+            })
+          : this.client.prompt.get(promptName, {
+              version,
+              label: effectiveLabel,
+              cacheTtlSeconds: options?.cacheTtlSeconds,
+              maxRetries: options?.maxRetries,
+              fetchTimeoutMs: options?.fetchTimeoutMs,
+            }));
 
-        if (isTextPromptClient(promptClient)) {
-          return Result.success(
+      return isTextPromptClient(promptClient)
+        ? Result.success(
             this.transformTextPromptClient(promptClient, promptName),
-          );
-        } else {
-          return Result.success(
+          )
+        : Result.success(
             this.transformChatPromptClient(promptClient, promptName),
           );
-        }
-      }
     } catch (error) {
       this.logger?.error("Failed to fetch prompt from LangFuse", {
         promptName,
@@ -179,44 +159,6 @@ export class LangFuseClientAdapter implements LangFuseClient {
   }
 
   /**
-   * Fetches a text prompt from LangFuse.
-   */
-  private async fetchTextPrompt(
-    promptName: string,
-    version?: number,
-    options?: TextLangFusePullOptions,
-  ): Promise<TextPromptClient> {
-    return this.client.prompt.get(promptName, {
-      version,
-      label: options?.label,
-      cacheTtlSeconds: options?.cacheTtlSeconds,
-      fallback: options?.fallback,
-      maxRetries: options?.maxRetries,
-      fetchTimeoutMs: options?.fetchTimeoutMs,
-      type: "text",
-    });
-  }
-
-  /**
-   * Fetches a chat prompt from LangFuse.
-   */
-  private async fetchChatPrompt(
-    promptName: string,
-    version?: number,
-    options?: ChatLangFusePullOptions,
-  ): Promise<ChatPromptClient> {
-    return this.client.prompt.get(promptName, {
-      version,
-      label: options?.label,
-      cacheTtlSeconds: options?.cacheTtlSeconds,
-      fallback: options?.fallback,
-      maxRetries: options?.maxRetries,
-      fetchTimeoutMs: options?.fetchTimeoutMs,
-      type: "chat",
-    });
-  }
-
-  /**
    * Transforms a TextPromptClient to our internal format.
    */
   private transformTextPromptClient(
@@ -225,7 +167,7 @@ export class LangFuseClientAdapter implements LangFuseClient {
   ): TextLangFusePrompt {
     return {
       type: "text",
-      id: `langfuse-${promptName}-v${promptClient.version}`,
+      id: promptName,
       name: promptName,
       prompt: promptClient.prompt,
       version: promptClient.version,
@@ -271,7 +213,7 @@ export class LangFuseClientAdapter implements LangFuseClient {
 
     return {
       type: "chat",
-      id: `langfuse-${promptName}-v${promptClient.version}`,
+      id: promptName,
       name: promptName,
       prompt: messages,
       version: promptClient.version,
