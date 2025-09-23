@@ -40,7 +40,6 @@ export const abortOutput: WorkflowEngineNode = async (
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-workflow-engine-abort-output",
-    source: "langsmith",
   });
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
