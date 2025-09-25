@@ -1,19 +1,18 @@
 // GraphQL resolver types for better type safety
 
-import type {
-  Run,
-  DatasetExperiment,
-  GetDatasetExperimentsInput,
-  GetExperimentDetailsInput,
-  RunEvaluationInput,
-  DeleteExperimentRunsInput,
-  CompanyInfo,
-  AsyncEvaluationResult,
-  GetEvaluationJobStatusInput,
-  EvaluationJobDetails,
-  EvaluationResult,
-} from "../types/index";
 import type { GraphQLContext } from "../types/context";
+import type {
+  AsyncEvaluationResult,
+  CompanyInfo,
+  DatasetExperiment,
+  DeleteExperimentRunsInput,
+  EvaluationJobDetails,
+  GetDatasetExperimentsInput,
+  GetEvaluationJobStatusInput,
+  GetExperimentDetailsInput,
+  Run,
+  RunEvaluationInput,
+} from "../types/index";
 
 // Parent types for GraphQL resolvers
 export interface RunParent {
@@ -108,10 +107,10 @@ export type GetAvailableCompaniesResolver = QueryResolver<
   { companies: CompanyInfo[] }
 >;
 
-export type RunEvaluationResolver = MutationResolver<
-  { input: RunEvaluationInput },
-  EvaluationResult
->;
+// export type RunEvaluationResolver = MutationResolver<
+//   { input: RunEvaluationInput },
+//   EvaluationResult
+// >;
 
 export type RunEvaluationAsyncResolver = MutationResolver<
   { input: RunEvaluationInput },
@@ -183,7 +182,7 @@ export interface Resolvers {
     getAllJobs: GetAllJobsResolver;
   };
   Mutation: {
-    runEvaluation: RunEvaluationResolver;
+    // runEvaluation: RunEvaluationResolver;
     runEvaluationAsync: RunEvaluationAsyncResolver;
     deleteExperimentRuns: DeleteExperimentRunsResolver;
   };

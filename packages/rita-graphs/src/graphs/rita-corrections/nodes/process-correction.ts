@@ -31,6 +31,7 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
     originalProposalId,
     correctionRequest,
     selectedCompanyId,
+    agentActionLogger,
   } = state;
   const { run_id, thread_id } =
     config.configurable as unknown as AssumedConfigType;
@@ -64,6 +65,7 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
       ctx: {
         accessToken,
         appdataHeader,
+        agentActionLogger,
         selectedCompanyId,
       },
     });

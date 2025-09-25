@@ -195,9 +195,13 @@ export class LangSmithPromptRepository implements PromptRepository {
   /**
    * Finds a prompt by its name.
    * @param name - The prompt name to search for
+   * @param options - Optional fetch options (ignored for LangSmith)
    * @returns Promise<Result<Prompt, NotFoundError>>
    */
-  async findByName(name: string): Promise<Result<Prompt, NotFoundError>> {
+  async findByName(
+    name: string,
+    _options?: { label?: string },
+  ): Promise<Result<Prompt, NotFoundError>> {
     const promptResult = await this.client.pullPrompt(name);
 
     if (Result.isFailure(promptResult)) {

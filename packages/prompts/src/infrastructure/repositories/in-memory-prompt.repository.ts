@@ -50,9 +50,13 @@ export class InMemoryPromptRepository implements PromptRepository {
   /**
    * Finds a prompt by its name.
    * @param name - The prompt name to search for
+   * @param options - Optional fetch options (ignored for in-memory)
    * @returns Promise<Result<Prompt, NotFoundError>> - Prompt or not found error
    */
-  async findByName(name: string): Promise<Result<Prompt, NotFoundError>> {
+  async findByName(
+    name: string,
+    _options?: { label?: string },
+  ): Promise<Result<Prompt, NotFoundError>> {
     const prompt = this.promptsByName.get(name);
 
     if (!prompt) {

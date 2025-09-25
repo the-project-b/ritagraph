@@ -9,6 +9,10 @@ import { createLogger } from "@the-project-b/logging";
 import { appendDataChangeProposalsAsThreadItems } from "../../../../../utils/append-message-as-thread-item";
 import { getEmployee, updateEmployee } from "../../queries-defintions";
 import { GetDetailedEmployeeInfoByEmployeeIdQuery } from "../../../../../generated/graphql";
+import {
+  AgentActionType,
+  AgentLogEventTag,
+} from "../../../../../utils/agent-action-logger/AgentActionLogger";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -24,7 +28,7 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
     async (params, config) => {
       const { employeeId, quote, employeeDetails } = params;
       const { firstName, lastName, birthName } = employeeDetails;
-      const { selectedCompanyId } = ctx;
+      const { selectedCompanyId, agentActionLogger } = ctx;
       const { thread_id, run_id } = config.configurable;
 
       logger.info("[TOOL > change_employee_base_details]", {
@@ -32,6 +36,15 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
         threadId: thread_id,
         employeeId,
         companyId: selectedCompanyId,
+      });
+
+      agentActionLogger.appendLog({
+        description: `Proposing base details change for employeeId: ${employeeId}. Based on the user quote: ${quote}`,
+        actionName: "change_employee_base_details",
+        actionType: AgentActionType.TOOL_CALL_ENTER,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
       });
 
       const client = createGraphQLClient(ctx);
@@ -86,6 +99,15 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
           newValue: firstName,
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_employee_base_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       if (lastName && lastName !== employee.lastName) {
@@ -114,6 +136,15 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
           newValue: lastName,
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_employee_base_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       if (
@@ -147,6 +178,15 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
           newValue: birthName,
         };
         newProposals.push(dataChangeProposal);
+
+        agentActionLogger.appendLog({
+          description: `Created proposal for: ${dataChangeProposal.description}`,
+          actionName: "change_employee_base_details",
+          actionType: AgentActionType.TOOL_CALL_LOG,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
       }
 
       const redundantChanges = determineAndExplainRedundantChanges(
@@ -162,6 +202,14 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
         });
 
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "change_employee_base_details",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
         return {
           error: "Failed to create thread items - tool call unavailable.",
         };
@@ -191,12 +239,30 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
           },
         );
 
+        agentActionLogger.appendLog({
+          description: `But failed to persist the change proposals. User might need to retry the same request.`,
+          actionName: "change_employee_base_details",
+          actionType: AgentActionType.TOOL_CALL_RESPONSE,
+          relationId: config.toolCall.id,
+          runId: run_id,
+          tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+        });
+
         return {
           error: "Failed to create thread items for the data change proposals.",
         };
       }
 
       prefixedLog("dataChangeProposals", newProposals);
+
+      agentActionLogger.appendLog({
+        description: `Base details change proposals created.`,
+        actionName: "change_employee_base_details",
+        actionType: AgentActionType.TOOL_CALL_RESPONSE,
+        relationId: config.toolCall.id,
+        runId: run_id,
+        tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+      });
 
       return {
         instructions: `

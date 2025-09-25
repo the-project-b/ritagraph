@@ -13,48 +13,54 @@ import { createGraphQLClient } from "../../../../utils/graphql/client.js";
 import { DataChangeProposal } from "../../../shared-types/base-annotation.js";
 import { getProposalsOfThatRun } from "./final-message-edge-decision.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
+import {
+  getRunIdFromConfig,
+  getThreadIdFromConfig,
+} from "../../../../utils/config-helper.js";
+import AgentActionLogger, {
+  AgentActionType,
+  AgentLogEventTag,
+} from "../../../../utils/agent-action-logger/AgentActionLogger.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
   node: "finalMessage",
 });
 
-type AssumedConfigType = {
-  thread_id: string;
-  run_id: string;
-};
-
-const examples: Record<"EN" | "DE", string> = {
-  EN: `
+const examples: Record<"EN" | "DE", (numberOfChanges: number) => string> = {
+  EN: (numberOfChanges) => `
 I have read your request and proposed **one data change**.
 Please review them and approve or reject them.
 Let me know if you need anything else.
 --------
-I have read your request and proposed **{{number of changes}} data changes**.
+I have read your request and proposed **${numberOfChanges} data changes**.
 Please review them and approve or reject them.
 Let me know if you need anything else.
 
   `,
-  DE: `
+  DE: (numberOfChanges) => `
 Ich habe aus deiner Nachricht diesen **einen Änderungsvorschläg** ausgelesen.
 Bitte überprüfe diese und nehme sie gegebenfalls an.
 Lass mich wissen ob ich dir noch helfen kann.
 --------
-Ich habe aus deiner Nachricht diese **{{numberOfChanges}} Änderungsvorschläge** ausgelesen.
+Ich habe aus deiner Nachricht diese **${numberOfChanges} Änderungsvorschläge** ausgelesen.
 Bitte überprüfe diese und nehme sie gegebenfalls an.
 Lass mich wissen ob ich dir noch helfen kann.
   `,
 };
 
-const examplesForMissingInformation: Record<"EN" | "DE", string> = {
-  EN: `
-I have read your request and proposed **{{numberOfChanges}} data changes**.
+const examplesForMissingInformation: Record<
+  "EN" | "DE",
+  (numberOfChanges: number) => string
+> = {
+  EN: (numberOfChanges) => `
+I have read your request and proposed **${numberOfChanges} data changes**.
 However I had problem with [change description], can you try that again?
 Please review the rest of the changes and approve or reject them.
 Let me know if you need anything else.
   `,
-  DE: `
-Ich habe deine Anfrage gelesen und habe **{{numberOfChanges}} Änderungsvorschläge** vorgeschlagen.
+  DE: (numberOfChanges) => `
+Ich habe deine Anfrage gelesen und habe **${numberOfChanges} Änderungsvorschläge** vorgeschlagen.
 Allerdings hatte ich Probleme mit [change description], kannst du das nochmal versuchen, anders formulieren?
 Bitte überprüfe die restlichen Änderungen und nehme sie gegebenfalls an.
 Lass mich wissen, ob ich dir noch weiterhelfen kann.
@@ -70,6 +76,7 @@ export const finalMessageForChanges: Node = async (
     preferredLanguage,
     messages,
     selectedCompanyId,
+    agentActionLogger,
   },
   config,
   getAuthUser,
@@ -87,8 +94,8 @@ export const finalMessageForChanges: Node = async (
     appdataHeader,
   });
 
-  const { thread_id: langgraphThreadId, run_id } =
-    config.configurable as unknown as AssumedConfigType;
+  const run_id = getRunIdFromConfig(config);
+  const langgraphThreadId = getThreadIdFromConfig(config);
 
   const llm = new ChatOpenAI({
     ...BASE_MODEL_CONFIG,
@@ -114,59 +121,22 @@ export const finalMessageForChanges: Node = async (
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-final-message-for-changes",
-    source: "langsmith",
   });
+
+  const numberOfProposals = proposals.length;
+
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({
-    examples: examples[preferredLanguage],
+    examples: examples[preferredLanguage](numberOfProposals),
     examplesForMissingInformation:
-      examplesForMissingInformation[preferredLanguage],
+      examplesForMissingInformation[preferredLanguage](numberOfProposals),
+    agentLogs: formatProposalRelatedLogs(agentActionLogger, run_id),
     listOfChanges: proposals.map((i) => i.description).join("\n"),
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
-    agentLogs: "", // TODO: Remove after implementation of the side of Pascal
-    amountOfChangeProposals: proposals.length, // TODO: Remove after implementation of the side of Pascal
+    amountOfChangeProposals: numberOfProposals,
   });
-
-  // const systemPrompt = await PromptTemplate.fromTemplate(
-  //   `Respond to the users request.
-  //
-  // Guidelines:
-  //  - Be concise but friendly.
-  //  - Do not say "I will get back to you" or "I will send you an email" or anything like that.
-  //  - If you could not find information say so
-  //  - There will never be "pending" operations only thigns to be approved or rejected by the user.
-  //  - Do not claim or say that there is an operation pending.
-  //  - NEVER include ids like UUIDs in the response.
-  //  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
-  //  - For data changes: Always prefer to answer in brief sentence. DO NOT enumerate the changes, that will be done by something else.
-  //  - FOR DATA CHANGES FOLLOW THE EXAMPLE BELOW.
-  //
-  // #examples - when all changes that the user mentioned are listed
-  // {examples}
-  // #/examples
-  //
-  // #examples - when some changes are missing
-  // {examplesForMissingInformation}
-  // #/examples
-  //
-  // # List of changes (only for you to cross check if the user mentioned the same changes)
-  // {listOfChanges}
-  //
-  //
-  // Speak in {language}.
-  //
-  // Drafted Response: {draftedResponse}
-  //   `,
-  // ).format({
-  //   examples: examples[preferredLanguage],
-  //   examplesForMissingInformation:
-  //     examplesForMissingInformation[preferredLanguage],
-  //   listOfChanges: proposals.map((i) => i.description).join("\n"),
-  //   language: localeToLanguage(preferredLanguage),
-  //   draftedResponse: workflowEngineResponseDraft,
-  // });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
@@ -202,5 +172,30 @@ export const finalMessageForChanges: Node = async (
 
   return {
     messages: [...messages, responseMessage],
+    // Storing the logs for the next run
+    agentActionEvents: agentActionLogger.getLogs(),
   };
 };
+
+function formatProposalRelatedLogs(
+  logger: AgentActionLogger,
+  runId: string,
+): string {
+  const logs = logger.getLogsOfRun(runId);
+  const proposalRelatedLogs = logs.filter(
+    (log) =>
+      log.actionType === AgentActionType.TOOL_CALL_ENTER &&
+      log.tags?.includes(AgentLogEventTag.DATA_CHANGE_PROPOSAL),
+  );
+
+  const groupedLogs = proposalRelatedLogs
+    .map((log) =>
+      logger
+        .getRelatedLogs(log.relationId)
+        .map((log) => log.description)
+        .join("\n"),
+    )
+    .join("\n\n");
+
+  return groupedLogs;
+}

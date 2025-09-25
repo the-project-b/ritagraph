@@ -47,7 +47,6 @@ export const quickResponse: Node = async (
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-quick-response",
-    source: "langsmith",
   });
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,

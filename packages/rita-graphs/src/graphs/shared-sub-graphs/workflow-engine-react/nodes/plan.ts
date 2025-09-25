@@ -11,7 +11,16 @@ import { ToolInterface } from "../../../shared-types/node-types.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
+import {
+  onHumanAndAiMessage,
+  onNoThoughtMessages,
+} from "../../../../utils/message-filter.js";
+import { getCurrentDataChangeProposals } from "../../../../utils/fetch-helper/get-current-data-change-proposals.js";
+import { createGraphQLClient } from "../../../../utils/graphql/client.js";
+import { AssumedConfigType } from "../../../rita/graph-state.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
+import AgentActionLogger from "../../../../utils/agent-action-logger/AgentActionLogger.js";
+import { getLiveViewOfProposedChanges } from "../utils/proposal-format-helper.js";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
 
@@ -35,6 +44,7 @@ export const plan: (
   fetchTools: (
     companyId: string,
     config: AnnotationRoot<any>,
+    agentActionLogger: AgentActionLogger,
   ) => Promise<Array<ToolInterface>>,
 ) => WorkflowEngineNode =
   (fetchTools) =>
@@ -45,8 +55,11 @@ export const plan: (
       taskEngineLoopCounter,
       selectedCompanyId,
       preferredLanguage,
+      agentActionLogger,
+      sanitizedUserRequest,
     },
     config,
+    getAuthUser,
   ) => {
     logger.info(
       `🚀 Plan - Chain of thought length [${taskEngineMessages.length}]`,
@@ -64,20 +77,38 @@ export const plan: (
       return {};
     }
 
-    const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.3 });
+    const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.2 });
 
-    const tools = await fetchTools(selectedCompanyId, config);
+    const tools = await fetchTools(
+      selectedCompanyId,
+      config,
+      agentActionLogger,
+    );
 
-    const lastUserMessage = messages
-      .filter((i) => i.getType() === "human")
-      .slice(-2);
+    const lastUserMessages = messages
+      .filter(onNoThoughtMessages)
+      .filter(onHumanAndAiMessage)
+      .slice(-1);
+
+    const { thread_id: langgraphThreadId } =
+      config.configurable as unknown as AssumedConfigType;
+    const { token: accessToken, appdataHeader } = getAuthUser(config);
+
+    const client = createGraphQLClient({
+      accessToken,
+      appdataHeader,
+    });
+
+    const dataChangeProposals = await getCurrentDataChangeProposals(
+      langgraphThreadId,
+      client,
+    );
 
     // Fetch prompt from LangSmith
     const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
       promptName: "ritagraph-workflow-engine-plan",
-      source: "langsmith",
     });
-    const systemPropmt = await PromptTemplate.fromTemplate(
+    const systemPrompt = await PromptTemplate.fromTemplate(
       rawPrompt.template,
     ).format({
       examplesForMeaningsOfRequests:
@@ -133,9 +164,13 @@ export const plan: (
     // });
 
     const chatPrompt = await ChatPromptTemplate.fromMessages([
-      new SystemMessage(systemPropmt),
-      ...lastUserMessage,
+      new SystemMessage(systemPrompt),
+      ...lastUserMessages,
+      new AIMessage(`
+Sanitized version of the user request: \n ${sanitizedUserRequest}
+        `),
       ...taskEngineMessages, //todo safely slice last 7 messages
+      new AIMessage(getLiveViewOfProposedChanges(dataChangeProposals)),
     ]).invoke({});
 
     const response = await llm.bindTools(tools).invoke(chatPrompt);

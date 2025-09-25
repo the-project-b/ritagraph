@@ -1,6 +1,7 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
 import { getContextFromConfig, GraphStateType, Node } from "../graph-state";
+import AgentActionLogger from "../../../utils/agent-action-logger/AgentActionLogger";
 
 type AssumedConfigurableType = {
   thread_id: string;
@@ -37,6 +38,9 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     // Just for development we are using a backup company id based on the config
     selectedCompanyId:
       state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
+
+    // initializing the agent action logger with the events from the previous run
+    agentActionLogger: AgentActionLogger.fromLogs(state.agentActionEvents),
   };
 };
 

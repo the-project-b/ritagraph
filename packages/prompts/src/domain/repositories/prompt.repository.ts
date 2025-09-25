@@ -35,9 +35,13 @@ export interface PromptRepository {
   /**
    * Finds a prompt by its name.
    * @param name - The prompt name to search for
+   * @param options - Optional fetch options (e.g., label for versioning)
    * @returns Promise<Result<Prompt, NotFoundError>> - Prompt or not found error
    */
-  findByName(name: string): Promise<Result<Prompt, NotFoundError>>;
+  findByName(
+    name: string,
+    options?: { label?: string },
+  ): Promise<Result<Prompt, NotFoundError>>;
 
   /**
    * Saves a prompt to the repository.

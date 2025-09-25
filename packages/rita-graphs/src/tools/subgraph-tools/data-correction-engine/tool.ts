@@ -74,7 +74,6 @@ export const correctionEngine: ToolFactoryToolDefintion = (toolContext) =>
       // Fetch prompt from LangSmith
       const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-data-correction-engine",
-        source: "langsmith",
       });
       const systemPrompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,

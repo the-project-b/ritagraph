@@ -21,8 +21,8 @@ const translatedExamples = {
 Starting september: Robby 20 hours (Software Architect contract), Stefan 20 hours, Indigo 40 hours
 #Valid Quotes:
 Starting september: Robby works 20 hours (Software Architect contract)
-Starting september: [...] Stefan 20 hours
-Starting september: [...] Indigo 40 hours
+Starting september: Stefan 20 hours
+Starting september: Indigo 40 hours
 </example>
 
 <example>
@@ -30,8 +30,8 @@ Starting september: [...] Indigo 40 hours
 Starting september: Robby 20 hours (Software Architect contract), Stefan 50 hours, Indigo 40 hours
 #Valid Quotes:
 Starting september: Robby works 20 hours (Software Architect contract)
-Starting september: [...] Stefan 50 hours
-Starting september: [...] Indigo 40 hours
+Starting september: Stefan 50 hours
+Starting september: Indigo 40 hours
 </example>
 `,
   DE: `
@@ -40,8 +40,8 @@ Unchanged user message:
 Ab September: Robby 20 Stunden (Software Architekt Vertrag), Stefan 20 Stunden, Indigo 40 Stunden
 Valid Quotes:
 Ab September: Robby 20 Stunden (Software Architekt Vertrag)
-Ab September: [...] Stefan 20 Stunden
-Ab September: [...] Indigo 40 Stunden
+Ab September: Stefan 20 Stunden
+Ab September: Indigo 40 Stunden
 </example>
 
 <example>
@@ -49,8 +49,8 @@ Ab September: [...] Indigo 40 Stunden
 Im September: Robby 20 Stunden (Software Architekt Vertrag), Stefan 50 Stunden, Indigo 40 Stunden
 #Valid Quotes:
 Im September: Robby 20 Stunden (Software Architekt Vertrag)
-Im September: [...] Stefan 50 Stunden
-Im September: [...] Indigo 40 Stunden
+Im September: Stefan 50 Stunden
+Im September: Indigo 40 Stunden
 </example>
   `,
 };
@@ -58,9 +58,8 @@ Im September: [...] Indigo 40 Stunden
 const structuredOutput = z.object({
   reasoning: z.string().describe(
     `FOLLOW THIS REASONING PATTERN:
-I considered using [...] tags in my response.
-Since the orignal message was: [put the orignal message here] I chose...
-To omit [omitted text written here] because... and i hereby promise to have used [...] tags in my response (incase something was omitted)
+I have to follow the rules and examples and hence I have to omit irrelevant parts of the text.
+In order to quote the users request.
 `,
   ),
   sanitizedQuote: z.string(),
@@ -83,7 +82,6 @@ export const sanitizeQuoteForProposal = (
       // Fetch prompt from LangSmith
       const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-sanitize-quote-proposal",
-        source: "langsmith",
       });
       const prompt = await PromptTemplate.fromTemplate(
         rawPrompt.template,

@@ -510,8 +510,6 @@ export const typeDefs = gql`
   }
 
   type Mutation {
-    "Runs an evaluation on a specified graph against a dataset (synchronous)"
-    runEvaluation(input: RunEvaluationInput!): EvaluationResult!
     "Starts an asynchronous evaluation job and returns immediately with job details"
     runEvaluationAsync(input: RunEvaluationInput!): AsyncEvaluationResult!
     "Deletes all runs associated with a specific experiment/session"

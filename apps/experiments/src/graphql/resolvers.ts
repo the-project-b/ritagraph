@@ -126,12 +126,12 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
     },
   },
   Mutation: {
-    runEvaluation: async (_parent, { input }, context) => {
-      requireAuth(context);
+    // runEvaluation: async (_parent, { input }, context) => {
+    //   requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      return langsmithService.runEvaluation(input, context);
-    },
+    //   const langsmithService = new LangSmithService();
+    //   return langsmithService.runEvaluation(input, context);
+    // },
     runEvaluationAsync: async (_parent, { input }, context) => {
       requireAuth(context);
 

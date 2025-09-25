@@ -36,7 +36,6 @@ export const preWorkflowResponse: Node = async ({
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
     promptName: "ritagraph-pre-workflow-response",
-    source: "langsmith",
   });
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,

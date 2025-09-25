@@ -83,8 +83,9 @@ export {
 // Repositories
 export { InMemoryPromptRepository } from "./infrastructure/repositories/in-memory-prompt.repository.js";
 export { LangSmithPromptRepository } from "./infrastructure/repositories/langsmith-prompt.repository.js";
+export { LangFusePromptRepository } from "./infrastructure/repositories/langfuse-prompt.repository.js";
 
-// Clients
+// Clients - LangSmith
 export { LangSmithClientAdapter } from "./infrastructure/clients/langsmith-client.adapter.js";
 export type {
   LangSmithClient,
@@ -93,6 +94,16 @@ export type {
   LangSmithPrompt,
   LangSmithPullOptions,
 } from "./infrastructure/clients/langsmith-client.types.js";
+
+// Clients - LangFuse
+export { LangFuseClientAdapter } from "./infrastructure/clients/langfuse-client.adapter.js";
+export type {
+  LangFuseClient,
+  LangFuseConfig,
+  LangFuseMessage,
+  LangFusePrompt,
+  LangFusePullOptions,
+} from "./infrastructure/clients/langfuse-client.types.js";
 // #endregion
 
 // #region Shared Exports
