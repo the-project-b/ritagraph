@@ -52,17 +52,26 @@ function getTodayAtUtcMidnight(): string {
  *
  * 1. STRATEGIES - Controls when and how transformations are applied:
  *
- *    - "add-missing-only": Adds field to expected proposals ONLY if missing.
- *      Use case: Default values like dates that should match exactly when explicitly set.
- *      Example: Adding today's date when not specified, but respecting explicit dates.
+ *    - "add-missing-only": Adds field to EXPECTED only if missing.
+ *      Behavior: Expected missing → Add | Expected exists → Skip | Actual → Never touched
+ *      Use case: Default values that should be in expected outputs.
+ *      Example: Adding today's date to expected when not specified.
  *
- *    - "transform-always": Transforms existing values on both expected and actual.
- *      Use case: Format standardization like uppercase/lowercase/trim.
- *      Example: Ensuring consistent string casing regardless of input.
+ *    - "transform-always": Transforms values on BOTH sides if they exist.
+ *      Behavior: Field missing → Skip | Field exists → Transform on both sides
+ *      Use case: Normalizing formats that vary (dates, strings, numbers).
+ *      Example: Converting all dates to same timezone/format for comparison.
  *
- *    - "transform-existing": Only transforms if field exists, ignores missing fields.
- *      Use case: Optional field normalization.
- *      Example: Trimming whitespace only on fields that are present.
+ *    - "transform-existing": Only transforms fields that exist, skips missing.
+ *      Behavior: Field missing → Stays missing | Field exists → Transform
+ *      Applied to: BOTH expected and actual independently
+ *      Use case: Optional fields that need normalization when present.
+ *      Example: MDC date fields that LLM may or may not generate.
+ *
+ *    - "add-if-actual-has": Adds to EXPECTED based on ACTUAL's content.
+ *      Behavior: Check if actual has field → If yes, add to expected → If no, skip
+ *      Use case: Dynamic validation when LLM inconsistently generates fields.
+ *      Example: MDC dates - validate if LLM generates them, ignore if not.
  *
  * 2. CONDITIONAL APPLICATION - The 'when' property:
  *
@@ -83,12 +92,12 @@ function getTodayAtUtcMidnight(): string {
  *    - "actual": Check condition on the actual (LLM output) proposal
  *    - "expected": Check condition on the expected proposal
  *
- *    Key insight: "actual" is crucial when adding fields to expected proposals
- *    based on what the LLM generated, solving the chicken-and-egg problem.
+ *    Key insight: "actual" is crucial for "add-if-actual-has" strategy,
+ *    allowing dynamic field addition based on LLM output.
  *
  * 4. THREE-LAYER USAGE SYSTEM:
  *
- *    Priority: Proposal > Example > Global (defined in code)
+ *    Priority: Proposal > Example > Global (complete override, not additive)
  *
  *    Layer 1 - Global (in evaluator code):
  *    ```typescript

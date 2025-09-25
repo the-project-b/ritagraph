@@ -38,9 +38,13 @@ function getDefaultValidationConfig(): ValidationConfig {
   return {
     normalization: [
       {
-        when: "change",
+        // MDC-specific normalization (Master Data Changes for employee fields)
+        when: {
+          changeType: "change",
+          changedField: { startsWith: "employee." },
+        },
         fields: {
-          changeType: "__literal__",
+          changeType: "changeType",
           changedField: "changedField",
           newValue: "newValue",
           relatedUserId: "relatedUserId",
@@ -49,9 +53,22 @@ function getDefaultValidationConfig(): ValidationConfig {
         },
       },
       {
-        when: "creation",
+        // Regular change normalization
+        when: { changeType: "change" },
         fields: {
-          changeType: "__literal__",
+          changeType: "changeType",
+          changedField: "changedField",
+          newValue: "newValue",
+          relatedUserId: "relatedUserId",
+          mutationQueryPropertyPath: "mutationQuery.propertyPath",
+          mutationVariables: "mutationQuery.variables",
+        },
+      },
+      {
+        // Creation normalization
+        when: { changeType: "creation" },
+        fields: {
+          changeType: "changeType",
           relatedUserId: "relatedUserId",
           mutationVariables: "mutationQuery.variables",
         },
