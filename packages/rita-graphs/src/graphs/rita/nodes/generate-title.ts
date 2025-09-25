@@ -76,7 +76,8 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
   const { thread_id } =
     config.configurable as unknown as AssumedConfigurableType;
 
-  const companyId = user.company?.id ?? backupCompanyId;
+  const companyId =
+    state.selectedCompanyId ?? user.company?.id ?? backupCompanyId;
 
   const userMessages = state.messages.filter(
     (msg) => msg instanceof HumanMessage,
