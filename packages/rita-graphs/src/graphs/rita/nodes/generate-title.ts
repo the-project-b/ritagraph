@@ -14,6 +14,7 @@ import { Tags } from "../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../model-config";
 import { promptService } from "../../../services/prompts/prompt.service.js";
 import { PromptRegistry } from "../../../services/prompts/prompt.registry.js";
+import { onHumanMessage } from "../../../utils/message-filter";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Nodes",
@@ -66,10 +67,7 @@ const TitleGenerationOutput = z.object({
 });
 
 export const generateTitle: Node = async (state, config, getAuthUser) => {
-  // Ensure prompt registry is initialized
-  if (!PromptRegistry.isInitialized()) {
-    await PromptRegistry.initialize();
-  }
+  await PromptRegistry.ensureInitialized();
 
   const { user, token, appdataHeader } = getAuthUser(config);
   const { backupCompanyId } = getContextFromConfig(config);
@@ -78,9 +76,7 @@ export const generateTitle: Node = async (state, config, getAuthUser) => {
 
   const companyId = user.company?.id ?? backupCompanyId;
 
-  const userMessages = state.messages.filter(
-    (msg) => msg instanceof HumanMessage,
-  );
+  const userMessages = state.messages.filter(onHumanMessage);
 
   const shouldGenerateTitle =
     userMessages.length === 1 || userMessages.length % 10 === 0;

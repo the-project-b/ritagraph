@@ -1,4 +1,5 @@
-import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import { BaseMessage } from "@langchain/core/messages";
+import { onHumanAndAiMessage, onHumanMessage } from "../message-filter";
 
 /**
  * Returns a formatted string of the last n messages with the assistant messages redacted.
@@ -15,15 +16,12 @@ import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
  */
 export function getConversationWithRedactedAssistantMessages(
   messages: Array<BaseMessage>,
-  lastMessages: number = messages.length
+  lastMessages: number = messages.length,
 ) {
   return messages
-    .filter(
-      (message) =>
-        message instanceof HumanMessage || message instanceof AIMessage
-    )
+    .filter(onHumanAndAiMessage)
     .map((message) => {
-      if (message instanceof HumanMessage) {
+      if (onHumanMessage(message)) {
         return `User: ${message.content}`;
       }
       return `Assistant: [...]`;
@@ -47,15 +45,12 @@ export function getConversationWithRedactedAssistantMessages(
  */
 export function getConversationMessages(
   messages: Array<BaseMessage>,
-  lastMessages: number = messages.length
+  lastMessages: number = messages.length,
 ) {
   return messages
-    .filter(
-      (message) =>
-        message instanceof HumanMessage || message instanceof AIMessage
-    )
+    .filter(onHumanAndAiMessage)
     .map((message) => {
-      if (message instanceof HumanMessage) {
+      if (onHumanMessage(message)) {
         return `User: ${message.content}`;
       }
       return `Assistant: ${message.content}`;
