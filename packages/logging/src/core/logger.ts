@@ -145,30 +145,7 @@ export class Logger {
       },
     };
 
-    // Add caller information if requested
-    if (this.config.includeCaller) {
-      options.mixin = () => {
-        const stack = new Error().stack;
-        if (stack) {
-          const lines = stack.split("\n");
-          // Skip first 3 lines (Error, mixin function, logger method)
-          const callerLine = lines[3];
-          if (callerLine) {
-            const match = callerLine.match(/at\s+(.+)\s+\((.+):(\d+):(\d+)\)/);
-            if (match) {
-              return {
-                caller: {
-                  function: match[1],
-                  file: match[2],
-                  line: parseInt(match[3], 10),
-                },
-              };
-            }
-          }
-        }
-        return {};
-      };
-    }
+    // Caller information is now added directly in each log method
 
     // Check if we're running in langgraph environment where worker threads cause issues
     const isLanggraph =
@@ -335,13 +312,57 @@ export class Logger {
    */
   debug(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
-      this.pinoInstance.debug(context || {}, message);
+      const finalContext = this.enrichContextWithCaller(context);
+      this.pinoInstance.debug(finalContext, message);
       this.handleFileLogging(
         "debug",
-        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        { ...this.pinoInstance.bindings(), ...finalContext },
         message,
       );
     }
+  }
+
+  /**
+   * Add caller information to context
+   */
+  private enrichContextWithCaller(context?: LogContext): LogContext {
+    const finalContext = { ...(context || {}) };
+
+    if (this.config.includeCaller) {
+      const stack = new Error().stack;
+      if (stack) {
+        const lines = stack.split("\n");
+        // Skip first 3 lines (Error, enrichContextWithCaller, actual log method)
+        for (let i = 3; i < Math.min(6, lines.length); i++) {
+          const callerLine = lines[i];
+          if (
+            callerLine &&
+            !callerLine.includes("logger.ts") &&
+            !callerLine.includes("logger.js")
+          ) {
+            const match = callerLine.match(
+              /at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/,
+            );
+            if (match) {
+              const fullPath = match[2];
+              // Get relative path from project root
+              const projectRoot = process.cwd();
+              const relativePath = fullPath.startsWith(projectRoot)
+                ? fullPath.slice(projectRoot.length + 1)
+                : fullPath.startsWith("file://")
+                  ? fullPath.replace(/^file:\/\/.*?\/sources\/ritagraph\//, "")
+                  : fullPath;
+
+              // Add callerInfo property with relative path
+              finalContext.callerInfo = `${relativePath}:${match[3]}`;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return finalContext;
   }
 
   /**
@@ -349,10 +370,11 @@ export class Logger {
    */
   info(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
-      this.pinoInstance.info(context || {}, message);
+      const finalContext = this.enrichContextWithCaller(context);
+      this.pinoInstance.info(finalContext, message);
       this.handleFileLogging(
         "info",
-        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        { ...this.pinoInstance.bindings(), ...finalContext },
         message,
       );
     }
@@ -370,10 +392,11 @@ export class Logger {
    */
   warn(message: string, context?: LogContext): void {
     if (shouldSample(this.config.sampleRate)) {
-      this.pinoInstance.warn(context || {}, message);
+      const finalContext = this.enrichContextWithCaller(context);
+      this.pinoInstance.warn(finalContext, message);
       this.handleFileLogging(
         "warn",
-        { ...this.pinoInstance.bindings(), ...(context || {}) },
+        { ...this.pinoInstance.bindings(), ...finalContext },
         message,
       );
     }
@@ -384,7 +407,7 @@ export class Logger {
    */
   error(message: string, error?: Error | unknown, context?: LogContext): void {
     // Always log errors, regardless of sampling
-    const errorContext: LogContext = { ...context };
+    const errorContext = this.enrichContextWithCaller(context);
 
     if (error instanceof Error) {
       errorContext.error = {
@@ -409,7 +432,7 @@ export class Logger {
    */
   fatal(message: string, error?: Error | unknown, context?: LogContext): void {
     // Always log fatal errors, regardless of sampling
-    const errorContext: LogContext = { ...context };
+    const errorContext = this.enrichContextWithCaller(context);
 
     if (error instanceof Error) {
       errorContext.error = {
