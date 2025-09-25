@@ -30,6 +30,13 @@ export class PromptRegistry {
     logger.info("Prompt registry initialized successfully");
   }
 
+  static async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      logger.info("Prompt registry not initialized, initializing");
+      await this.initialize();
+    }
+  }
+
   /**
    * Register the title generation prompt with language-specific templates.
    */
@@ -54,7 +61,7 @@ Good examples in {languageText}:
 
 Conversation context (including initial request):
 {conversationContext}`,
-        DE: `Sie sind ein professioneller Assistent für Lohnabrechnungssysteme. Erstellen Sie einen prägnanten, beschreibenden Titel für diese Unterhaltung.
+        DE: `Sie sind ein professioneller Assistent fï¿½r Lohnabrechnungssysteme. Erstellen Sie einen prï¿½gnanten, beschreibenden Titel fï¿½r diese Unterhaltung.
 
 Die bevorzugte Sprache des Benutzers ist: {languageText}
 
@@ -63,13 +70,13 @@ Der Titel sollte:
 - Das Hauptthema oder die Anfrage zusammenfassen
 - Professionelle, klare Sprache verwenden
 - In {languageText} geschrieben sein
-- Informativ sein, aber KEINE spezifischen Zahlen oder Beträge enthalten
-- Sich auf die Art der Änderung oder Anfrage konzentrieren, nicht auf die genauen Werte
+- Informativ sein, aber KEINE spezifischen Zahlen oder Betrï¿½ge enthalten
+- Sich auf die Art der ï¿½nderung oder Anfrage konzentrieren, nicht auf die genauen Werte
 
 Gute Beispiele in {languageText}:
 {examples}
 
-Gesprächskontext (einschließlich der ersten Anfrage):
+Gesprï¿½chskontext (einschlieï¿½lich der ersten Anfrage):
 {conversationContext}`,
       },
       metadata: {
