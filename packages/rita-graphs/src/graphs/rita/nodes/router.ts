@@ -6,14 +6,17 @@ import { SystemMessage } from "@langchain/core/messages";
 import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
 import { BASE_MODEL_CONFIG } from "../../model-config.js";
 import { promptService } from "../../../services/prompts/prompt.service.js";
+import { wrapLLMWithCallbacks } from "../../../utils/create-llm-with-callbacks.js";
+import { CallbackHandler } from "@langfuse/langchain";
 
 /**
  * Router is responsible for routing the request to the right agent.
  * Sometimes the user is just greeting or saying something casual, and it feels
  * bad if the agent takes ages to respond to it.
  */
-export const router: Node = async (state) => {
-  const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
+export const router: Node = async (state, config, getAuthUser) => {
+  const baseModel = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
+  const llm = wrapLLMWithCallbacks(baseModel, config, getAuthUser);
 
   // Fetch prompt from LangSmith
   const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
@@ -55,6 +58,18 @@ export const router: Node = async (state) => {
     ...state.messages.slice(-3).filter(onHumanAndAiMessage),
   ]).invoke({});
 
+  const authUser = getAuthUser(config);
+
+  // Create Langfuse handler with user-specific metadata
+  const langfuseHandler = new CallbackHandler({
+    userId: authUser.user.id,
+    sessionId: (config.configurable as any)?.thread_id,
+    tags: [
+      authUser.user.role,
+      authUser.user.company?.name || "unknown-company",
+    ],
+  });
+
   const response = await llm
     .withStructuredOutput(
       z.object({
@@ -62,7 +77,7 @@ export const router: Node = async (state) => {
         response: z.enum(["CASUAL_RESPONSE_WITHOUT_DATA", "WORKFLOW_ENGINE"]),
       }),
     )
-    .invoke(prompt);
+    .invoke(prompt, { callbacks: [langfuseHandler] });
 
   return {
     routingDecision: response.response,

@@ -38,6 +38,7 @@ import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-e
 import { findEmployee } from "../../tools/find-employee/tool.js";
 import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-message-edge-decision.js";
 import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger.js";
+import { AuthUser } from "../../security/types.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -74,7 +75,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
   };
 }
 
-export function createRitaGraph(getAuthUser: (config: any) => any) {
+export function createRitaGraph(getAuthUser: (config: any) => AuthUser) {
   return async () => {
     try {
       logger.info("Initializing Dynamic Multi-Agent RITA Graph...");
@@ -134,6 +135,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
 
       // Compile the graph
       const memory = new MemorySaver();
+
       const graph = workflow.compile({
         checkpointer: memory,
       });

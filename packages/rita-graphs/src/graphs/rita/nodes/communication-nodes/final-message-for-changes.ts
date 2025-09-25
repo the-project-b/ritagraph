@@ -21,6 +21,7 @@ import AgentActionLogger, {
   AgentActionType,
   AgentLogEventTag,
 } from "../../../../utils/agent-action-logger/AgentActionLogger.js";
+import { CallbackHandler } from "@langfuse/langchain";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -150,7 +151,19 @@ export const finalMessageForChanges: Node = async (
       .filter(onBaseMessages),
   ]).invoke({});
 
-  const response = await llm.invoke(prompt);
+  const authUser = getAuthUser(config);
+
+  // Create Langfuse handler with user-specific metadata
+  const langfuseHandler = new CallbackHandler({
+    userId: authUser.user.id,
+    sessionId: (config.configurable as any)?.thread_id,
+    tags: [
+      authUser.user.role,
+      authUser.user.company?.name || "unknown-company",
+    ],
+  });
+
+  const response = await llm.invoke(prompt, { callbacks: [langfuseHandler] });
 
   const responseMessage = new AIMessage(response.content.toString());
 

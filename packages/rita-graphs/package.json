@@ -28,6 +28,8 @@
     "@langchain/langgraph-sdk": "0.0.105",
     "@langchain/mcp-adapters": "0.6.0",
     "@langchain/openai": "0.6.3",
+    "@langfuse/client": "^4.2.0",
+    "@langfuse/langchain": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.13.0",
     "@the-project-b/graphql": "*",
     "@the-project-b/logging": "*",
