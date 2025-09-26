@@ -1,7 +1,7 @@
 {
-  "name": "@the-project-b/experiments",
+  "name": "@the-project-b/evaluation",
   "version": "1.0.0",
-  "description": "A dedicated server to run LangSmith evaluations against Rita graphs.",
+  "description": "Service responsible for running experiments on target datasets, using self-defined evaluators for scoring.",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",
+    "@the-project-b/experiments": "*",
     "@the-project-b/graphql": "*",
     "@the-project-b/logging": "*",
     "@the-project-b/rita-graphs": "*",
