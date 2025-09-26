@@ -11,7 +11,7 @@ COPY turbo.json ./
 COPY .npmrc ./
 
 # Copy workspace package.json files for dependency resolution
-COPY apps/experiments/package.json ./apps/experiments/
+COPY apps/evaluation/package.json ./apps/evaluation/
 COPY apps/rita/package.json ./apps/rita/
 COPY packages/rita-graphs/package.json ./packages/rita-graphs/
 COPY packages/projectb-graphql/package.json ./packages/projectb-graphql/
@@ -31,7 +31,7 @@ RUN find . -name ".env*" -type f -exec sed -i 's|PROJECTB_GRAPHQL_ENDPOINT=.*|PR
 RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts
 
 # Generate GraphQL types for experiments app
-WORKDIR /app/apps/experiments
+WORKDIR /app/apps/evaluation
 RUN npm run codegen
 
 # Build the experiments app with TypeScript compiler
@@ -43,10 +43,10 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 
 # Copy the compiled application and all dependencies
-COPY --from=builder /app/apps/experiments/dist ./dist
-COPY --from=builder /app/apps/experiments/src ./src
-COPY --from=builder /app/apps/experiments/package.json ./package.json
-COPY --from=builder /app/apps/experiments/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/apps/evaluation/dist ./dist
+COPY --from=builder /app/apps/evaluation/src ./src
+COPY --from=builder /app/apps/evaluation/package.json ./package.json
+COPY --from=builder /app/apps/evaluation/tsconfig.json ./tsconfig.json
 
 # Copy ALL node_modules including workspace packages
 COPY --from=builder /app/node_modules ./node_modules
