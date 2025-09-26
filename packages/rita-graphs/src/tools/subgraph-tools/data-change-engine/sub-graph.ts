@@ -11,6 +11,8 @@ type Params = {
 export function buildDataChangeEngineGraph({ tools }: Params) {
   const llm = new ChatOpenAI({ temperature: 0, ...BASE_MODEL_CONFIG });
 
+  // Filter based on agentLogger
+
   // Initialize memory to persist state between graph runs
   const agentCheckpointer = new MemorySaver();
   const agent = createReactAgent({

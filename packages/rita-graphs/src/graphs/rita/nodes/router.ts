@@ -52,7 +52,7 @@ export const router: Node = async (state) => {
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...state.messages.slice(-3).filter(onHumanAndAiMessage),
+    ...state.messages.slice(-6).filter(onHumanAndAiMessage),
   ]).invoke({});
 
   const response = await llm

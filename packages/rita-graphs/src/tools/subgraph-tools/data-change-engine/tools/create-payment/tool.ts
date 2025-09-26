@@ -19,9 +19,32 @@ const logger = createLogger({ service: "rita-graphs" }).child({
   tool: "create_payment",
 });
 
-function prefixedLog(message: string, data?: any) {
-  logger.debug(message, data);
-}
+const buildInputSchema = (extendedContext: ExtendedToolContext) =>
+  z.object({
+    quote: z
+      .string()
+      .describe(
+        "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
+      ),
+    employeeId: z.string(),
+    contractId: z.string(),
+    title: z.string(),
+    paymentType: z.enum(
+      extendedContext?.paymentTypes.map((paymentType) => paymentType.slug) as [
+        string,
+        ...string[],
+      ],
+    ),
+    amount: z.number().optional(),
+    monthlyHours: z.number().optional(),
+    frequency: z.nativeEnum(PaymentFrequency).optional(),
+    startDate: z
+      .string()
+      .optional()
+      .describe(
+        `The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format. Today is ${new Date().toISOString().split("T")[0]}`,
+      ),
+  });
 
 export const createPaymentTool: ToolFactoryToolDefintion<
   ExtendedToolContext
@@ -206,34 +229,26 @@ ${startDate ? `The change will be effective on ${startDate}` : ""}
     },
     {
       name: "create_payment",
-      description:
-        "Create a new payment for an employee. Payments include bonuses, extra payments, and regular payments. There are multiple properties that can be changed. Only change the ones mentioned in the request. You can use the change_payment_details tool to change the properties of an existing payment.",
-      schema: z.object({
-        quote: z
-          .string()
-          .describe(
-            "Quoted phrase from the user mentioning the change. Please use the sanitize_quote_for_proposal tool to refine the quote.",
-          ),
-        employeeId: z.string(),
-        contractId: z.string(),
-        title: z.string(),
-        paymentType: z.enum(
-          ctx.extendedContext?.paymentTypes.map(
-            (paymentType) => paymentType.slug,
-          ) as [string, ...string[]],
-        ),
-        amount: z.number().optional(),
-        monthlyHours: z.number().optional(),
-        frequency: z.nativeEnum(PaymentFrequency).optional(),
-        startDate: z
-          .string()
-          .optional()
-          .describe(
-            "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format",
-          ),
-      }),
+      description: `Create a new payment for an employee. Payments include bonuses, extra payments, and regular payments. There are multiple properties that can be changed. Only change the ones mentioned in the request. You can use the change_payment_details tool to change the properties of an existing payment.
+In order to create payments you need to understand which type is requested.
+
+Base wage: Monhtly hours, hourly wage (amount), frequency = mostly monthly
+Salary: Amount, frequency = mostly monthly
+Bonus: Amount, frequency = mostly one time
+Extra payment: Amount, frequency = mostly one time
+Other: Amount, frequency = mostly one time
+
+If it is not decuable you can ask the user for clarification and not call the tool.
+ONLY RESORT TO THIS IF YOU HAVE NO OTHER CHOICE.
+
+The amount of "13th salary Bonus" is often just the regular salary amount.`,
+      schema: buildInputSchema(ctx.extendedContext),
     },
   );
+
+function prefixedLog(message: string, data?: any) {
+  logger.debug(message, data);
+}
 
 function paymentTypeToId(
   paymentType: PaymentType["slug"],

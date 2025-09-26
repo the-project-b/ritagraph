@@ -38,6 +38,7 @@ import { dataRetrievalEngine } from "../../tools/subgraph-tools/data-retrieval-e
 import { findEmployee } from "../../tools/find-employee/tool.js";
 import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-message-edge-decision.js";
 import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger.js";
+import { askUserAQuestion } from "../../tools/ask-user-a-question/tool.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -66,6 +67,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
         findEmployee,
         getEmployeeById,
         getCurrentUser,
+        askUserAQuestion,
       ],
       ctx: toolContext,
     });
@@ -107,7 +109,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
             getAuthUser,
           }),
           {
-            ends: ["finalMessage"],
+            ends: ["finalMessage", "finalMessageForChanges"],
           },
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))

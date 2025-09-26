@@ -93,17 +93,6 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
           healthInsuranceByCode(insuranceCompanyCode)?.label,
         );
 
-        const effectiveDateVariables = effectiveDate
-          ? {
-              effectiveFromFields: [
-                {
-                  date: parseEffectiveDate(effectiveDate).effectiveDate,
-                  fieldName: "healthInsurance",
-                },
-              ],
-            }
-          : {};
-
         const dataChangeProposal: DataChangeProposal = {
           ...buildBaseDataChangeProps(employeeChangeDescription),
           statusQuoQuery: getEmployee(
@@ -116,7 +105,12 @@ export const changeEmployeeInsurance: ToolFactoryToolDefintion = (ctx) =>
               userId: employee.id,
               personalData: {
                 healthInsurance: insuranceCompanyCode,
-                ...effectiveDateVariables,
+                effectiveFromFields: [
+                  {
+                    date: parseEffectiveDate(effectiveDate).effectiveDate,
+                    fieldName: "healthInsurance",
+                  },
+                ],
               },
             },
             "employee.healthInsurance",
@@ -238,7 +232,7 @@ ${redundantChanges}
         effectiveDate: z
           .string()
           .describe(
-            "The effective date of the change. YYYY-MM-DD format if left empty, it will be today's date.",
+            `The effective date of the change. YYYY-MM-DD format if left empty, it will be today's date. Today is ${new Date().toISOString().split("T")[0]}`,
           )
           .optional(),
       }),
