@@ -1,12 +1,20 @@
+import { AgentErrorType } from "./agent-error-to-reason";
+
 export enum AgentActionType {
   TOOL_CALL_ENTER = "TOOL_CALL_ENTER",
   TOOL_CALL_LOG = "TOOL_CALL_LOG",
   TOOL_CALL_RESPONSE = "TOOL_CALL_RESPONSE",
+  AGENT_QUESTION_TO_USER = "AGENT_QUESTION_TO_USER",
+  TOOL_LOAD_REQUESTED = "TOOL_LOAD_REQUESTED",
 }
 
 export enum AgentLogEventTag {
   DATA_CHANGE_PROPOSAL = "DATA_CHANGE_PROPOSAL",
 }
+
+export type AgentLogEventToolLoadRequestedPayload = {
+  toolName: string;
+};
 
 export type AgentLogEvent = {
   description: string;
@@ -19,6 +27,7 @@ export type AgentLogEvent = {
   runId: string;
   tags?: Array<AgentLogEventTag>;
   createdAt: string;
+  errorType?: AgentErrorType;
 };
 
 /**

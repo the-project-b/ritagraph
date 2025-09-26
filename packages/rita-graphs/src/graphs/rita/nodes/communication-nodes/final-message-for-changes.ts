@@ -4,7 +4,10 @@ import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
-import { onBaseMessages } from "../../../../utils/message-filter.js";
+import {
+  onBaseMessages,
+  onNoThoughtMessages,
+} from "../../../../utils/message-filter.js";
 import { Tags } from "../../../tags.js";
 import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-thread-item.js";
 import { Result } from "../../../../utils/types/result.js";
@@ -136,18 +139,15 @@ export const finalMessageForChanges: Node = async (
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
     amountOfChangeProposals: numberOfProposals,
+    openQuestionsOfTheAgent: formatAgentQuestionsFromLogs(
+      agentActionLogger,
+      run_id,
+    ),
   });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
-    ...messages
-      .filter((i) =>
-        Array.isArray(i.additional_kwargs?.tags)
-          ? !i.additional_kwargs?.tags.includes("THOUGHT")
-          : true,
-      )
-      .slice(-3)
-      .filter(onBaseMessages),
+    ...messages.filter(onNoThoughtMessages).slice(-3).filter(onBaseMessages),
   ]).invoke({});
 
   const response = await llm.invoke(prompt);
@@ -176,6 +176,18 @@ export const finalMessageForChanges: Node = async (
     agentActionEvents: agentActionLogger.getLogs(),
   };
 };
+
+function formatAgentQuestionsFromLogs(
+  logger: AgentActionLogger,
+  runId: string,
+): string {
+  const logs = logger.getLogsOfRun(runId);
+  const agentQuestions = logs.filter(
+    (log) => log.actionType === AgentActionType.AGENT_QUESTION_TO_USER,
+  );
+
+  return agentQuestions.map((i) => i.description).join("\n");
+}
 
 function formatProposalRelatedLogs(
   logger: AgentActionLogger,
