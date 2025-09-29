@@ -10,6 +10,11 @@ export {
   type RunResultDto,
 } from "./dto/experiment-result.dto.js";
 
+export {
+  type AuthContextDto,
+  type UserContextDto,
+} from "./dto/auth-context.dto.js";
+
 // Services
 export {
   JobManagerService,

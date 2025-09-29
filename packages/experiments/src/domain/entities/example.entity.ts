@@ -9,7 +9,7 @@ export class Example {
     public readonly inputs: Record<string, any>,
     public readonly outputs?: Record<string, any>,
     public readonly metadata?: Record<string, any>,
-    public readonly split?: string,
+    public readonly splits?: string[], // Changed to array to support multiple splits
     public readonly datasetId?: string,
     public readonly createdAt?: Date,
   ) {}
@@ -19,7 +19,8 @@ export class Example {
     inputs: Record<string, any>;
     outputs?: Record<string, any>;
     metadata?: Record<string, any>;
-    split?: string;
+    splits?: string[]; // Changed to array
+    split?: string; // Keep for backward compatibility
     datasetId?: string;
     createdAt?: Date;
   }): Result<Example, ValidationError> {
@@ -31,13 +32,16 @@ export class Example {
       return err(new ValidationError("Example inputs cannot be empty"));
     }
 
+    // Handle backward compatibility - if split is provided, convert to array
+    const splits = props.splits || (props.split ? [props.split] : undefined);
+
     return ok(
       new Example(
         props.id,
         props.inputs,
         props.outputs,
         props.metadata,
-        props.split,
+        splits,
         props.datasetId,
         props.createdAt,
       ),
@@ -57,7 +61,11 @@ export class Example {
   }
 
   matchesSplit(split: string): boolean {
-    return this.split === split;
+    return this.splits?.includes(split) || false;
+  }
+
+  hasSplits(): boolean {
+    return this.splits !== undefined && this.splits.length > 0;
   }
 
   toJSON(): Record<string, any> {
@@ -66,7 +74,7 @@ export class Example {
       inputs: this.inputs,
       outputs: this.outputs,
       metadata: this.metadata,
-      split: this.split,
+      splits: this.splits,
       datasetId: this.datasetId,
       createdAt: this.createdAt?.toISOString(),
     };

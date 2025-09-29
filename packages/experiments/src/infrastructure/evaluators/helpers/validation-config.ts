@@ -1,0 +1,863 @@
+import { createEvaluationLogger } from "../core/evaluation-context.js";
+import {
+  deepClone,
+  getValueAtPath,
+  hasValueAtPath,
+  pathMatchesPattern,
+  setValueAtPath,
+} from "./object-utils.js";
+import { TransformerRegistry } from "./transformer-registry.js";
+
+const logger = createEvaluationLogger("experiments", "ValidationConfig");
+
+/**
+ * Field extraction configuration for normalization
+ */
+export interface FieldExtractor<T = any> {
+  /**
+   * Source path in the original object (using dot notation)
+   * Special values:
+   * - '__self__': Use the entire object
+   * - '__literal__': Use a literal value (specified in defaultValue)
+   */
+  from: string;
+
+  /**
+   * Default value if field is missing
+   */
+  defaultValue?: T;
+
+  /**
+   * Optional transformation to apply during extraction
+   */
+  transform?: (value: any) => T;
+}
+
+/**
+ * Complex condition for normalization matching
+ */
+export interface NormalizationCondition {
+  /**
+   * The changeType to match (required)
+   */
+  changeType: string;
+
+  /**
+   * Additional field conditions
+   */
+  [field: string]:
+    | string
+    | {
+        startsWith?: string;
+        endsWith?: string;
+        contains?: string;
+        equals?: string;
+      };
+}
+
+/**
+ * Normalization configuration for a specific proposal type
+ */
+export interface NormalizationConfig {
+  /**
+   * Discriminator for when this config should apply.
+   * Can be:
+   * - A simple string (e.g., 'change', 'creation') to match changeType
+   * - A complex condition object for more specific matching
+   * - undefined to apply to all proposals
+   */
+  when?: string | NormalizationCondition;
+
+  /**
+   * Fields to extract and their mappings
+   * Target field name -> extraction config or direct source path
+   */
+  fields: Record<string, string | FieldExtractor>;
+}
+
+/**
+ * Transformer strategy types
+ */
+export enum TransformerStrategy {
+  /** Add if missing in expected, don't transform if present */
+  AddMissingOnly = "add-missing-only",
+  /** Always transform values on both sides */
+  TransformAlways = "transform-always",
+  /** Only transform if field exists, ignore if missing */
+  TransformExisting = "transform-existing",
+  /** Add to expected if actual has it, for dynamic validation */
+  AddIfActualHas = "add-if-actual-has",
+}
+
+/**
+ * Condition for when a transformer should apply
+ */
+export interface TransformerCondition {
+  /**
+   * Path to check for the condition (e.g., "changeType", "mutationVariables.type")
+   */
+  path: string;
+
+  /**
+   * Expected value at that path (e.g., "change", "creation")
+   * Can be a single value or array of values to match any
+   */
+  equals?: unknown | unknown[];
+
+  /**
+   * Check if the path exists (regardless of value)
+   */
+  exists?: boolean;
+
+  /**
+   * Check if the value at path does NOT equal this
+   */
+  notEquals?: unknown | unknown[];
+}
+
+/**
+ * Transformer configuration for a specific path
+ */
+export interface TransformerConfig {
+  /**
+   * The transformation function
+   */
+  transform: (value: unknown, context?: TransformerContext) => unknown;
+
+  /**
+   * High-level strategy for this transformer (recommended approach)
+   */
+  strategy?: TransformerStrategy;
+
+  /**
+   * Optional condition for when this transformer should apply
+   * If not specified, transformer always applies (backward compatible)
+   */
+  when?: TransformerCondition | TransformerCondition[];
+
+  /**
+   * Which proposal to check the condition against
+   * - "self" (default): Check condition on the same proposal being transformed
+   * - "actual": Check condition on the actual (LLM output) proposal
+   * - "expected": Check condition on the expected proposal
+   * This is useful when you want to add fields to expected based on what the LLM generated
+   */
+  conditionTarget?: "self" | "actual" | "expected";
+
+  /**
+   * Legacy/custom configuration (used when strategy is not specified)
+   */
+  onMissing?: "skip" | "add" | "fail";
+  onExisting?: "transform" | "skip";
+  applyTo?: "both" | "expected" | "actual";
+}
+
+/**
+ * Configuration for proposal validation with strict matching
+ */
+export interface ValidationConfig {
+  /**
+   * Normalization rules for extracting fields from raw proposals
+   * Applied to actual proposals before comparison
+   * Array allows different configs for different proposal types (discriminated unions)
+   */
+  normalization?: NormalizationConfig[];
+
+  /**
+   * Paths to ignore during validation (still shown in diffs)
+   * Supports dot notation and wildcards:
+   * - "mutationVariables.data.effectiveDate" - exact path
+   * - "mutationVariables.metadata.*" - wildcard for all nested paths
+   */
+  ignorePaths: string[];
+
+  /**
+   * Path-specific transformer configurations
+   * Can be either:
+   * - A transformer key string referencing a registered transformer
+   * - A simple function (backward compatible)
+   * - A full TransformerConfig object
+   * - An enhanced config object with key and strategy override
+   */
+  transformers?: Record<
+    string,
+    | string
+    | ((value: any, context?: TransformerContext) => any)
+    | TransformerConfig
+    | { key: string; strategy?: TransformerStrategy }
+  >;
+}
+
+/**
+ * Context passed to transformer functions
+ */
+export interface TransformerContext {
+  path: string;
+  isExpected: boolean;
+  currentDate?: Date;
+}
+
+/**
+ * Checks if a path should be ignored based on configuration
+ */
+export function shouldIgnorePath(
+  path: string,
+  config: ValidationConfig,
+): boolean {
+  if (!config.ignorePaths || config.ignorePaths.length === 0) {
+    return false;
+  }
+
+  const isIgnored = config.ignorePaths.some((ignorePath) =>
+    pathMatchesPattern(path, ignorePath),
+  );
+
+  if (isIgnored) {
+    logger.debug("Path ignored by config", {
+      operation: "shouldIgnorePath",
+      path,
+      matchedPattern: config.ignorePaths.find((p) =>
+        pathMatchesPattern(path, p),
+      ),
+    });
+  }
+
+  return isIgnored;
+}
+
+/**
+ * Checks if a transformer condition is met for a given proposal
+ */
+function checkCondition(
+  condition: TransformerCondition,
+  proposal: any,
+): boolean {
+  const value = getValueAtPath(proposal, condition.path);
+
+  // Check exists condition
+  if (condition.exists !== undefined) {
+    const exists = hasValueAtPath(proposal, condition.path);
+    if (condition.exists !== exists) return false;
+  }
+
+  // Check equals condition
+  if (condition.equals !== undefined) {
+    const allowedValues = Array.isArray(condition.equals)
+      ? condition.equals
+      : [condition.equals];
+    if (!allowedValues.includes(value)) return false;
+  }
+
+  // Check notEquals condition
+  if (condition.notEquals !== undefined) {
+    const forbiddenValues = Array.isArray(condition.notEquals)
+      ? condition.notEquals
+      : [condition.notEquals];
+    if (forbiddenValues.includes(value)) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Checks if all transformer conditions are met
+ */
+function shouldApplyTransformer(
+  config: TransformerConfig,
+  proposal: any,
+): boolean {
+  if (!config.when) return true; // No conditions = always apply
+
+  const conditions = Array.isArray(config.when) ? config.when : [config.when];
+
+  // All conditions must be met (AND logic)
+  return conditions.every((condition) => checkCondition(condition, proposal));
+}
+
+/**
+ * Converts a strategy to explicit configuration
+ */
+function strategyToConfig(
+  strategy: TransformerStrategy,
+): Pick<
+  TransformerConfig,
+  "onMissing" | "onExisting" | "applyTo" | "conditionTarget"
+> {
+  switch (strategy) {
+    case TransformerStrategy.AddMissingOnly:
+      return {
+        onMissing: "add",
+        onExisting: "skip",
+        applyTo: "expected",
+      };
+    case TransformerStrategy.TransformAlways:
+      return {
+        onMissing: "skip",
+        onExisting: "transform",
+        applyTo: "both",
+      };
+    case TransformerStrategy.TransformExisting:
+      return {
+        onMissing: "skip",
+        onExisting: "transform",
+        applyTo: "both",
+      };
+    case TransformerStrategy.AddIfActualHas:
+      return {
+        onMissing: "add",
+        onExisting: "skip",
+        applyTo: "expected",
+        conditionTarget: "actual",
+      };
+  }
+}
+
+/**
+ * Normalizes a transformer to TransformerConfig format
+ */
+function normalizeTransformer(
+  transformer:
+    | string
+    | ((value: unknown, context?: TransformerContext) => unknown)
+    | TransformerConfig
+    | { key: string; strategy?: TransformerStrategy },
+): TransformerConfig | null {
+  // Handle enhanced config with key and strategy override
+  if (
+    typeof transformer === "object" &&
+    transformer !== null &&
+    "key" in transformer &&
+    !("transform" in transformer)
+  ) {
+    // This is the enhanced config format: { key: string; strategy?: TransformerStrategy }
+    const registered = TransformerRegistry.get(transformer.key);
+    if (!registered) {
+      logger.warn("Transformer key not found in registry", {
+        operation: "normalizeTransformer",
+        key: transformer.key,
+        availableKeys: TransformerRegistry.getKeys(),
+      });
+      return null;
+    }
+
+    const config: TransformerConfig = {
+      transform: registered.transform,
+      onMissing: "skip",
+      applyTo: "both",
+      onExisting: "transform",
+    };
+
+    // Apply registered strategy first
+    if (registered.strategy) {
+      const strategyConfig = strategyToConfig(
+        registered.strategy as TransformerStrategy,
+      );
+      Object.assign(config, strategyConfig);
+    }
+
+    // Then apply override strategy if provided
+    if (transformer.strategy) {
+      const overrideConfig = strategyToConfig(transformer.strategy);
+      Object.assign(config, overrideConfig);
+      logger.debug("Applied strategy override for transformer", {
+        operation: "normalizeTransformer.strategyOverride",
+        key: transformer.key,
+        registeredStrategy: registered.strategy,
+        overrideStrategy: transformer.strategy,
+      });
+    }
+
+    if (registered.when) {
+      config.when = registered.when as TransformerCondition;
+    }
+
+    if (registered.conditionTarget) {
+      config.conditionTarget = registered.conditionTarget;
+    }
+
+    return config;
+  }
+
+  if (typeof transformer === "string") {
+    const registered = TransformerRegistry.get(transformer);
+    if (!registered) {
+      logger.warn("Transformer key not found in registry", {
+        operation: "normalizeTransformer",
+        key: transformer,
+        availableKeys: TransformerRegistry.getKeys(),
+      });
+      return null;
+    }
+
+    const config: TransformerConfig = {
+      transform: registered.transform,
+      onMissing: "skip",
+      applyTo: "both",
+      onExisting: "transform",
+    };
+
+    if (registered.strategy) {
+      const strategyConfig = strategyToConfig(
+        registered.strategy as TransformerStrategy,
+      );
+      Object.assign(config, strategyConfig);
+    }
+
+    if (registered.when) {
+      config.when = registered.when as TransformerCondition;
+    }
+
+    if (registered.conditionTarget) {
+      config.conditionTarget = registered.conditionTarget;
+    }
+
+    return config;
+  }
+
+  if (typeof transformer === "function") {
+    return {
+      transform: transformer,
+      onMissing: "skip",
+      applyTo: "both",
+      onExisting: "transform",
+    };
+  }
+
+  // At this point, transformer is a TransformerConfig object
+  // (since we've handled string, enhanced config, and function above)
+  return transformer as TransformerConfig;
+}
+
+/**
+ * Gets the transformer config for a path if one exists
+ */
+export function getPathTransformer(
+  path: string,
+  config: ValidationConfig,
+): TransformerConfig | undefined {
+  if (!config.transformers) return undefined;
+
+  if (config.transformers[path]) {
+    const normalized = normalizeTransformer(config.transformers[path]);
+    return normalized || undefined;
+  }
+
+  for (const [pattern, transformer] of Object.entries(config.transformers)) {
+    if (pathMatchesPattern(path, pattern)) {
+      const normalized = normalizeTransformer(transformer);
+      return normalized || undefined;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Applies normalization configuration to extract fields from a proposal
+ */
+export function normalizeWithConfig(
+  proposal: any,
+  config: ValidationConfig,
+): any {
+  if (!config.normalization || config.normalization.length === 0) {
+    logger.debug("No normalization config, returning proposal as-is", {
+      operation: "normalizeWithConfig.skip",
+      changeType: proposal.changeType,
+    });
+    return proposal;
+  }
+
+  let normConfig: NormalizationConfig | undefined;
+
+  for (const nc of config.normalization) {
+    if (!nc.when) {
+      // Default config (no condition)
+      normConfig = nc;
+    } else if (typeof nc.when === "string") {
+      // Simple string match on changeType
+      if (proposal.changeType === nc.when) {
+        normConfig = nc;
+        break;
+      }
+    } else {
+      // Complex condition matching
+      const condition = nc.when as NormalizationCondition;
+
+      // Check changeType first (required)
+      if (proposal.changeType !== condition.changeType) {
+        continue;
+      }
+
+      // Check additional field conditions
+      let allConditionsMet = true;
+      for (const [field, matcher] of Object.entries(condition)) {
+        if (field === "changeType") continue; // Already checked
+
+        const fieldValue = proposal[field];
+        if (fieldValue === undefined) {
+          allConditionsMet = false;
+          break;
+        }
+
+        if (typeof matcher === "string") {
+          // Simple equality
+          if (fieldValue !== matcher) {
+            allConditionsMet = false;
+            break;
+          }
+        } else if (typeof matcher === "object") {
+          // Complex matcher
+          const strValue = String(fieldValue);
+          if (matcher.startsWith && !strValue.startsWith(matcher.startsWith)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.endsWith && !strValue.endsWith(matcher.endsWith)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.contains && !strValue.includes(matcher.contains)) {
+            allConditionsMet = false;
+            break;
+          }
+          if (matcher.equals && strValue !== matcher.equals) {
+            allConditionsMet = false;
+            break;
+          }
+        }
+      }
+
+      if (allConditionsMet) {
+        normConfig = nc;
+        break; // First match wins
+      }
+    }
+  }
+
+  if (!normConfig) {
+    logger.warn("No normalization config found for proposal", {
+      operation: "normalizeWithConfig.noMatch",
+      changeType: proposal.changeType,
+      availableConfigs: config.normalization.map((nc) => {
+        if (!nc.when) return "default";
+        if (typeof nc.when === "string") return nc.when;
+        return `${nc.when.changeType}:complex`;
+      }),
+    });
+    return proposal;
+  }
+
+  logger.debug("Applying normalization", {
+    operation: "normalizeWithConfig.start",
+    changeType: proposal.changeType,
+    configType: !normConfig.when
+      ? "default"
+      : typeof normConfig.when === "string"
+        ? normConfig.when
+        : `${normConfig.when.changeType}:complex`,
+    fieldCount: Object.keys(normConfig.fields).length,
+  });
+
+  const normalized: any = {};
+  const extractedFields: string[] = [];
+
+  for (const [targetField, extractorConfig] of Object.entries(
+    normConfig.fields,
+  )) {
+    let value: any;
+
+    if (typeof extractorConfig === "string") {
+      if (extractorConfig === "__literal__") {
+        value = normConfig.when;
+      } else if (extractorConfig === "__self__") {
+        value = proposal;
+      } else {
+        value = getValueAtPath(proposal, extractorConfig);
+      }
+    } else {
+      if (extractorConfig.from === "__literal__") {
+        value = extractorConfig.defaultValue ?? normConfig.when;
+      } else if (extractorConfig.from === "__self__") {
+        value = proposal;
+      } else {
+        value = getValueAtPath(proposal, extractorConfig.from);
+      }
+
+      if (value === undefined && extractorConfig.defaultValue !== undefined) {
+        value = extractorConfig.defaultValue;
+      }
+
+      if (extractorConfig.transform && value !== undefined) {
+        value = extractorConfig.transform(value);
+      }
+    }
+
+    if (value !== undefined) {
+      normalized[targetField] = value;
+      extractedFields.push(targetField);
+    }
+  }
+
+  logger.debug("Normalization complete", {
+    operation: "normalizeWithConfig.complete",
+    originalKeys: Object.keys(proposal),
+    normalizedKeys: extractedFields,
+    changeType: normalized.changeType,
+  });
+
+  return normalized;
+}
+
+/**
+ * Applies transformers that add missing fields to proposals
+ * This is similar to the old substituteSituationAwareExpectedValues
+ *
+ * @param proposals - The proposals to transform
+ * @param config - Validation configuration with transformers
+ * @param isExpected - Whether these are expected proposals (true) or actual (false)
+ * @param pairedProposals - Optional paired proposals for condition checking
+ *                          If transforming expected, these should be actual proposals
+ *                          If transforming actual, these should be expected proposals
+ */
+export function applyAddTransformers(
+  proposals: any[],
+  config: ValidationConfig,
+  isExpected: boolean = true,
+  pairedProposals?: any[],
+): any[] {
+  if (!config.transformers) return proposals;
+
+  const transformerPaths = Object.keys(config.transformers).filter((path) => {
+    const tc = normalizeTransformer(config.transformers![path]);
+    return tc.onMissing === "add";
+  });
+
+  if (transformerPaths.length > 0) {
+    logger.debug("Applying add transformers", {
+      operation: "applyAddTransformers",
+      side: isExpected ? "expected" : "actual",
+      paths: transformerPaths,
+      proposalCount: proposals.length,
+      hasPairedProposals: !!pairedProposals,
+    });
+  }
+
+  return proposals.map((proposal, index) => {
+    const modified = deepClone(proposal);
+    let fieldsAdded = 0;
+
+    // Get paired proposal if available
+    const pairedProposal = pairedProposals?.[index];
+
+    for (const [path, transformer] of Object.entries(config.transformers)) {
+      const transformerConfig = normalizeTransformer(transformer);
+
+      if (transformerConfig.onMissing !== "add") continue;
+
+      const side = isExpected ? "expected" : "actual";
+      if (
+        transformerConfig.applyTo !== "both" &&
+        transformerConfig.applyTo !== side
+      ) {
+        continue;
+      }
+
+      // Determine which proposal to check conditions against
+      let proposalForCondition = modified;
+      const conditionTarget = transformerConfig.conditionTarget || "self";
+
+      if (conditionTarget === "actual" && isExpected && pairedProposal) {
+        // We're transforming expected, but want to check condition on actual
+        proposalForCondition = pairedProposal;
+      } else if (
+        conditionTarget === "expected" &&
+        !isExpected &&
+        pairedProposal
+      ) {
+        // We're transforming actual, but want to check condition on expected
+        proposalForCondition = pairedProposal;
+      } else if (conditionTarget !== "self" && !pairedProposal) {
+        logger.debug(
+          "Cannot check condition on paired proposal - not provided",
+          {
+            operation: "applyAddTransformers.noPairedProposal",
+            proposalIndex: index,
+            path,
+            conditionTarget,
+            side,
+          },
+        );
+        continue;
+      }
+
+      // Check if transformer conditions are met
+      if (!shouldApplyTransformer(transformerConfig, proposalForCondition)) {
+        logger.debug("Skipping transformer due to condition not met", {
+          operation: "applyAddTransformers.conditionNotMet",
+          proposalIndex: index,
+          path,
+          when: transformerConfig.when,
+          conditionTarget,
+          changeType: proposalForCondition.changeType,
+        });
+        continue;
+      }
+
+      const exists = hasValueAtPath(modified, path);
+
+      if (!exists) {
+        // Check if this proposal has ignorePaths that would ignore this field
+        const proposalIgnorePaths = modified.ignorePaths;
+        if (proposalIgnorePaths) {
+          const pathsToCheck = Array.isArray(proposalIgnorePaths)
+            ? proposalIgnorePaths
+            : [proposalIgnorePaths];
+
+          const shouldSkip = pathsToCheck.some((ignorePath) =>
+            pathMatchesPattern(path, ignorePath),
+          );
+
+          if (shouldSkip) {
+            logger.debug("Skipping transformer for ignored path", {
+              operation: "applyAddTransformers.skipIgnored",
+              proposalIndex: index,
+              path,
+              ignorePaths: pathsToCheck,
+            });
+            continue;
+          }
+        }
+
+        const context: TransformerContext = {
+          path,
+          isExpected,
+          currentDate: new Date(),
+        };
+
+        const transformedValue = transformerConfig.transform(
+          undefined,
+          context,
+        );
+        setValueAtPath(modified, path, transformedValue);
+        fieldsAdded++;
+
+        logger.debug("Added missing field", {
+          operation: "applyAddTransformers.addField",
+          proposalIndex: index,
+          path,
+          value: transformedValue,
+          conditionCheckedOn: conditionTarget,
+        });
+      }
+    }
+
+    if (fieldsAdded > 0) {
+      logger.debug("Transformer summary for proposal", {
+        operation: "applyAddTransformers.summary",
+        proposalIndex: index,
+        fieldsAdded,
+        changeType: modified.changeType,
+      });
+    }
+
+    return modified;
+  });
+}
+
+/**
+ * Merges validation configs with proper priority handling
+ * Priority: proposal > example > global
+ * Empty objects {} mean "no transformers/paths"
+ */
+export function mergeValidationConfigs(
+  globalConfig: ValidationConfig,
+  exampleConfig?: ValidationConfig,
+  proposalOverrides?: {
+    ignorePaths?: string[];
+    transformers?: Record<string, string>;
+  },
+): ValidationConfig {
+  let finalConfig = globalConfig;
+
+  if (exampleConfig) {
+    finalConfig = {
+      ...globalConfig,
+      ignorePaths: exampleConfig.ignorePaths || [],
+      transformers: exampleConfig.transformers || {},
+    };
+  }
+
+  if (proposalOverrides) {
+    if (proposalOverrides.ignorePaths !== undefined) {
+      finalConfig = {
+        ...finalConfig,
+        ignorePaths: proposalOverrides.ignorePaths,
+      };
+    }
+    if (proposalOverrides.transformers !== undefined) {
+      finalConfig = {
+        ...finalConfig,
+        transformers: proposalOverrides.transformers,
+      };
+    }
+  }
+
+  return finalConfig;
+}
+
+export function applyTransformer(
+  value: any,
+  path: string,
+  config: ValidationConfig,
+  isExpected: boolean,
+  currentDate?: Date,
+): { value: any; wasAdded: boolean } {
+  const transformerConfig = getPathTransformer(path, config);
+  if (!transformerConfig) {
+    return { value, wasAdded: false };
+  }
+
+  const side = isExpected ? "expected" : "actual";
+  if (
+    transformerConfig.applyTo !== "both" &&
+    transformerConfig.applyTo !== side
+  ) {
+    return { value, wasAdded: false };
+  }
+
+  const context: TransformerContext = {
+    path,
+    isExpected,
+    currentDate,
+  };
+
+  try {
+    if (value === undefined || value === null) {
+      if (transformerConfig.onMissing === "add") {
+        return {
+          value: transformerConfig.transform(undefined, context),
+          wasAdded: true,
+        };
+      } else if (transformerConfig.onMissing === "fail") {
+        throw new Error(`Required field missing: ${path}`);
+      }
+      return { value, wasAdded: false };
+    }
+
+    // Check if we should transform existing values
+    if (transformerConfig.onExisting === "skip") {
+      return { value, wasAdded: false };
+    }
+
+    return {
+      value: transformerConfig.transform(value, context),
+      wasAdded: false,
+    };
+  } catch (error) {
+    logger.warn("Failed to apply transformer", {
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { value, wasAdded: false };
+  }
+}

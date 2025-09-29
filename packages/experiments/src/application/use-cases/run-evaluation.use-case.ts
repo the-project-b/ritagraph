@@ -7,6 +7,7 @@ import {
   unwrap,
   unwrapErr,
 } from "@the-project-b/types";
+import { createLogger } from "@the-project-b/logging";
 import {
   DatasetRepository,
   EvaluationConfig,
@@ -20,17 +21,18 @@ import {
   RunEvaluationDto,
   RunEvaluationResult,
 } from "../dto/run-evaluation.dto.js";
+import { AuthContextDto } from "../dto/auth-context.dto.js";
 import { EvaluationOrchestratorService } from "../services/evaluation-orchestrator.service.js";
 import {
   JobManagerService,
   JobStatus,
 } from "../services/job-manager.service.js";
 
-export interface RunEvaluationContext {
-  authToken: string;
-  userId: string;
-  companyId: string;
-}
+export type RunEvaluationContext = AuthContextDto;
+
+const logger = createLogger({ service: "experiments" }).child({
+  module: "RunEvaluationUseCase",
+});
 
 /**
  * Use case for running evaluations
@@ -61,16 +63,23 @@ export class RunEvaluationUseCase {
       const dataset = unwrap(datasetResult);
 
       // 2. Count examples for validation
+      logger.debug("Counting examples", {
+        datasetId: dataset.id.toString(),
+        datasetName: dto.datasetName,
+        splits: dto.splits,
+      });
       const exampleCount = await this.datasetRepo.countExamples(
         dataset.id,
         dto.splits,
       );
+      logger.debug("Example count result", { count: exampleCount });
 
       if (exampleCount === 0) {
         const message =
           dto.splits && dto.splits.length > 0
             ? `No examples found in dataset "${dto.datasetName}" for splits: [${dto.splits.join(", ")}]`
             : `Dataset "${dto.datasetName}" contains no examples`;
+        logger.error("No examples found", { message });
         return err(new ApplicationError(message));
       }
 
@@ -186,11 +195,7 @@ export class RunEvaluationUseCase {
         evaluators: dto.evaluators,
         graphName: dto.graphName,
         splits: dto.splits,
-        authContext: {
-          token: context.authToken,
-          userId: context.userId,
-          companyId: context.companyId,
-        },
+        authContext: context,
         onProgress: (processed, total) => {
           this.jobManager.updateJobProgress(jobId, processed, total);
         },

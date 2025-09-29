@@ -31,6 +31,12 @@ export {
   type PromptFilter,
   type PromptInfo,
   type PromptRepository,
+  type RitaThreadRepository,
+  RitaThread,
+  RitaThreadStatus,
+  RitaThreadTriggerType,
+  RitaThreadItem,
+  RitaThreadItemType,
   // Services
   EvaluationService,
   type EvaluationContext,
@@ -44,19 +50,21 @@ export * from "./application/index.js";
 // Re-export infrastructure layer
 export * from "./infrastructure/index.js";
 
-// Re-export evaluators (handling naming conflicts)
+// Re-export evaluators
 export {
-  EvaluatorFactory,
-  // Classes
+  // Registry - single source of truth
   EvaluatorRegistry,
-  ExpectedOutputEvaluator,
-  type AnthropicModel,
-  type CodeEvaluationInputs,
-  type CodeEvaluationOutputs,
+  evaluatorRegistry,
+  // Evaluator implementations
+  expectedOutputEvaluator,
+  languageVerificationEvaluator,
+  dataChangeProposalEvaluator,
+  titleGenerationEvaluator,
+  proposalQuoteVerificationEvaluator,
+  // Core types
   type EvaluationOptions,
   type Evaluator,
   type EvaluatorConfig,
-  // Core types and interfaces (rename conflicting ones)
   type EvaluationResult as EvaluatorEvaluationResult,
   type EvaluatorInfo,
   type EvaluatorMap,
@@ -64,23 +72,28 @@ export {
   type EvaluatorType,
   type ModelIdentifier,
   type ModelProvider,
-  type OpenAIModel,
   type TextEvaluationInputs,
   type TextEvaluationOutputs,
   type TypedEvaluator,
-} from "./evaluators/index.js";
+  DataChangeProposal,
+} from "./infrastructure/evaluators/index.js";
 
 // Convenience function to create repositories from environment
 import { ProviderFactory, type RepositorySet } from "./infrastructure/index.js";
+import { type GraphFactory } from "./infrastructure/types/langsmith.types.js";
 
 /**
  * Create repositories and services based on environment configuration
  */
 export function createExperimentsFromEnv(
-  graphFactory?: (context: any) => Promise<any>,
+  graphFactory?: GraphFactory,
+  graphQLEndpoint?: string,
+  getAuthToken?: () => string,
 ): RepositorySet {
   const config = ProviderFactory.createConfigFromEnv();
   config.graphFactory = graphFactory;
+  config.graphQLEndpoint = graphQLEndpoint;
+  config.getAuthToken = getAuthToken;
   return ProviderFactory.createRepositories(config);
 }
 

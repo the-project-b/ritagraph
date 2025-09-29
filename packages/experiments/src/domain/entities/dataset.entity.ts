@@ -78,7 +78,10 @@ export class Dataset {
     if (splits.length === 0) {
       return [...this._examples];
     }
-    return this._examples.filter((e) => e.split && splits.includes(e.split));
+    // Check if any of the example's splits match any of the requested splits
+    return this._examples.filter((e) =>
+      e.splits && splits.some(split => e.splits!.includes(split))
+    );
   }
 
   countExamples(splits?: string[]): number {

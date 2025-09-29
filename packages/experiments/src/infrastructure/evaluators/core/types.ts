@@ -1,34 +1,23 @@
-// Evaluator types for experiments package
+/**
+ * Core types for evaluator system
+ */
 
-// Model provider types
 export type ModelProvider = "openai" | "anthropic" | "google" | "azure";
-
 export type OpenAIModel =
   | "gpt-4o"
   | "gpt-4o-mini"
   | "gpt-4-turbo"
   | "gpt-3.5-turbo";
-
 export type AnthropicModel =
   | "claude-3-5-sonnet-20241022"
   | "claude-3-opus-20240229"
   | "claude-3-haiku-20240307";
 
-// Full model identifier (e.g., 'openai:gpt-4o', 'anthropic:claude-3-5-sonnet-20241022')
 export type ModelIdentifier =
   | `${ModelProvider}:${string}`
   | OpenAIModel
   | AnthropicModel;
 
-// Evaluation result type
-export interface EvaluationResult {
-  score?: number;
-  value?: any;
-  comment?: string;
-  extra?: Record<string, any>;
-}
-
-// Evaluation data types - using generics for flexibility while maintaining type safety
 export interface EvaluatorParams<
   TInputs = Record<string, unknown>,
   TOutputs = Record<string, unknown>,
@@ -39,14 +28,19 @@ export interface EvaluatorParams<
   referenceOutputs?: TReferenceOutputs;
 }
 
-// Options passed to evaluator evaluate function
+export interface EvaluationResult {
+  key: string;
+  score: number;
+  comment?: string;
+  value?: unknown;
+}
+
 export interface EvaluationOptions {
   readonly customPrompt?: string;
   readonly model?: ModelIdentifier;
   readonly referenceKey?: string;
 }
 
-// Configuration for an evaluator
 export interface EvaluatorConfig {
   readonly type: string;
   readonly name: string;
@@ -57,10 +51,8 @@ export interface EvaluatorConfig {
   readonly requiredReferenceKeys?: readonly string[];
 }
 
-// Public information about an evaluator
 export type EvaluatorInfo = EvaluatorConfig;
 
-// Base evaluator interface
 export interface Evaluator<
   TInputs = Record<string, unknown>,
   TOutputs = Record<string, unknown>,
@@ -73,7 +65,6 @@ export interface Evaluator<
   ): Promise<EvaluationResult>;
 }
 
-// Type for evaluator implementations - allows for specific typing per evaluator
 export interface TypedEvaluator<
   TType extends string,
   TInputs = Record<string, unknown>,
@@ -85,13 +76,10 @@ export interface TypedEvaluator<
   };
 }
 
-// Helper type for extracting evaluator type from config
 export type EvaluatorType<T extends Evaluator> = T["config"]["type"];
 
-// Registry map type
 export type EvaluatorMap = ReadonlyMap<string, Evaluator>;
 
-// Common input/output schemas for different types of evaluations
 export interface TextEvaluationInputs {
   readonly question?: string;
   readonly prompt?: string;

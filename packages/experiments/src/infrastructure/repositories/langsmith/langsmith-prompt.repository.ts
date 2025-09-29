@@ -36,14 +36,12 @@ export class LangSmithPromptRepository implements PromptRepository {
         id: p.id,
         name: p.name,
         description: p.description,
-        isPublic: p.metadata?.isPublic || false,
-        owner: p.metadata?.owner || "unknown",
-        fullName: p.metadata?.fullName || p.name,
-        tags: p.metadata?.tags || [],
-        updatedAt: p.metadata?.updatedAt
-          ? new Date(p.metadata.updatedAt)
-          : new Date(),
-        metadata: p.metadata,
+        isPublic: Boolean(p.metadata?.isPublic),
+        owner: String(p.metadata?.owner || "unknown"),
+        fullName: String(p.metadata?.fullName || p.name),
+        tags: Array.isArray(p.metadata?.tags) ? p.metadata.tags as string[] : [],
+        updatedAt: p.metadata?.updatedAt ? new Date(p.metadata.updatedAt as string) : new Date(),
+        metadata: p.metadata || {},
       }));
 
       return ok(promptInfos);

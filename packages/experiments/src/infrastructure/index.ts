@@ -1,7 +1,7 @@
 // Adapters
 export {
-  ExperimentProviderAdapter,
   ProviderType,
+  type ExperimentProviderAdapter,
   type EvaluationConfig,
   type EvaluationResults,
   type ExperimentConfig,
@@ -43,3 +43,23 @@ export { LangFusePromptRepository } from "./repositories/langfuse/langfuse-promp
 // Services
 export { LangFuseEvaluationService } from "./services/langfuse-evaluation.service.js";
 export { LangSmithEvaluationService } from "./services/langsmith-evaluation.service.js";
+
+// GraphQL Repositories
+export { GraphQLRitaThreadRepository } from "./repositories/graphql/graphql-rita-thread.repository.js";
+
+// Types
+export type {
+  GraphFactory,
+  GraphFactoryContext,
+  GraphInstance,
+  GraphInput,
+  GraphConfig,
+  GraphOutput,
+  LangSmithExample,
+  LangSmithEvaluationResults,
+  LangSmithDataSource,
+  LangSmithEvaluateOptions,
+  TargetFunctionInput,
+  TargetFunctionResult,
+  EvaluatorFunction,
+} from "./types/langsmith.types.js";

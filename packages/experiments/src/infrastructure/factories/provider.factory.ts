@@ -3,21 +3,25 @@ import {
   ExperimentRepository,
   PromptRepository,
   EvaluationService,
-} from '../../domain/index.js';
+} from "../../domain/index.js";
 import {
   ExperimentProviderAdapter,
   ProviderType,
-} from '../adapters/provider.adapter.js';
-import { LangSmithAdapter } from '../adapters/langsmith.adapter.js';
-import { LangFuseAdapter } from '../adapters/langfuse.adapter.js';
-import { LangSmithDatasetRepository } from '../repositories/langsmith/langsmith-dataset.repository.js';
-import { LangSmithExperimentRepository } from '../repositories/langsmith/langsmith-experiment.repository.js';
-import { LangSmithPromptRepository } from '../repositories/langsmith/langsmith-prompt.repository.js';
-import { LangFuseDatasetRepository } from '../repositories/langfuse/langfuse-dataset.repository.js';
-import { LangFuseExperimentRepository } from '../repositories/langfuse/langfuse-experiment.repository.js';
-import { LangFusePromptRepository } from '../repositories/langfuse/langfuse-prompt.repository.js';
-import { LangSmithEvaluationService } from '../services/langsmith-evaluation.service.js';
-import { LangFuseEvaluationService } from '../services/langfuse-evaluation.service.js';
+} from "../adapters/provider.adapter.js";
+import { LangSmithAdapter } from "../adapters/langsmith.adapter.js";
+import { LangFuseAdapter } from "../adapters/langfuse.adapter.js";
+import { LangSmithDatasetRepository } from "../repositories/langsmith/langsmith-dataset.repository.js";
+import { LangSmithExperimentRepository } from "../repositories/langsmith/langsmith-experiment.repository.js";
+import { LangSmithPromptRepository } from "../repositories/langsmith/langsmith-prompt.repository.js";
+import { LangFuseDatasetRepository } from "../repositories/langfuse/langfuse-dataset.repository.js";
+import { LangFuseExperimentRepository } from "../repositories/langfuse/langfuse-experiment.repository.js";
+import { LangFusePromptRepository } from "../repositories/langfuse/langfuse-prompt.repository.js";
+import { LangSmithEvaluationService } from "../services/langsmith-evaluation.service.js";
+import { LangFuseEvaluationService } from "../services/langfuse-evaluation.service.js";
+
+import { RitaThreadRepository } from "../../domain/repositories/rita-thread.repository.js";
+import { GraphQLRitaThreadRepository } from "../repositories/graphql/graphql-rita-thread.repository.js";
+import { GraphFactory } from "../types/langsmith.types.js";
 
 export interface ProviderConfig {
   type: ProviderType;
@@ -31,7 +35,9 @@ export interface ProviderConfig {
     secretKey: string;
     host?: string;
   };
-  graphFactory?: (context: any) => Promise<any>;
+  graphFactory?: GraphFactory;
+  graphQLEndpoint?: string;
+  getAuthToken?: () => string;
 }
 
 export interface RepositorySet {
@@ -39,6 +45,7 @@ export interface RepositorySet {
   experiment: ExperimentRepository;
   prompt: PromptRepository;
   evaluation: EvaluationService;
+  thread?: RitaThreadRepository;
 }
 
 /**
@@ -50,7 +57,10 @@ export class ProviderFactory {
   /**
    * Register an adapter
    */
-  static registerAdapter(type: ProviderType, adapter: ExperimentProviderAdapter): void {
+  static registerAdapter(
+    type: ProviderType,
+    adapter: ExperimentProviderAdapter,
+  ): void {
     this.adapters.set(type, adapter);
   }
 
@@ -72,13 +82,13 @@ export class ProviderFactory {
     switch (config.type) {
       case ProviderType.LANGSMITH:
         if (!config.langsmith) {
-          throw new Error('LangSmith configuration required');
+          throw new Error("LangSmith configuration required");
         }
         return new LangSmithAdapter(config.langsmith);
 
       case ProviderType.LANGFUSE:
         if (!config.langfuse) {
-          throw new Error('LangFuse configuration required');
+          throw new Error("LangFuse configuration required");
         }
         return new LangFuseAdapter(config.langfuse);
 
@@ -94,6 +104,15 @@ export class ProviderFactory {
     const adapter = this.createAdapter(config);
     this.registerAdapter(config.type, adapter);
 
+    // Create thread repository if GraphQL endpoint is provided
+    let threadRepository: RitaThreadRepository | undefined;
+    if (config.graphQLEndpoint && config.getAuthToken) {
+      threadRepository = new GraphQLRitaThreadRepository(
+        config.graphQLEndpoint,
+        config.getAuthToken,
+      );
+    }
+
     switch (config.type) {
       case ProviderType.LANGSMITH: {
         const langsmithAdapter = adapter as LangSmithAdapter;
@@ -101,7 +120,12 @@ export class ProviderFactory {
           dataset: new LangSmithDatasetRepository(langsmithAdapter),
           experiment: new LangSmithExperimentRepository(langsmithAdapter),
           prompt: new LangSmithPromptRepository(langsmithAdapter),
-          evaluation: new LangSmithEvaluationService(langsmithAdapter, config.graphFactory),
+          evaluation: new LangSmithEvaluationService(
+            langsmithAdapter,
+            config.graphFactory,
+            threadRepository,
+          ),
+          thread: threadRepository,
         };
       }
 
@@ -111,7 +135,12 @@ export class ProviderFactory {
           dataset: new LangFuseDatasetRepository(langfuseAdapter),
           experiment: new LangFuseExperimentRepository(langfuseAdapter),
           prompt: new LangFusePromptRepository(langfuseAdapter),
-          evaluation: new LangFuseEvaluationService(langfuseAdapter, config.graphFactory),
+          evaluation: new LangFuseEvaluationService(
+            langfuseAdapter,
+            config.graphFactory,
+            threadRepository,
+          ),
+          thread: threadRepository,
         };
       }
 
@@ -127,9 +156,9 @@ export class ProviderFactory {
     const provider = process.env.EXPERIMENTS_PROVIDER?.toLowerCase();
 
     switch (provider) {
-      case 'langsmith':
+      case "langsmith":
         return ProviderType.LANGSMITH;
-      case 'langfuse':
+      case "langfuse":
         return ProviderType.LANGFUSE;
       default:
         // Default to LangSmith for backward compatibility
@@ -158,8 +187,8 @@ export class ProviderFactory {
         return {
           type,
           langfuse: {
-            publicKey: process.env.LANGFUSE_PUBLIC_KEY!,
-            secretKey: process.env.LANGFUSE_SECRET_KEY!,
+            publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+            secretKey: process.env.LANGFUSE_SECRET_KEY,
             host: process.env.LANGFUSE_HOST,
           },
         };

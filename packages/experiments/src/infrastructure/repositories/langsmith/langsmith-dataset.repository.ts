@@ -8,6 +8,7 @@ import {
   unwrap,
   unwrapErr,
 } from "@the-project-b/types";
+import { createLogger } from "@the-project-b/logging";
 import {
   Dataset,
   DatasetId,
@@ -17,6 +18,10 @@ import {
 } from "../../../domain/index.js";
 import { LangSmithAdapter } from "../../adapters/langsmith.adapter.js";
 
+const logger = createLogger({ service: "experiments" }).child({
+  module: "LangSmithDatasetRepository",
+});
+
 /**
  * LangSmith implementation of DatasetRepository
  */
@@ -24,9 +29,9 @@ export class LangSmithDatasetRepository implements DatasetRepository {
   constructor(private adapter: LangSmithAdapter) {}
 
   async findById(id: DatasetId): Promise<Result<Dataset, NotFoundError>> {
-    // LangSmith doesn't support lookup by ID, only by name
-    // This is a limitation we'll have to work around
-    return err(new NotFoundError("Dataset", id.toString()));
+    // Since we use the dataset name as the ID for LangSmith,
+    // findById actually uses the name to query
+    return this.findByName(id.toString());
   }
 
   async findByName(name: string): Promise<Result<Dataset, NotFoundError>> {
@@ -37,7 +42,15 @@ export class LangSmithDatasetRepository implements DatasetRepository {
         return err(new NotFoundError("Dataset", name));
       }
 
-      const dataset = this.toDomainEntity(providerDataset);
+      // Load examples into the dataset
+      const examples: Example[] = [];
+      const exampleIterator = this.listExamples(new DatasetId(name));
+
+      for await (const example of exampleIterator) {
+        examples.push(example);
+      }
+
+      const dataset = this.toDomainEntity(providerDataset, examples);
       return ok(dataset);
     } catch (error) {
       return err(
@@ -52,9 +65,7 @@ export class LangSmithDatasetRepository implements DatasetRepository {
     datasetId: DatasetId,
     filter?: ExampleFilter,
   ): AsyncIterable<Example> {
-    // We need the dataset name, not the ID
-    // This is a limitation of LangSmith API
-    // In practice, we often use the name as the ID
+    // Since we use dataset name as the ID, just use it directly
     const datasetName = datasetId.toString();
 
     const providerExamples = this.adapter.listExamples(datasetName, {
@@ -69,7 +80,7 @@ export class LangSmithDatasetRepository implements DatasetRepository {
         inputs: providerExample.inputs,
         outputs: providerExample.outputs,
         metadata: providerExample.metadata,
-        split: providerExample.split,
+        splits: providerExample.splits,
         datasetId: providerExample.datasetId,
         createdAt: providerExample.createdAt,
       });
@@ -84,8 +95,20 @@ export class LangSmithDatasetRepository implements DatasetRepository {
     datasetId: DatasetId,
     splits?: string[],
   ): Promise<number> {
+    // LangSmith API requires the dataset name, not UUID
+    // The DatasetId value IS the dataset name in our current implementation
+    // because the use case gets the dataset by name and passes dataset.id
+    // Since we store the UUID as ID but LangSmith needs the name,
+    // we need to use the DatasetId's value which should be the name
+    // TODO: This is a temporary solution - ideally we'd store name in Dataset entity
     const datasetName = datasetId.toString();
-    return this.adapter.countExamples(datasetName, splits);
+    logger.debug('countExamples called', {
+      datasetId: datasetName,
+      splits
+    });
+    const count = await this.adapter.countExamples(datasetName, splits);
+    logger.debug('countExamples result', { count });
+    return count;
   }
 
   async exists(name: string): Promise<boolean> {
@@ -112,13 +135,17 @@ export class LangSmithDatasetRepository implements DatasetRepository {
     );
   }
 
-  private toDomainEntity(providerDataset: any): Dataset {
+  private toDomainEntity(providerDataset: any, examples: Example[] = []): Dataset {
     const result = Dataset.create({
-      id: providerDataset.id || providerDataset.name,
+      // For LangSmith, we use the name as the ID since that's what we need for queries
+      // The UUID is stored in metadata if needed
+      id: providerDataset.name,
       name: providerDataset.name,
       description: providerDataset.description,
+      examples: examples,
       metadata: {
         ...providerDataset.metadata,
+        langsmithId: providerDataset.id, // Store the UUID here
         createdAt: providerDataset.createdAt,
         updatedAt: providerDataset.updatedAt,
       },

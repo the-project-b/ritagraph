@@ -1,8 +1,6 @@
-import { Result } from '@the-project-b/types';
-
 export enum ProviderType {
-  LANGSMITH = 'langsmith',
-  LANGFUSE = 'langfuse',
+  LANGSMITH = "langsmith",
+  LANGFUSE = "langfuse",
 }
 
 export interface ProviderDataset {
@@ -11,15 +9,15 @@ export interface ProviderDataset {
   description?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProviderExample {
   id: string;
-  inputs: Record<string, any>;
-  outputs?: Record<string, any>;
-  metadata?: Record<string, any>;
-  split?: string;
+  inputs: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  splits?: string[]; // Changed to array to support multiple splits
   datasetId?: string;
   createdAt?: Date;
 }
@@ -30,7 +28,7 @@ export interface ProviderExperiment {
   datasetId: string;
   startTime: Date;
   endTime?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProviderPrompt {
@@ -39,7 +37,7 @@ export interface ProviderPrompt {
   description?: string;
   template: string;
   variables?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ListExamplesOptions {
@@ -51,26 +49,26 @@ export interface ListExamplesOptions {
 export interface ExperimentConfig {
   name: string;
   datasetId: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EvaluationConfig {
   datasetName: string;
   experimentName?: string;
-  evaluators: any[];
+  evaluators: Array<{ type: string; customPrompt?: string; referenceKey?: string; model?: string; }>;
   maxConcurrency?: number;
   numRepetitions?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EvaluationResults {
   experimentId: string;
-  runs: any[];
+  runs: Array<Record<string, unknown>>;
   url?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
-export type TargetFunction = (example: ProviderExample) => Promise<any>;
+export type TargetFunction = (example: ProviderExample) => Promise<Record<string, unknown>>;
 
 /**
  * Base interface for experiment provider adapters
@@ -85,13 +83,10 @@ export interface ExperimentProviderAdapter {
 
   listExamples(
     datasetName: string,
-    options?: ListExamplesOptions
+    options?: ListExamplesOptions,
   ): AsyncIterable<ProviderExample>;
 
-  countExamples(
-    datasetName: string,
-    splits?: string[]
-  ): Promise<number>;
+  countExamples(datasetName: string, splits?: string[]): Promise<number>;
 
   /**
    * Experiment operations
@@ -103,7 +98,7 @@ export interface ExperimentProviderAdapter {
   listExperiments(
     datasetId?: string,
     limit?: number,
-    offset?: number
+    offset?: number,
   ): Promise<{ experiments: ProviderExperiment[]; total: number }>;
 
   deleteExperiment(id: string): Promise<boolean>;
@@ -113,7 +108,7 @@ export interface ExperimentProviderAdapter {
    */
   runEvaluation(
     target: TargetFunction,
-    config: EvaluationConfig
+    config: EvaluationConfig,
   ): Promise<EvaluationResults>;
 
   /**

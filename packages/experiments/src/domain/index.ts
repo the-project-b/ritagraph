@@ -1,4 +1,5 @@
 // Value Objects
+export { DataChangeProposal } from "./value-objects/data-change-proposal.value-object.js";
 export { DatasetId } from "./value-objects/dataset-id.value-object.js";
 export { EvaluationConfig } from "./value-objects/evaluation-config.value-object.js";
 export { ExperimentId } from "./value-objects/experiment-id.value-object.js";
@@ -17,6 +18,15 @@ export {
   ExperimentStatus,
   type ExperimentStatistics,
 } from "./entities/experiment.entity.js";
+export {
+  RitaThread,
+  RitaThreadStatus,
+  RitaThreadTriggerType,
+} from "./entities/rita-thread.entity.js";
+export {
+  RitaThreadItem,
+  RitaThreadItemType,
+} from "./entities/rita-thread-item.entity.js";
 
 // Repositories
 export {
@@ -34,6 +44,9 @@ export {
   type PromptInfo,
   type PromptRepository,
 } from "./repositories/prompt.repository.js";
+export {
+  type RitaThreadRepository,
+} from "./repositories/rita-thread.repository.js";
 
 // Services
 export {
