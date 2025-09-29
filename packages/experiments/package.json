@@ -19,18 +19,23 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@langchain/core": "0.3.28",
+    "@langchain/core": "^0.3.77",
+    "@langchain/openai": "^0.6.13",
+    "@the-project-b/logging": "*",
     "@the-project-b/types": "*",
-    "langsmith": "^0.3.63",
     "langfuse": "^3.31.0",
-    "uuid": "^11.0.5"
+    "langsmith": "^0.3.63",
+    "openai": "^5.23.1",
+    "openevals": "^0.1.1",
+    "uuid": "^11.0.5",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.3",
     "@types/uuid": "^10.0.0",
     "jest": "^30.1.3",
-    "typescript": "^5.8.3",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }
