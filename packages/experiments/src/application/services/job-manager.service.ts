@@ -9,7 +9,7 @@ export enum JobStatus {
   CANCELLED = "CANCELLED",
 }
 
-export interface JobData<T = any, R = any> {
+export interface JobData<T = unknown, R = unknown> {
   id: string;
   status: JobStatus;
   input: T;

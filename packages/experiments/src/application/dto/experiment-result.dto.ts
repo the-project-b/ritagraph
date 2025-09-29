@@ -15,8 +15,8 @@ export interface ExperimentResultDto {
   errorRate?: number;
   latencyP50?: number;
   latencyP99?: number;
-  feedbackStats?: Record<string, any>;
-  metadata?: Record<string, any>;
+  feedbackStats?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   url?: string;
 }
 
@@ -32,8 +32,8 @@ export interface RunResultDto {
   startTime: Date;
   endTime?: Date;
   latency?: number;
-  inputs?: Record<string, any>;
-  outputs?: Record<string, any>;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
   inputsPreview?: string;
   outputsPreview?: string;
   error?: string;
@@ -43,7 +43,7 @@ export interface RunResultDto {
   totalCost?: number;
   promptCost?: number;
   completionCost?: number;
-  feedbackStats?: Record<string, any>;
-  metadata?: Record<string, any>;
+  feedbackStats?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   tags?: string[];
 }
