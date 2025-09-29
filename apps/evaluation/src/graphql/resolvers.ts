@@ -1,11 +1,13 @@
 import { GraphQLJSON } from "graphql-scalars";
-import { EVALUATOR_INFO } from "../evaluators/core/factory.js";
-import { LangSmithService } from "../langsmith/service.js";
 import { EvaluationJobManager } from "../services/evaluation-job-manager.js";
+import { ExperimentsService } from "../services/experiments.service.js";
 import type { GraphQLContext } from "../types/index.js";
 import { requireAuth } from "./auth.helpers.js";
 import { filterFeedbackStats } from "./dynamic-schema.js";
 import type { Resolvers, RunParent } from "./types.js";
+
+// Create a singleton instance of ExperimentsService
+const experimentsService = new ExperimentsService();
 
 export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
   JSON: GraphQLJSON,
@@ -20,8 +22,9 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
     feedback: async (parent: RunParent, _args, context: GraphQLContext) => {
       requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      return await langsmithService.getFeedbackForRun(parent.id);
+      // TODO: Implement feedback loading through experiments service
+      // For now, return empty array
+      return [];
     },
   },
   Query: {
@@ -29,50 +32,23 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
     getDatasetExperiments: async (_parent, { input }, context) => {
       requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      const result = await langsmithService.getDatasetExperiments(input);
-
-      // Transform the experiments to match GraphQL schema
-      const transformedExperiments = result.experiments.map((experiment) => ({
-        ...experiment,
-        // feedbackStats and metadata are now properly handled as JSON objects
-      }));
-
-      return {
-        experiments: transformedExperiments,
-        total: result.total,
-      };
+      return experimentsService.getDatasetExperiments(input);
     },
     getExperimentDetails: async (_parent, { input }, context) => {
       requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      const result = await langsmithService.getExperimentDetails(input);
-
-      // Transform the runs to match GraphQL schema
-      const transformedRuns = result.runs.map((run) => ({
-        ...run,
-        // inputs, outputs, metadata are now properly handled as JSON objects
-      }));
-
-      return {
-        experiment: {
-          ...result.experiment,
-          // metadata is now properly handled as JSON object
-        },
-        runs: transformedRuns,
-        totalRuns: result.totalRuns,
-      };
+      return experimentsService.getExperimentDetails(input);
     },
     getAvailableGraphs: async (_parent, _args, context) => {
       requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      return langsmithService.getAvailableGraphs();
+      return ["rita"]; // TODO: We kinda changed this stuff around and should use the reigstry correctly, but do we really need to care about this?
     },
-    getAvailableEvaluators: () => {
-      // Convert the EVALUATOR_INFO record to an array of evaluator info objects
-      const evaluators = Object.values(EVALUATOR_INFO);
+    getAvailableEvaluators: async (_parent, _args, context) => {
+      requireAuth(context);
+
+      // Get evaluator info from the experiments service which uses DDD package
+      const evaluators = await experimentsService.getAvailableEvaluators();
       return {
         evaluators,
       };
@@ -100,23 +76,10 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
       const jobDetails = jobManager.getJobDetails(input.jobId);
 
       if (!jobDetails) {
-        throw new Error(`Evaluation job with ID ${input.jobId} not found`);
+        return null;
       }
 
       return jobDetails;
-    },
-    listLangSmithPrompts: async (_parent, { input }, context) => {
-      requireAuth(context);
-
-      const langsmithService = new LangSmithService();
-      const prompts = await langsmithService.listPrompts(
-        input?.query,
-        input?.isPublic || false,
-      );
-
-      return {
-        prompts,
-      };
     },
     getAllJobs: async (_parent, _args, context) => {
       requireAuth(context);
@@ -126,12 +89,6 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
     },
   },
   Mutation: {
-    // runEvaluation: async (_parent, { input }, context) => {
-    //   requireAuth(context);
-
-    //   const langsmithService = new LangSmithService();
-    //   return langsmithService.runEvaluation(input, context);
-    // },
     runEvaluationAsync: async (_parent, { input }, context) => {
       requireAuth(context);
 
@@ -141,8 +98,7 @@ export const resolvers: Resolvers & { JSON: typeof GraphQLJSON } = {
     deleteExperimentRuns: async (_parent, { input }, context) => {
       requireAuth(context);
 
-      const langsmithService = new LangSmithService();
-      return langsmithService.deleteExperimentRuns(input);
+      return experimentsService.deleteExperimentRuns(input);
     },
   },
 };

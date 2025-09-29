@@ -7,6 +7,7 @@ import type {
   DatasetExperiment,
   DeleteExperimentRunsInput,
   EvaluationJobDetails,
+  FeedbackStats,
   GetDatasetExperimentsInput,
   GetEvaluationJobStatusInput,
   GetExperimentDetailsInput,
@@ -42,7 +43,7 @@ export interface RunParent {
   readonly dottedOrder?: string;
   readonly status?: string;
   readonly executionOrder?: number;
-  readonly feedbackStats?: any; // TODO: Type this better
+  readonly feedbackStats?: FeedbackStats;
   readonly appPath?: string;
   readonly sessionId?: string;
 }
@@ -178,7 +179,6 @@ export interface Resolvers {
     getAvailableGraphs: GetAvailableGraphsResolver;
     getAvailableCompanies: GetAvailableCompaniesResolver;
     getEvaluationJobStatus: GetEvaluationJobStatusResolver;
-    listLangSmithPrompts: ListLangSmithPromptsResolver;
     getAllJobs: GetAllJobsResolver;
   };
   Mutation: {

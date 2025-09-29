@@ -4,14 +4,11 @@ export type GraphName = "rita";
 // Re-export context types
 export type { GraphQLContext } from "./context.js";
 
-// Import evaluator types
-import type { ModelIdentifier } from "../evaluators/core/types";
-
 export interface EvaluatorInput {
   type: string;
   customPrompt?: string;
   langsmithPromptName?: string;
-  model?: ModelIdentifier;
+  model?: string; // Just use string for model identifier
   referenceKey?: string;
 }
 
@@ -48,13 +45,36 @@ export interface FeedbackSource {
   userName?: string;
 }
 
+export interface ProposalQuoteVerificationValue {
+  baseScore: number;
+  proposalAnalysis: string;
+  llmScore?: number;
+  error?: string;
+}
+
+export interface DataChangeProposalValue {
+  expectedProposalCount: number;
+  actualProposalCount: number;
+  matchedProposals: number;
+  missingProposals: number;
+  unexpectedProposals: number;
+  referenceKey: string;
+  comparisonMethod: string;
+  [key: string]: unknown;
+}
+
+export type FeedbackValue =
+  | ProposalQuoteVerificationValue
+  | DataChangeProposalValue
+  | Record<string, unknown>;
+
 export interface Feedback {
   id: string;
   createdAt: string;
   modifiedAt: string;
   key: string;
   score?: number;
-  value?: any;
+  value?: FeedbackValue;
   comment?: string;
   correction?: string;
   feedbackGroupId?: string;
@@ -64,7 +84,7 @@ export interface Feedback {
   traceId: string;
   startTime: string;
   feedbackSource: FeedbackSource;
-  extra?: Record<string, any>;
+  extra?: Record<string, unknown>;
 }
 
 export interface Run {

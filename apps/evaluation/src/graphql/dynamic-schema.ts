@@ -1,11 +1,10 @@
-import { EvaluatorRegistry } from "../evaluators/core/registry.js";
+import { EvaluatorRegistry } from "@the-project-b/experiments";
 
 /**
- * Dynamically generates the FeedbackStats GraphQL type definition
- * based on registered evaluators
+ * Generates the FeedbackStats GraphQL type definition
  */
 export function generateFeedbackStatsType(): string {
-  const registeredEvaluators = EvaluatorRegistry.getAll();
+  const evaluators = EvaluatorRegistry.getAll();
 
   let feedbackStatsFields = `
     # Generic field to get all feedback stats as JSON (always available)
@@ -14,9 +13,9 @@ export function generateFeedbackStatsType(): string {
     allStats(evaluators: [String!]): JSON
   `;
 
-  // Add fields for each registered evaluator
-  for (const evaluator of registeredEvaluators) {
-    const { type, description } = evaluator.config;
+  for (const evaluator of evaluators) {
+    const type = evaluator.config.type;
+    const description = evaluator.config.description;
     const fieldName = type.toLowerCase();
 
     feedbackStatsFields += `

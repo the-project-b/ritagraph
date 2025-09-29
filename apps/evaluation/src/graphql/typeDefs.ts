@@ -456,20 +456,6 @@ export const typeDefs = gql`
     tags: [String!]
   }
 
-  # Response type for listing LangSmith prompts
-  type ListLangSmithPromptsResponse {
-    "List of available prompts"
-    prompts: [LangSmithPrompt!]!
-  }
-
-  # Input type for listing LangSmith prompts
-  input ListLangSmithPromptsInput {
-    "Optional search query to filter prompts"
-    query: String
-    "Whether to search public prompts (default: false for private workspace prompts)"
-    isPublic: Boolean
-  }
-
   # Brief job information for listing
   type JobSummary {
     "Unique identifier for the job"
@@ -501,10 +487,6 @@ export const typeDefs = gql`
     getEvaluationJobStatus(
       input: GetEvaluationJobStatusInput!
     ): EvaluationJobDetails!
-    "Get a list of LangSmith prompts available in the workspace"
-    listLangSmithPrompts(
-      input: ListLangSmithPromptsInput
-    ): ListLangSmithPromptsResponse!
     "Get a list of all evaluation jobs"
     getAllJobs: [JobSummary!]!
   }
