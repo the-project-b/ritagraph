@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",
+    "@opentelemetry/api": "^1.9.0",
     "@the-project-b/experiments": "*",
     "@the-project-b/graphql": "*",
     "@the-project-b/logging": "*",
