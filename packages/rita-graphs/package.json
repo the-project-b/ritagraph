@@ -34,7 +34,7 @@
     "@the-project-b/prompts": "*",
     "graphql": "^16.11.0",
     "langsmith": "^0.3.63",
-    "zod": "^3.25.28"
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^5.0.4",

@@ -35,8 +35,8 @@
     "graphql-scalars": "^1.24.2",
     "graphql-tag": "^2.12.6",
     "langsmith": "^0.3.63",
-    "openai": "^5.6.0",
-    "openevals": "^0.1.0"
+    "openai": "^5.23.1",
+    "openevals": "^0.1.1"
   },
   "devDependencies": {
     "@graphql-codegen/typescript-resolvers": "^4.2.1",
