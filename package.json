@@ -27,8 +27,5 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "overrides": {
-    "@langchain/core": "0.3.72"
-  }
+  ]
 }
