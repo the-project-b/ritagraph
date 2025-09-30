@@ -15,7 +15,7 @@
     "dev": "tsc --watch",
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "jest",
+    "test": "echo \"No tests implemented yet\"",
     "lint": "eslint src"
   },
   "dependencies": {

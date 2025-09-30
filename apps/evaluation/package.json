@@ -11,7 +11,7 @@
     "build:docker": "node esbuild.config.js",
     "codegen": "graphql-codegen --config codegen.ts",
     "lint": "eslint .",
-    "test": "jest",
+    "test": "echo \"No tests implemented yet\"",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "experiments:analyse:run": "tsx src/scripts/analyze-run.ts",
