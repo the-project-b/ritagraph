@@ -7,7 +7,7 @@ import {
   TextEvaluationOutputs,
   TypedEvaluator,
 } from "../core/types.js";
-import { getProposalQuoteVerificationPrompt } from "../prompts/proposal-quote-verification.prompt.js";
+import { promptService } from "../../services/prompt.service.js";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
@@ -111,8 +111,14 @@ export const proposalQuoteVerificationEvaluator: TypedEvaluator<
 
     if (baseScore >= 0.5) {
       try {
-        const dynamicPrompt =
-          customPrompt || (await getProposalQuoteVerificationPrompt());
+        // Fetch prompt from LangFuse if no custom prompt is provided
+        let dynamicPrompt = customPrompt;
+        if (!dynamicPrompt) {
+          const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+            promptName: "experiments-evaluator-proposal-quote-verification",
+          });
+          dynamicPrompt = rawPrompt.template;
+        }
 
         const llm = new ChatOpenAI({
           model: "gpt-4o-mini",

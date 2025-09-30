@@ -11,7 +11,7 @@ import {
   TextEvaluationInputs,
   TextEvaluationOutputs,
 } from "../core/types.js";
-import { EXPECTED_OUTPUT_PROMPT } from "../prompts/expected-output.prompt.js";
+import { promptService } from "../../services/prompt.service.js";
 
 const logger = createLogger({ service: "experiments" }).child({
   module: "ExpectedOutputEvaluator",
@@ -54,6 +54,15 @@ export const expectedOutputEvaluator: TypedEvaluator<
     options: EvaluationOptions = {},
   ): Promise<EvaluationResult> {
     const { customPrompt, model, referenceKey } = options;
+
+    // Fetch prompt from LangFuse if no custom prompt is provided
+    let promptTemplate = customPrompt;
+    if (!promptTemplate) {
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+        promptName: "experiments-evaluator-expected-output",
+      });
+      promptTemplate = rawPrompt.template;
+    }
 
     let referenceOutputs = undefined;
     if (params.referenceOutputs) {
@@ -102,7 +111,7 @@ export const expectedOutputEvaluator: TypedEvaluator<
     }
 
     const evaluator = createLLMAsJudge({
-      prompt: customPrompt || EXPECTED_OUTPUT_PROMPT,
+      prompt: promptTemplate,
       model: model || this.config.defaultModel,
       feedbackKey: "expected_output",
       choices: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],

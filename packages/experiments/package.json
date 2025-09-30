@@ -22,6 +22,7 @@
     "@langchain/core": "0.3.77",
     "@langchain/openai": "0.6.13",
     "@the-project-b/logging": "*",
+    "@the-project-b/prompts": "*",
     "@the-project-b/types": "*",
     "langfuse": "^3.31.0",
     "langsmith": "^0.3.63",

@@ -10,7 +10,7 @@ import {
   TextEvaluationInputs,
   TextEvaluationOutputs,
 } from "../core/types.js";
-import { LANGUAGE_VERIFICATION_PROMPT } from "../prompts/language-verification.prompt.js";
+import { promptService } from "../../services/prompt.service.js";
 
 interface LanguageVerificationInputs extends TextEvaluationInputs {
   readonly question: string;
@@ -52,6 +52,15 @@ export const languageVerificationEvaluator: TypedEvaluator<
   ): Promise<EvaluationResult> {
     const { customPrompt, model, referenceKey } = options;
 
+    // Fetch prompt from LangFuse if no custom prompt is provided
+    let promptTemplate = customPrompt;
+    if (!promptTemplate) {
+      const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
+        promptName: "experiments-evaluator-language-verification",
+      });
+      promptTemplate = rawPrompt.template;
+    }
+
     let expectedLanguage: string | undefined;
     if (
       referenceKey &&
@@ -90,7 +99,7 @@ export const languageVerificationEvaluator: TypedEvaluator<
     };
 
     const evaluator = createLLMAsJudge({
-      prompt: customPrompt || LANGUAGE_VERIFICATION_PROMPT,
+      prompt: promptTemplate,
       model: model || this.config.defaultModel,
       feedbackKey: "language_verification",
     });
