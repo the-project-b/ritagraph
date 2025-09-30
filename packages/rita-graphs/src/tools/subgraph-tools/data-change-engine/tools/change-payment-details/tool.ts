@@ -20,6 +20,7 @@ import {
   AgentActionType,
   AgentLogEventTag,
 } from "../../../../../utils/agent-action-logger/AgentActionLogger";
+import { AgentErrorType } from "../../../../../utils/agent-action-logger/agent-error-to-reason";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "Tools",
@@ -121,6 +122,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           relationId: config.toolCall.id,
           runId: run_id,
           tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+          errorType: AgentErrorType.INCORRECT_INFORMATION,
         });
         return {
           error: `This payment does not exist. Those are the existing paymentIds payments: ${JSON.stringify(
@@ -265,6 +267,7 @@ export const changePaymentDetails: ToolFactoryToolDefintion = (ctx) =>
           relationId: config.toolCall.id,
           runId: run_id,
           tags: [AgentLogEventTag.DATA_CHANGE_PROPOSAL],
+          errorType: AgentErrorType.TOOL_NOT_AVAILABLE,
         });
         return {
           error: "Failed to create thread items - tool call unavailable.",
@@ -357,7 +360,7 @@ ${effectiveDate ? `The change will be effective on ${effectiveDate}` : ""}
           .string()
           .optional()
           .describe(
-            "The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format. E.g. 'e.g. for October' => '2025-10-01'",
+            `The date on which the change should be effective. Only define if user mentions a date. YYYY-MM-DD format. E.g. 'e.g. for October' => '2025-10-01'. Today is ${new Date().toISOString().split("T")[0]}`,
           ),
       }),
     },

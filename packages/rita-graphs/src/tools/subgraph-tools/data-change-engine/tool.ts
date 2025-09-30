@@ -24,6 +24,7 @@ import growthbookClient from "../../../utils/growthbook";
 import { sanitizeQuoteForProposal } from "./tools/sanitize-quote-for-proposal/tool";
 import { masterDataChangeEngine } from "../master_data_change_engine/tool";
 import { promptService } from "../../../services/prompts/prompt.service";
+import { askUserAQuestion } from "../../ask-user-a-question/tool";
 
 export type PaymentType = {
   id: string;
@@ -58,7 +59,6 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
       },
       config,
     ) => {
-      // Fetch prompt from LangSmith
       const rawPrompt = await promptService.getRawPromptTemplateOrThrow({
         promptName: "ritagraph-data-change-engine",
       });
@@ -68,63 +68,6 @@ export const mutationEngine: ToolFactoryToolDefintion = (toolContext) =>
         today: new Date().toISOString().split("T")[0],
         nameOfMonth: new Date().toLocaleString("default", { month: "long" }),
       });
-
-      // Original hardcoded prompt - kept for reference
-      // const systemPrompt = await PromptTemplate.fromTemplate(
-      //   `
-      // <instruction>
-      // You are part of a payroll assistant system.
-      // You job is it schedule data changes (mutations).
-      // You get a vague request from the user and you have to resolve it using your tools.
-      //
-      // 1) Understand which payments already exist.
-      // 2) Think about if a new payment is needed or an existing one should be changed.
-      // 3) Schedule changes / creations
-      //
-      // IMPORTANT: When you are done please summarize the changes and mention which data change proposals were created.
-      // </instruction>
-      //
-      // <notes>
-      // IMPORTANT: Do not assign the same change to multiple payments unless clearly stated.
-      // - Do not just create new payments if there is already a payment with the same name unless the user explicitly asks for a new payment.
-      // - Employees can have multiple contracts and they are often directly linked by the job title. If you it is ambiguous please ask the user for clarification.
-      // - People can have Wage and Salary so it can be fixed or hourly based payment.
-      // - Bonuses and extra payments are likely directly addressed in the request whereas regular payments are just announced as change in amount.
-      // - The title of a payment often reveals its not a standard payment.
-      // - If you fail to get a user by ID double check if you used the right ID.
-      // - If you realised you do not have any other Ids explain you are not able to find the user.
-      // IMPORTANT: Quotes have to be refined with the sanitize_quote_for_proposal tool.
-      //
-      // Today is the {today}, that means it is {nameOfMonth}
-      // </notes>
-      //
-      // <examples>
-      // User: [name] worked 40 hours this month.
-      // Means: Change of existing payment because of hours worked.
-      // --------------
-      // User: [name] 40 stunden.
-      // Means: Change of existing payment in current month because of hours worked.
-      // --------------
-      // User: [name] 40 stunden im November.
-      // Means: Change of existing payment in November because of hours worked.
-      // --------------
-      // User: [name] gets a bonus of 100€ for the sales.
-      // Means: Create a new bonus type payment for the specific employee.
-      // --------------
-      // User: Bonus anpassen für [name] ab Dezember
-      // Means: Adjust existing bonus payment effective from 1st December.
-      // --------------
-      // User: Amteter muss das Gehalt von 1000€ erhöht werden.
-      // Means: Adjust existing payment.
-      // --------------
-      // User: Erhöhe das Gehalt von [name] auf 1000€
-      // Means: Adjust existing payment.
-      // </examples>
-      // `,
-      // ).format({
-      //   today: new Date().toISOString().split("T")[0],
-      //   nameOfMonth: new Date().toLocaleString("default", { month: "long" }),
-      // });
 
       const humanPrompt = await PromptTemplate.fromTemplate(
         `
@@ -162,8 +105,10 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         getCurrentDataChangeProposals,
         changePaymentDetails,
         sanitizeQuoteForProposal,
+        askUserAQuestion,
       ];
 
+      // Payment creation uses a load on demand technique
       if (growthbookClient.isOn("create-payments", {})) {
         toolDefinitions.push(createPayment);
       }

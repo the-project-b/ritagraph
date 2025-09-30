@@ -15,6 +15,7 @@ import { changeEmployeeInsurance } from "./tools/change-employee-insurance/tool"
 import { findInsuranceCompanyCodeByName } from "./tools/find-insurance-company-code-by-name/tool";
 import { promptService } from "../../../services/prompts/prompt.service";
 import { AgentActionType } from "../../../utils/agent-action-logger/AgentActionLogger";
+import { askUserAQuestion } from "../../ask-user-a-question/tool";
 
 export type ExtendedToolContext = {
   originalMessageChain: Array<BaseMessage>;
@@ -82,6 +83,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
         changeEmployeeBaseDetails,
         changeEmployeeInsurance,
         findInsuranceCompanyCodeByName,
+        askUserAQuestion,
       ];
 
       const tools = toolFactory<ExtendedToolContext>({
