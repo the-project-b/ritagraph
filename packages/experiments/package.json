@@ -19,8 +19,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.78",
-    "@langchain/openai": "^0.6.14",
+    "@langchain/core": "0.3.78",
+    "@langchain/openai": "0.6.14",
     "@the-project-b/logging": "*",
     "@the-project-b/prompts": "*",
     "@the-project-b/types": "*",
