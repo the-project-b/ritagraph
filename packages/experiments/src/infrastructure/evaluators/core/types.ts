@@ -102,3 +102,27 @@ export interface CodeEvaluationOutputs extends TextEvaluationOutputs {
   readonly output?: string;
   readonly error?: string;
 }
+
+/**
+ * Trajectory evaluation types for multi-turn conversations
+ */
+import type {
+  ConversationMessage,
+  ConversationTurnOutput,
+} from "../../types/langsmith.types.js";
+
+export interface TrajectoryEvaluationInputs {
+  readonly messages: ConversationMessage[];
+}
+
+export interface TrajectoryEvaluationOutputs {
+  readonly conversationTrajectory: ConversationMessage[];
+  readonly turnOutputs: ConversationTurnOutput[];
+  readonly answer: string;
+}
+
+export interface TrajectoryEvaluationReferenceOutputs {
+  readonly expectedConversationFlow?: string;
+  readonly expectedTurnCount?: number;
+  readonly expected_result_description?: string;
+}

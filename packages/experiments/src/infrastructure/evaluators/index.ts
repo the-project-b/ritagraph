@@ -9,6 +9,8 @@ export * from "./implementations/language-verification.evaluator.js";
 export * from "./implementations/data-change-proposal.evaluator.js";
 export * from "./implementations/title-generation.evaluator.js";
 export * from "./implementations/proposal-quote-verification.evaluator.js";
+export * from "./implementations/turn-count.evaluator.js";
+export * from "./implementations/conversation-flow.evaluator.js";
 
 // Re-export DataChangeProposal from domain for backward compatibility
 export { DataChangeProposal } from "../../domain/index.js";

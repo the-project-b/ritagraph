@@ -4,6 +4,8 @@ import {
   dataChangeProposalEvaluator,
   titleGenerationEvaluator,
   proposalQuoteVerificationEvaluator,
+  turnCountEvaluator,
+  conversationFlowEvaluator,
 } from "../implementations/index.js";
 
 /**
@@ -14,7 +16,9 @@ type RegisteredEvaluator =
   | typeof languageVerificationEvaluator
   | typeof dataChangeProposalEvaluator
   | typeof titleGenerationEvaluator
-  | typeof proposalQuoteVerificationEvaluator;
+  | typeof proposalQuoteVerificationEvaluator
+  | typeof turnCountEvaluator
+  | typeof conversationFlowEvaluator;
 
 /**
  * Central registry for all evaluators
@@ -30,6 +34,8 @@ export class EvaluatorRegistry {
     this.register(dataChangeProposalEvaluator);
     this.register(titleGenerationEvaluator);
     this.register(proposalQuoteVerificationEvaluator);
+    this.register(turnCountEvaluator);
+    this.register(conversationFlowEvaluator);
   }
 
   /**
