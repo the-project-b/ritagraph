@@ -20,9 +20,9 @@ on:
       - 'turbo.json'
       
       # Build and deployment files
-      - 'apps/experiments/Dockerfile'
-      - 'apps/experiments/fly.toml'
-      - 'apps/experiments/esbuild.config.js'
+      - 'apps/evaluation/Dockerfile'
+      - 'apps/evaluation/fly.toml'
+      - 'apps/evaluation/esbuild.config.js'
       - '.dockerignore'
       
       # Workflow itself
