@@ -6,7 +6,7 @@ primary_region = "fra"
 [build]
   # Deploy should be run from monorepo root: fly deploy --config fly.toml
   # TEST YOUR BUILD AND THE SERVICE BOOTING FIRST USING: "mak experiments:docker-test:"
-  dockerfile = "apps/experiments/Dockerfile"
+  dockerfile = "apps/evaluation/Dockerfile"
 
 [env]
   # Non-sensitive environment variables
