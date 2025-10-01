@@ -3,9 +3,13 @@ import { GraphStateType, Node } from "../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import z from "zod";
 import { SystemMessage } from "@langchain/core/messages";
-import { onHumanAndAiMessage } from "../../../utils/message-filter.js";
+import {
+  onHumanAndAiMessage,
+  onHumanMessage,
+} from "../../../utils/message-filter.js";
 import { BASE_MODEL_CONFIG } from "../../model-config.js";
 import { promptService } from "../../../services/prompts/prompt.service.js";
+import growthbookClient from "../../../utils/growthbook";
 
 /**
  * Router is responsible for routing the request to the right agent.
@@ -23,32 +27,6 @@ export const router: Node = async (state) => {
   const systemPrompt = await PromptTemplate.fromTemplate(
     rawPrompt.template,
   ).format({});
-
-  // const systemPrompt = await PromptTemplate.fromTemplate(
-  //   `
-  // You are a payroll specialist and part of a bigger system.
-  // Your job is to route the requests to the right agent
-  // Add your reasoning to the response.
-  // respond in JSON with:
-  // - CASUAL_RESPONSE_WITHOUT_DATA when the user is not requesting anything and is just greeting or saying goodbye
-  // - WORKFLOW_ENGINE for anything else that requires a real answer or context or a tool call
-  //
-  // Further cases for the WORKFLOW_ENGINE: Talking about approval of mutations or anything that is not casual.
-  // If the user is approving of something you should use the WORKFLOW_ENGINE.
-  //
-  // # Examples
-  // Hi, how are you? -> CASUAL_RESPONSE_WITHOUT_DATA
-  // Thanks, bye -> CASUAL_RESPONSE_WITHOUT_DATA
-  // Bis bald -> CASUAL_RESPONSE_WITHOUT_DATA
-  // [Person Name] hat jetzt doch mehr Gehalt bekommen, 1000€ -> WORKFLOW_ENGINE
-  // [Person Name] gets [Amount] more money for base salary -> WORKFLOW_ENGINE
-  // [Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
-  // [Person Name] gets [Amount] more money for overtime -> WORKFLOW_ENGINE
-  // [Person Name] gets [Amount] more money for bonus -> WORKFLOW_ENGINE
-  // Hi Rita, hier der August, [Name 1] [amount], [Name 2] [amount], [Name 3] [amount] VG Sonja -> WORKFLOW_ENGINE
-  // Hi looking for a list of employees -> WORKFLOW_ENGINE
-  // `,
-  // ).format({});
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
@@ -69,9 +47,25 @@ export const router: Node = async (state) => {
   };
 };
 
+const TODO_ENGINE_CHARACTER_THRESHOLD = 300;
+
 export function routerEdgeDecision(state: GraphStateType) {
+  const todoEngineEnabled = growthbookClient.isOn("todo-engine", {});
+
   if (state.routingDecision === "CASUAL_RESPONSE_WITHOUT_DATA") {
     return "quickResponse";
+  }
+
+  const lastHumanMessage = state.messages
+    .filter(onHumanMessage)
+    .at(-1)
+    ?.content.toString();
+
+  if (
+    todoEngineEnabled &&
+    lastHumanMessage?.length > TODO_ENGINE_CHARACTER_THRESHOLD
+  ) {
+    return "todoEngine";
   }
 
   if (state.routingDecision === "WORKFLOW_ENGINE") {
