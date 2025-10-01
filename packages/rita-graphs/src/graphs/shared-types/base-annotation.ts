@@ -4,6 +4,7 @@ import { DataRepresentationLayerEntity } from "../../utils/data-representation-l
 import AgentActionLogger, {
   AgentLogEvent,
 } from "../../utils/agent-action-logger/AgentActionLogger";
+import { AgentTodoItem } from "../rita/nodes/todo-engine/todo-engine";
 
 export function AnnotationWithDefault<T>(defaultValue: T) {
   return Annotation<T>({
@@ -78,6 +79,7 @@ export const BaseGraphAnnotation = Annotation.Root({
   agentActionLogger: AnnotationWithDefault<AgentActionLogger>(
     AgentActionLogger.fromLogs([]),
   ),
+  todos: AnnotationWithDefault<Array<AgentTodoItem>>([]),
   agentActionEvents: AnnotationWithDefault<Array<AgentLogEvent>>([]),
   dataRepresentationLayerStorage: AnnotationWithDefault<
     Record<string, DataRepresentationLayerEntity>

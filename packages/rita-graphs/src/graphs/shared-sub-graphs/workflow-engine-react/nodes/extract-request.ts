@@ -37,7 +37,7 @@ Means: The user lists the monthly hours of the employees. Adjust their monthly h
 };
 
 export const extractRequest: WorkflowEngineNode = async (
-  { messages, taskEngineMessages, taskEngineLoopCounter },
+  { messages, taskEngineMessages, taskEngineLoopCounter, todos },
   config,
   getAuthUser,
 ) => {
@@ -47,6 +47,19 @@ export const extractRequest: WorkflowEngineNode = async (
     taskEngineMessagesLength: taskEngineMessages.length,
     taskEngineLoopCounter,
   });
+
+  // if we already have todos, that means we can skip extract request and use the todos for sanitizing the user request
+  if (todos.length > 0) {
+    return {
+      sanitizedUserRequest: todos
+        .map(
+          (todo) =>
+            `${todo.taskDescription} for ${todo.relatedEmployeeName} -> Effective at: ${todo.effectiveDate}`,
+        )
+        .join("\n"),
+    };
+  }
+
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.2 });
 
   const lastUserMessages = messages

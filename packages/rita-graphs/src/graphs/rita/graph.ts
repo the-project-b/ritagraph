@@ -39,6 +39,7 @@ import { findEmployee } from "../../tools/find-employee/tool.js";
 import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-message-edge-decision.js";
 import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger.js";
 import { askUserAQuestion } from "../../tools/ask-user-a-question/tool.js";
+import { todoEngine } from "./nodes/todo-engine/todo-engine.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -99,6 +100,7 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         .addNode("generateTitle", wrapNodeWithAuth(generateTitle))
         .addNode("router", wrapNodeWithAuth(router))
         .addNode("quickResponse", wrapNodeWithAuth(quickResponse))
+        .addNode("todoEngine", wrapNodeWithAuth(todoEngine))
         .addNode(
           "workflowEngine",
           buildWorkflowEngineReAct({
@@ -125,7 +127,9 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         .addConditionalEdges("router", routerEdgeDecision, [
           "quickResponse",
           "workflowEngine",
+          "todoEngine",
         ])
+        .addEdge("todoEngine", "workflowEngine")
         .addConditionalEdges(
           "workflowEngine",
           wrapEdgeDecisionWithAuth(finalMessageEdgeDecision),
