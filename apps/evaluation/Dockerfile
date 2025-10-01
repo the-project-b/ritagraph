@@ -28,7 +28,7 @@ COPY . .
 RUN find . -name ".env*" -type f -exec sed -i 's|PROJECTB_GRAPHQL_ENDPOINT=.*|PROJECTB_GRAPHQL_ENDPOINT="https://qa4-dashboard.dev.project-b.dev/graphqlapi"|g' {} \;
 
 # Build the local packages first
-RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts
+RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts --filter=@the-project-b/experiments --filter=@the-project-b/types
 
 # Generate GraphQL types for experiments app
 WORKDIR /app/apps/evaluation
