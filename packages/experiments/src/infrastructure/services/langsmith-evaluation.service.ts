@@ -16,6 +16,8 @@ import {
   dataChangeProposalEvaluator,
   titleGenerationEvaluator,
   proposalQuoteVerificationEvaluator,
+  turnCountEvaluator,
+  conversationFlowEvaluator,
 } from "../evaluators/index.js";
 import { TemplateProcessor } from "../evaluators/helpers/template-processor.js";
 import { TemplateContext } from "../evaluators/helpers/template-variable-registry.js";
@@ -41,6 +43,9 @@ import {
   EvaluatorInput,
   EvaluatorOutput,
   EvaluatorReferenceOutput,
+  MultiTurnInput,
+  MultiTurnTargetFunctionResult,
+  ConversationMessage,
 } from "../types/langsmith.types.js";
 
 const logger = createLogger({ service: "experiments" }).child({
@@ -92,9 +97,9 @@ export class LangSmithEvaluationService extends EvaluationService {
         splits,
       });
 
-      // Create target function that will be called for each example
+      // Create unified target function that handles both single-turn and multi-turn
       const targetFunction =
-        await this.createTargetFunctionForDataset(authContext);
+        await this.createUnifiedTargetFunction(authContext);
 
       // Create evaluator functions from definitions
       const evaluatorFunctions = await this.createEvaluators(evaluators);
@@ -251,27 +256,241 @@ export class LangSmithEvaluationService extends EvaluationService {
     }
   }
 
-  private async createTargetFunctionForDataset(
+  /**
+   * Executes multi-turn conversation evaluation
+   * Loops through messages and invokes graph for each user turn with same thread_id
+   */
+  private async executeMultiTurnTarget(
+    input: MultiTurnInput,
     authContext: AuthContextDto,
-  ): Promise<(input: TargetFunctionInput) => Promise<TargetFunctionResult>> {
+  ): Promise<MultiTurnTargetFunctionResult> {
+    if (!this.graphFactory) {
+      throw new Error("Graph factory not provided");
+    }
+
+    logger.debug("Executing multi-turn target", {
+      messageCount: input.messages.length,
+    });
+
+    // Generate unique thread ID for this multi-turn conversation
+    const lcThreadId = `eval-mt-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // Create RitaThread for tracking
+    let ritaThread: RitaThread | null = null;
+    if (this.threadRepository) {
+      const threadResult = await this.threadRepository.createThread({
+        triggerType: RitaThreadTriggerType.Evaluation,
+        hrCompanyId: authContext.companyId,
+        status: RitaThreadStatus.Received,
+        lcThreadId,
+      });
+
+      if (isOk(threadResult)) {
+        ritaThread = unwrap(threadResult);
+        logger.debug("RitaThread created for multi-turn", {
+          id: ritaThread.id,
+          lcThreadId: ritaThread.lcThreadId,
+        });
+      }
+    }
+
+    // Extract bearer token
+    let tokenWithoutBearer = authContext.token || "";
+    if (tokenWithoutBearer.toLowerCase().startsWith("bearer ")) {
+      tokenWithoutBearer = tokenWithoutBearer.slice(7).trim();
+    }
+
+    // Create graph instance once (reused across turns with same thread_id)
+    const graph = await this.graphFactory({
+      token: tokenWithoutBearer,
+      userId: authContext.userId,
+      companyId: authContext.companyId,
+    });
+
+    // Create config with consistent thread_id
+    const config: GraphConfig = {
+      configurable: {
+        thread_id: ritaThread ? ritaThread.lcThreadId : lcThreadId,
+        langgraph_auth_user: {
+          token: tokenWithoutBearer,
+          user: {
+            firstName: authContext.user?.firstName || "Evaluation",
+            lastName: authContext.user?.lastName || "User",
+            preferredLanguage:
+              authContext.user?.preferredLanguage ||
+              input.preferredLanguage ||
+              "EN",
+            company: {
+              id: authContext.companyId,
+            },
+          },
+        },
+      },
+    };
+
+    // Track conversation trajectory and turn outputs
+    const conversationTrajectory: ConversationMessage[] = [];
+    const turnOutputs: {
+      turnNumber: number;
+      userMessage: string;
+      assistantResponse: string;
+      expectedBehavior?: string;
+    }[] = [];
+
+    let turnNumber = 0;
+    let finalAnswer = "";
+    let lastProcessedInput = "";
+
+    // Process each message in sequence
+    for (let i = 0; i < input.messages.length; i++) {
+      const message = input.messages[i];
+
+      if (message.role === "user") {
+        turnNumber++;
+        lastProcessedInput = message.content;
+
+        logger.debug("Processing user turn", {
+          turnNumber,
+          message: message.content.substring(0, 100),
+        });
+
+        // Build graph input with just the current user message
+        // LangGraph MessagesAnnotation automatically maintains history via thread_id
+        const graphInput: GraphInput = {
+          messages: [{ role: "user", content: message.content }],
+          ...(input.preferredLanguage && {
+            preferredLanguage: input.preferredLanguage,
+          }),
+          selectedCompanyId: authContext.companyId,
+        };
+
+        // Invoke graph with same thread_id (history is automatically maintained)
+        const result = await graph.invoke(graphInput, config);
+
+        const messages = Array.isArray(result?.messages) ? result.messages : [];
+        const lastMessage =
+          messages.length > 0 ? messages[messages.length - 1] : undefined;
+        const assistantResponse = lastMessage?.content || "";
+
+        finalAnswer = assistantResponse;
+
+        // Add to trajectory
+        conversationTrajectory.push({
+          role: "user",
+          content: message.content,
+          metadata: { turnNumber },
+        });
+        conversationTrajectory.push({
+          role: "assistant",
+          content: assistantResponse,
+          metadata: { turnNumber },
+        });
+
+        // Check if next message is assistant marker with expected behavior
+        const nextMessage =
+          i + 1 < input.messages.length ? input.messages[i + 1] : null;
+        const expectedBehavior =
+          nextMessage?.role === "assistant" ? nextMessage.content : undefined;
+
+        // Store turn output
+        turnOutputs.push({
+          turnNumber,
+          userMessage: message.content,
+          assistantResponse,
+          expectedBehavior,
+        });
+
+        logger.debug("Turn completed", {
+          turnNumber,
+          responseLength: assistantResponse.length,
+          hasExpectedBehavior: !!expectedBehavior,
+        });
+      }
+      // Skip assistant/system messages - they're turn markers or context
+    }
+
+    // Fetch data change proposals from thread items
+    const dataChangeProposals: Array<Record<string, unknown>> = [];
+    let threadTitle: string | null = null;
+
+    if (ritaThread && this.threadRepository) {
+      const itemsResult = await this.threadRepository.getThreadItems(
+        ritaThread.id,
+      );
+      if (isOk(itemsResult)) {
+        const items = unwrap(itemsResult);
+        for (const item of items) {
+          const proposal = item.getDataChangeProposal();
+          if (proposal) {
+            dataChangeProposals.push(proposal.toPlainObject());
+          }
+        }
+      }
+
+      // Get final thread title
+      const threadResult = await this.threadRepository.findById(ritaThread.id);
+      if (isOk(threadResult)) {
+        threadTitle = unwrap(threadResult).title || null;
+      }
+    }
+
+    logger.info("Multi-turn evaluation completed", {
+      turnCount: turnNumber,
+      trajectoryLength: conversationTrajectory.length,
+      proposalCount: dataChangeProposals.length,
+    });
+
+    return {
+      conversationTrajectory,
+      turnOutputs,
+      answer: finalAnswer,
+      dataChangeProposals,
+      threadTitle,
+      threadId: ritaThread ? ritaThread.lcThreadId : lcThreadId,
+      processedInput: lastProcessedInput,
+    };
+  }
+
+  /**
+   * Creates unified target function that handles both single-turn and multi-turn inputs
+   * Routes to appropriate implementation based on input format
+   */
+  private async createUnifiedTargetFunction(
+    authContext: AuthContextDto,
+  ): Promise<
+    (
+      input: TargetFunctionInput | MultiTurnInput,
+    ) => Promise<TargetFunctionResult | MultiTurnTargetFunctionResult>
+  > {
     if (!this.graphFactory) {
       throw new Error("Graph factory not provided");
     }
 
     // Return a function that will be called by LangSmith for each example
     return async (
-      input: TargetFunctionInput,
-    ): Promise<TargetFunctionResult> => {
-      logger.debug("Target function invoked", {
+      input: TargetFunctionInput | MultiTurnInput,
+    ): Promise<TargetFunctionResult | MultiTurnTargetFunctionResult> => {
+      logger.debug("Unified target function invoked", {
         hasInput: !!input,
         inputKeys: input ? Object.keys(input) : [],
       });
 
+      // Detect input format: multi-turn (messages) vs single-turn (question)
+      if ("messages" in input && Array.isArray(input.messages)) {
+        logger.info("Detected multi-turn input, routing to multi-turn handler");
+        return this.executeMultiTurnTarget(input as MultiTurnInput, authContext);
+      }
+
+      // Single-turn path (existing logic)
+      logger.debug("Detected single-turn input, using single-turn handler");
+
+      const singleTurnInput = input as TargetFunctionInput;
+
       // Extract the question from the input
-      let question = input.question;
+      let question = singleTurnInput.question;
       if (!question || typeof question !== "string") {
         throw new Error(
-          `Input must contain a 'question' field with a string value. Available keys: ${Object.keys(input).join(", ")}`,
+          `Input must contain a 'question' field with a string value. Available keys: ${Object.keys(singleTurnInput).join(", ")}`,
         );
       }
 
@@ -287,7 +506,7 @@ export class LangSmithEvaluationService extends EvaluationService {
       question = templateResult.processed;
 
       logger.debug("Template processing complete", {
-        original: input.question,
+        original: singleTurnInput.question,
         processed: question,
         replacements: templateResult.replacements.length,
       });
@@ -323,8 +542,8 @@ export class LangSmithEvaluationService extends EvaluationService {
       // Create the graph input in the expected format
       const graphInput: GraphInput = {
         messages: [{ role: "user", content: question }],
-        ...(input.preferredLanguage && {
-          preferredLanguage: input.preferredLanguage,
+        ...(singleTurnInput.preferredLanguage && {
+          preferredLanguage: singleTurnInput.preferredLanguage,
         }),
         selectedCompanyId: authContext.companyId,
       };
@@ -354,7 +573,7 @@ export class LangSmithEvaluationService extends EvaluationService {
               lastName: authContext.user?.lastName || "User",
               preferredLanguage:
                 authContext.user?.preferredLanguage ||
-                input.preferredLanguage ||
+                singleTurnInput.preferredLanguage ||
                 "EN",
               company: {
                 id: authContext.companyId,
@@ -559,6 +778,56 @@ export class LangSmithEvaluationService extends EvaluationService {
                   dataChangeProposals: evalOutputs.dataChangeProposals || [],
                 },
                 referenceOutputs: {},
+              },
+              {},
+            );
+            return result;
+          }
+
+          if (definition.type === "TURN_COUNT") {
+            // Turn count evaluator - for multi-turn conversations
+            const result = await turnCountEvaluator.evaluate(
+              {
+                inputs: {
+                  messages: evalInputs.messages || [],
+                },
+                outputs: {
+                  conversationTrajectory:
+                    evalOutputs.conversationTrajectory || [],
+                  turnOutputs: evalOutputs.turnOutputs || [],
+                  answer: evalOutputs.answer,
+                },
+                referenceOutputs: {
+                  expectedTurnCount: evalReferenceOutputs.expectedTurnCount,
+                  expected_result_description:
+                    evalReferenceOutputs.expected_result_description,
+                },
+              },
+              {},
+            );
+            return result;
+          }
+
+          if (definition.type === "CONVERSATION_FLOW") {
+            // Conversation flow evaluator - for multi-turn conversations
+            const result = await conversationFlowEvaluator.evaluate(
+              {
+                inputs: {
+                  messages: evalInputs.messages || [],
+                },
+                outputs: {
+                  conversationTrajectory:
+                    evalOutputs.conversationTrajectory || [],
+                  turnOutputs: evalOutputs.turnOutputs || [],
+                  answer: evalOutputs.answer,
+                },
+                referenceOutputs: {
+                  expectedConversationFlow:
+                    evalReferenceOutputs.expectedConversationFlow,
+                  expectedTurnCount: evalReferenceOutputs.expectedTurnCount,
+                  expected_result_description:
+                    evalReferenceOutputs.expected_result_description,
+                },
               },
               {},
             );
