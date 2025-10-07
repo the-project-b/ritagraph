@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createLogger } from "@the-project-b/logging";
-import { AssumedConfigType, Node } from "../../graph-state.js";
+import { Node } from "../../graph-state.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
@@ -11,6 +11,10 @@ import { appendMessageAsThreadItem } from "../../../../utils/append-message-as-t
 import { Result } from "../../../../utils/types/result.js"; // idk, we could make a 'types' local package?
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
+import {
+  getRunIdFromConfig,
+  getThreadIdFromConfig,
+} from "../../../../utils/config-helper.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "CommunicationNodes",
@@ -66,8 +70,8 @@ export const finalMessage: Node = async (
   });
   const { token: accessToken, appdataHeader } = getAuthUser(config);
 
-  const { thread_id: langgraphThreadId } =
-    config.configurable as unknown as AssumedConfigType;
+  const langgraphThreadId = getThreadIdFromConfig(config);
+  const runId = getRunIdFromConfig(config);
 
   const llm = new ChatOpenAI({
     ...BASE_MODEL_CONFIG,
@@ -88,35 +92,6 @@ export const finalMessage: Node = async (
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
   });
-
-  // const systemPrompt = await PromptTemplate.fromTemplate(
-  //   `You are a Payroll Specialist Assistant. Your job is to formulate the final response to the user.
-  //
-  // Guidelines:
-  //  - Be concise but friendly.
-  //  - Do not say "I will get back to you" or "I will send you an email" or anything like that.
-  //  - If you could not find information say so
-  //  - There will never be "pending" operations only thigns to be approved or rejected by the user.
-  //  - Do not claim or say that there is an operation pending.
-  //  - NEVER include ids like UUIDs in the response.
-  //  - In german: NEVER use the formal "Sie" or "Ihre" always use casual "du" or "deine".
-  //
-  // #examples - For other cases like listing information
-  // {examples}
-  // #/examples
-  //
-  // {dataRepresentationLayerPrompt}
-  //
-  // Speak in {language}.
-  //
-  // Drafted Response: {draftedResponse}
-  //   `,
-  // ).format({
-  //   examples: examples[preferredLanguage],
-  //   dataRepresentationLayerPrompt,
-  //   language: localeToLanguage(preferredLanguage),
-  //   draftedResponse: workflowEngineResponseDraft,
-  // });
 
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
@@ -142,6 +117,8 @@ export const finalMessage: Node = async (
       selectedCompanyId,
       appdataHeader,
     },
+    ownerId: null,
+    runId,
   });
 
   if (Result.isFailure(appendMessageResult)) {

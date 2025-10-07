@@ -52,21 +52,6 @@ export const quickResponse: Node = async (
     rawPrompt.template,
   ).format({ language: localeToLanguage(preferredLanguage) });
 
-  // const systemPrompt = await PromptTemplate.fromTemplate(
-  //   `You are a Payroll Specialist Assistant.
-  // The user just said something that doesn't need a real answer or context.
-  //
-  // Your job is to respond to the user in a way that is friendly and helpful.
-  // In german use "du" and "deine" instead of "Sie" and "Ihre".
-  //
-  // Example:
-  // I am here to help you with your payroll questions.
-  // How can I assist you today?
-  //
-  // Speak in {language}.
-  // `,
-  // ).format({ language: localeToLanguage(preferredLanguage) });
-
   const prompt = await ChatPromptTemplate.fromMessages([
     new SystemMessage(systemPrompt),
     ...messages.slice(-3).filter(onBaseMessages),
@@ -83,6 +68,7 @@ export const quickResponse: Node = async (
       selectedCompanyId,
       appdataHeader,
     },
+    ownerId: null,
   });
 
   if (Result.isFailure(appendMessageResult)) {
