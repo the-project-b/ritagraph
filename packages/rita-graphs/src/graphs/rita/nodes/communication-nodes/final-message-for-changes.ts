@@ -97,7 +97,7 @@ export const finalMessageForChanges: Node = async (
     appdataHeader,
   });
 
-  const run_id = getRunIdFromConfig(config);
+  const runId = getRunIdFromConfig(config);
   const langgraphThreadId = getThreadIdFromConfig(config);
 
   const llm = new ChatOpenAI({
@@ -108,7 +108,7 @@ export const finalMessageForChanges: Node = async (
   const proposalsResult = await getProposalsOfThatRun(
     graphqlClient,
     langgraphThreadId,
-    run_id,
+    runId,
   );
   let proposals: Array<DataChangeProposal> = [];
 
@@ -134,14 +134,14 @@ export const finalMessageForChanges: Node = async (
     examples: examples[preferredLanguage](numberOfProposals),
     examplesForMissingInformation:
       examplesForMissingInformation[preferredLanguage](numberOfProposals),
-    agentLogs: formatProposalRelatedLogs(agentActionLogger, run_id),
+    agentLogs: formatProposalRelatedLogs(agentActionLogger, runId),
     listOfChanges: proposals.map((i) => i.description).join("\n"),
     language: localeToLanguage(preferredLanguage),
     draftedResponse: workflowEngineResponseDraft,
     amountOfChangeProposals: numberOfProposals,
     openQuestionsOfTheAgent: formatAgentQuestionsFromLogs(
       agentActionLogger,
-      run_id,
+      runId,
     ),
   });
 
@@ -162,6 +162,8 @@ export const finalMessageForChanges: Node = async (
       selectedCompanyId,
       appdataHeader,
     },
+    ownerId: null,
+    runId,
   });
 
   if (Result.isFailure(appendMessageResult)) {

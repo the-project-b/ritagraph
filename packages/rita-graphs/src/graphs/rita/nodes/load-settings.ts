@@ -30,6 +30,7 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
       selectedCompanyId: state.selectedCompanyId,
       appdataHeader,
     },
+    ownerId: user.id,
   });
 
   return {

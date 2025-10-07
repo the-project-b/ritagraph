@@ -358,22 +358,191 @@ export function createAuthInstance(): Auth {
 }
 
 export async function fetchUserDataFromBackend(token: string) {
-  const query = `query Me {
+  const query = `
+query Me {
   me {
+    ...MeFieldsEmployee
     ...MeFieldsHr
+    ...MeFieldsBpo
+    ...MeFieldsAdmin
     __typename
   }
 }
 
-fragment MeFieldsHr on OnboardingHrManager {
+fragment ViewAs on ViewAsInfo {
+  enabled
+  impersonates {
+    client
+    role
+    __typename
+  }
+  identity {
+    company {
+      name
+      avatarUrl
+      companyId
+      __typename
+    }
+    user {
+      userId
+      firstName
+      lastName
+      email
+      role
+      avatarUrl
+      __typename
+    }
+    __typename
+  }
+  original {
+    company {
+      name
+      companyId
+      avatarUrl
+      __typename
+    }
+    user {
+      userId
+      firstName
+      lastName
+      role
+      avatarUrl
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+
+fragment MeFieldsEmployee on OnboardingEmployee {
   id
+  email
   role
   firstName
   lastName
   preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    bpoCompany {
+      id
+      name
+      __typename
+    }
+    inferredPayrollEngine {
+      id
+      identifier
+      __typename
+    }
+    avatarUrl
+    id
+    name
+    features
+    isDemo
+    __typename
+  }
+  viewAs {
+    ...ViewAs
+    __typename
+  }
+  employeeSpace {
+    id
+    status
+    __typename
+  }
+  __typename
+}
+
+fragment MeFieldsHr on OnboardingHrManager {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    bpoCompany {
+      id
+      name
+      __typename
+    }
+    inferredPayrollEngine {
+      id
+      identifier
+      __typename
+    }
+    avatarUrl
+    id
+    name
+    features
+    forwardingEmail
+    isDemo
+    __typename
+  }
+  viewAs {
+    ...ViewAs
+    __typename
+  }
+  __typename
+}
+
+fragment MeFieldsBpo on OnboardingBpo {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
   company {
     id
     name
+    avatarUrl
+    features
+    forwardingEmail
+    inferredPayrollEngine {
+      id
+      identifier
+      __typename
+    }
+    isDemo
+    __typename
+  }
+  viewAs {
+    ...ViewAs
+    __typename
+  }
+  __typename
+}
+
+fragment MeFieldsAdmin on OnboardingAdmin {
+  id
+  email
+  role
+  firstName
+  lastName
+  preferredLanguage
+  avatarUrl
+  status
+  childRole
+  company {
+    id
+    name
+    avatarUrl
+    features
+    forwardingEmail
+    isDemo
+    __typename
+  }
+  viewAs {
+    ...ViewAs
+    __typename
   }
   __typename
 }

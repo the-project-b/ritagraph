@@ -56,6 +56,8 @@ type AppendMessageAsThreadItemParams = {
   langgraphThreadId: string;
   context: Omit<ToolContext, "agentActionLogger">;
   orderOffset?: number;
+  ownerId: string | null;
+  runId?: string;
 };
 
 export async function appendMessageAsThreadItem({
@@ -63,6 +65,8 @@ export async function appendMessageAsThreadItem({
   langgraphThreadId,
   context,
   orderOffset = 100,
+  ownerId,
+  runId,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
     const client = createGraphQLClient(context);
@@ -83,7 +87,9 @@ export async function appendMessageAsThreadItem({
           type: "MESSAGE",
           message,
           order,
+          runId,
         },
+        ownerId,
       },
     });
 

@@ -1,4 +1,11 @@
-import { Result, ValidationError, ok, err, isOk, unwrap } from "@the-project-b/types";
+import {
+  Result,
+  ValidationError,
+  ok,
+  err,
+  isOk,
+  unwrap,
+} from "@the-project-b/types";
 import { DataChangeProposal } from "../value-objects/data-change-proposal.value-object.js";
 
 export enum RitaThreadItemType {
@@ -87,7 +94,8 @@ export class RitaThreadItem {
     }
 
     try {
-      const data = typeof this.data === "string" ? JSON.parse(this.data) : this.data;
+      const data =
+        typeof this.data === "string" ? JSON.parse(this.data) : this.data;
       const proposalData = data.proposal;
 
       if (!proposalData) {
