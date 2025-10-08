@@ -8,6 +8,7 @@ import {
 import { DataChangeProposal } from "../graphs/shared-types/base-annotation";
 import { ToolContext } from "../tools/tool-factory";
 import type { EmailMessage, EmailPerson } from "./types/email";
+import type { RitaThreadItemData } from "./types/thread-item";
 
 type AppendDataChangeProposalsAsThreadItemsParams = {
   dataChangeProposals: Array<DataChangeProposal>;
@@ -85,17 +86,27 @@ export async function appendMessageAsThreadItem({
     const onlyMessages = threadItems?.filter((i) => i.data?.type === "MESSAGE");
     const order = getOrderOfLatestInOrder(onlyMessages) + orderOffset;
 
+    const data: RitaThreadItemData =
+      emails && people
+        ? {
+            type: "MESSAGE",
+            message,
+            order,
+            runId,
+            emails,
+            people,
+          }
+        : {
+            type: "MESSAGE",
+            message,
+            order,
+            runId,
+          };
+
     await client.createRitaThreadItem({
       input: {
         langgraphThreadId,
-        data: {
-          type: "MESSAGE",
-          message,
-          order,
-          runId,
-          ...(emails && { emails }),
-          ...(people && { people }),
-        },
+        data,
         ownerId,
       },
     });
