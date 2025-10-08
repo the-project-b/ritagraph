@@ -7,6 +7,7 @@ import {
 } from "../generated/graphql";
 import { DataChangeProposal } from "../graphs/shared-types/base-annotation";
 import { ToolContext } from "../tools/tool-factory";
+import type { EmailMessage, EmailPerson } from "./types/email";
 
 type AppendDataChangeProposalsAsThreadItemsParams = {
   dataChangeProposals: Array<DataChangeProposal>;
@@ -58,6 +59,8 @@ type AppendMessageAsThreadItemParams = {
   orderOffset?: number;
   ownerId: string | null;
   runId?: string;
+  emails?: EmailMessage[];
+  people?: EmailPerson[];
 };
 
 export async function appendMessageAsThreadItem({
@@ -67,6 +70,8 @@ export async function appendMessageAsThreadItem({
   orderOffset = 100,
   ownerId,
   runId,
+  emails,
+  people,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
     const client = createGraphQLClient(context);
@@ -88,6 +93,8 @@ export async function appendMessageAsThreadItem({
           message,
           order,
           runId,
+          ...(emails && { emails }),
+          ...(people && { people }),
         },
         ownerId,
       },

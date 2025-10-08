@@ -2,6 +2,8 @@ import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
 import { getContextFromConfig, GraphStateType, Node } from "../graph-state";
 import AgentActionLogger from "../../../utils/agent-action-logger/AgentActionLogger";
+import type { EmailMessage, EmailPerson } from "../../../utils/types/email";
+import { buildEmailContextForLLM } from "../../../utils/email-context-builder";
 
 type AssumedConfigurableType = {
   thread_id: string;
@@ -18,8 +20,23 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
 
   const lastMessage = state.messages.at(-1);
 
+  const parsedEmail = lastMessage.additional_kwargs?.parsedEmail as
+    | { messages: EmailMessage[]; people: EmailPerson[] }
+    | undefined;
+
+  const cleanContent = lastMessage.content.toString();
+
+  if (parsedEmail?.messages && parsedEmail.messages.length > 0) {
+    const enrichedContent = buildEmailContextForLLM({
+      triggerContent: cleanContent,
+      emails: parsedEmail.messages,
+    });
+
+    lastMessage.content = enrichedContent;
+  }
+
   await appendMessageAsThreadItem({
-    message: new HumanMessage(lastMessage.content.toString(), {
+    message: new HumanMessage(cleanContent, {
       ...lastMessage.additional_kwargs,
       isEmail: lastMessage.additional_kwargs.isRepresentingEmail ?? false,
       subject: lastMessage.additional_kwargs.subject,
@@ -31,16 +48,15 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
       appdataHeader,
     },
     ownerId: user.id,
+    emails: parsedEmail?.messages,
+    people: parsedEmail?.people,
   });
 
   return {
     preferredLanguage:
       state.preferredLanguage ?? user.preferredLanguage ?? "DE",
-    // Just for development we are using a backup company id based on the config
     selectedCompanyId:
       state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
-
-    // initializing the agent action logger with the events from the previous run
     agentActionLogger: AgentActionLogger.fromLogs(state.agentActionEvents),
   };
 };
