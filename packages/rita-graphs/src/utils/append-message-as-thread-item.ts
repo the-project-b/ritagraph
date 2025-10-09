@@ -7,7 +7,7 @@ import {
 } from "../generated/graphql";
 import { DataChangeProposal } from "../graphs/shared-types/base-annotation";
 import { ToolContext } from "../tools/tool-factory";
-import type { EmailMessage, EmailPerson } from "./types/email";
+import type { EmailCompany, EmailMessage, EmailPerson } from "./types/email";
 import type { RitaThreadItemData } from "./types/thread-item";
 
 type AppendDataChangeProposalsAsThreadItemsParams = {
@@ -62,6 +62,7 @@ type AppendMessageAsThreadItemParams = {
   runId?: string;
   emails?: EmailMessage[];
   people?: EmailPerson[];
+  company?: EmailCompany;
 };
 
 export async function appendMessageAsThreadItem({
@@ -73,6 +74,7 @@ export async function appendMessageAsThreadItem({
   runId,
   emails,
   people,
+  company,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
     const client = createGraphQLClient(context);
@@ -95,6 +97,7 @@ export async function appendMessageAsThreadItem({
             runId,
             emails,
             people,
+            company,
           }
         : {
             type: "MESSAGE",

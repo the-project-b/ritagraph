@@ -18,6 +18,7 @@ export interface EmailMessage {
   depth: number;
   subject?: string;
   from?: string;
+  to?: string;
   timestamp?: Date;
   isQuoted: boolean;
 }
@@ -37,4 +38,11 @@ export interface EmailPerson {
   signature: string | null;
   onboardingUser: CompactOnboardingUser | null;
   originalEmail: string;
+}
+
+export interface EmailCompany {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
 }

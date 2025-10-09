@@ -1,7 +1,7 @@
 import { BaseMessage } from "@langchain/core/messages";
 
 import { DataChangeProposal } from "../../graphs/shared-types/base-annotation";
-import type { EmailMessage, EmailPerson } from "./email";
+import type { EmailCompany, EmailMessage, EmailPerson } from "./email";
 
 export type RitaThreadItemData =
   | {
@@ -11,6 +11,7 @@ export type RitaThreadItemData =
       runId?: string;
       emails: EmailMessage[];
       people: EmailPerson[];
+      company?: EmailCompany;
     }
   | {
       type: "MESSAGE";

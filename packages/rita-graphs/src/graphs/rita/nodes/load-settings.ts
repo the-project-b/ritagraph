@@ -2,7 +2,11 @@ import { HumanMessage } from "@langchain/core/messages";
 import { appendMessageAsThreadItem } from "../../../utils/append-message-as-thread-item";
 import { getContextFromConfig, GraphStateType, Node } from "../graph-state";
 import AgentActionLogger from "../../../utils/agent-action-logger/AgentActionLogger";
-import type { EmailMessage, EmailPerson } from "../../../utils/types/email";
+import type {
+  EmailCompany,
+  EmailMessage,
+  EmailPerson,
+} from "../../../utils/types/email";
 import { buildEmailContextForLLM } from "../../../utils/email-context-builder";
 
 type AssumedConfigurableType = {
@@ -21,7 +25,11 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
   const lastMessage = state.messages.at(-1);
 
   const parsedEmail = lastMessage.additional_kwargs?.parsedEmail as
-    | { messages: EmailMessage[]; people: EmailPerson[] }
+    | {
+        messages: EmailMessage[];
+        people: EmailPerson[];
+        company?: EmailCompany;
+      }
     | undefined;
 
   const cleanContent = lastMessage.content.toString();
@@ -50,6 +58,7 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     ownerId: user.id,
     emails: parsedEmail?.messages,
     people: parsedEmail?.people,
+    company: parsedEmail?.company,
   });
 
   return {
