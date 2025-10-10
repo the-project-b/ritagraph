@@ -51,6 +51,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
     companyId: string,
     config: AnnotationRoot<any>,
     agentActionLogger: AgentActionLogger,
+    rolesRitaShouldBeVisibleTo: Array<number> | null,
   ): Promise<Array<ToolInterface>> {
     const authUser = getAuthUser(config);
 
@@ -59,6 +60,7 @@ function createFetchTools(getAuthUser: (config: any) => any) {
       selectedCompanyId: companyId,
       appdataHeader: authUser.appdataHeader,
       agentActionLogger,
+      rolesRitaShouldBeVisibleTo,
     };
 
     const tools = toolFactory<undefined>({

@@ -6,8 +6,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { WorkflowEngineNode, WorkflowEngineStateType } from "../sub-graph.js";
-import { AnnotationRoot } from "@langchain/langgraph";
-import { ToolInterface } from "../../../shared-types/node-types.js";
+import { FetchToolsFunction } from "../../../shared-types/node-types.js";
 import { dataRepresentationLayerPrompt } from "../../../../utils/data-representation-layer/prompt-helper.js";
 import { createLogger } from "@the-project-b/logging";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
@@ -19,7 +18,6 @@ import { getCurrentDataChangeProposals } from "../../../../utils/fetch-helper/ge
 import { createGraphQLClient } from "../../../../utils/graphql/client.js";
 import { AssumedConfigType } from "../../../rita/graph-state.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
-import AgentActionLogger from "../../../../utils/agent-action-logger/AgentActionLogger.js";
 import { getLiveViewOfProposedChanges } from "../utils/proposal-format-helper.js";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;
@@ -40,13 +38,7 @@ Means: The user lists the monthly hours of the employees. Adjust their monthly h
   `,
 };
 
-export const plan: (
-  fetchTools: (
-    companyId: string,
-    config: AnnotationRoot<any>,
-    agentActionLogger: AgentActionLogger,
-  ) => Promise<Array<ToolInterface>>,
-) => WorkflowEngineNode =
+export const plan: (fetchTools: FetchToolsFunction) => WorkflowEngineNode =
   (fetchTools) =>
   async (
     {
@@ -57,6 +49,7 @@ export const plan: (
       preferredLanguage,
       agentActionLogger,
       sanitizedUserRequest,
+      rolesRitaShouldBeVisibleTo,
     },
     config,
     getAuthUser,
@@ -83,6 +76,7 @@ export const plan: (
       selectedCompanyId,
       config,
       agentActionLogger,
+      rolesRitaShouldBeVisibleTo,
     );
 
     const lastUserMessages = messages

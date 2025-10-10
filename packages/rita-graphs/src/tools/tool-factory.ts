@@ -13,6 +13,7 @@ export type ToolContext<T = undefined> = {
   agentActionLogger: AgentActionLogger;
   appdataHeader?: string; // Optional appdata header for impersonation context
   extendedContext?: T;
+  rolesRitaShouldBeVisibleTo: Array<number> | null;
 };
 
 type Params<T> = {

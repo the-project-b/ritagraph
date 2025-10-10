@@ -77,6 +77,7 @@ export const todoEngine: Node = async (state, config, getAuthUser) => {
       accessToken: token,
       selectedCompanyId: state.selectedCompanyId,
       agentActionLogger: state.agentActionLogger,
+      rolesRitaShouldBeVisibleTo: state.rolesRitaShouldBeVisibleTo,
     }),
   ];
 

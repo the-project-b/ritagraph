@@ -15,6 +15,7 @@ type AppendDataChangeProposalsAsThreadItemsParams = {
   langgraphThreadId: string;
   context: Omit<ToolContext, "agentActionLogger">;
   orderOffset?: number;
+  rolesRitaShouldBeVisibleTo: Array<number> | null;
 };
 
 type AppendDataChangeProposalAsThreadItemReturnType = Promise<
@@ -29,6 +30,7 @@ export async function appendDataChangeProposalsAsThreadItems({
   langgraphThreadId,
   context,
   orderOffset = 150,
+  rolesRitaShouldBeVisibleTo,
 }: AppendDataChangeProposalsAsThreadItemsParams): Promise<AppendDataChangeProposalAsThreadItemReturnType> {
   try {
     const client = createGraphQLClient(context);
@@ -43,7 +45,13 @@ export async function appendDataChangeProposalsAsThreadItems({
 
     const results = await Promise.all(
       dataChangeProposals.map((proposal) =>
-        createThreadItemForProposal(client, langgraphThreadId, proposal, order),
+        createThreadItemForProposal(
+          client,
+          langgraphThreadId,
+          proposal,
+          order,
+          rolesRitaShouldBeVisibleTo,
+        ),
       ),
     );
 
@@ -63,6 +71,7 @@ type AppendMessageAsThreadItemParams = {
   emails?: EmailMessage[];
   people?: EmailPerson[];
   company?: EmailCompany;
+  rolesRitaShouldBeVisibleTo: Array<number> | null;
 };
 
 export async function appendMessageAsThreadItem({
@@ -75,6 +84,7 @@ export async function appendMessageAsThreadItem({
   emails,
   people,
   company,
+  rolesRitaShouldBeVisibleTo,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
     const client = createGraphQLClient(context);
@@ -98,12 +108,14 @@ export async function appendMessageAsThreadItem({
             emails,
             people,
             company,
+            accessRoles: rolesRitaShouldBeVisibleTo ?? undefined, // converting null to undefined
           }
         : {
             type: "MESSAGE",
             message,
             order,
             runId,
+            accessRoles: rolesRitaShouldBeVisibleTo ?? undefined, // converting null to undefined
           };
 
     await client.createRitaThreadItem({
@@ -140,6 +152,7 @@ async function createThreadItemForProposal(
   threadId: string,
   proposal: DataChangeProposal,
   order: number,
+  rolesRitaShouldBeVisibleTo: Array<number> | null,
 ): Promise<
   Result<CreateRitaThreadItemMutation, FailedToCreateThreadItemError>
 > {
@@ -151,6 +164,7 @@ async function createThreadItemForProposal(
           type: "DATA_CHANGE_PROPOSAL",
           proposal,
           order,
+          accessRoles: rolesRitaShouldBeVisibleTo ?? undefined, // converting null to undefined
         },
       },
     });

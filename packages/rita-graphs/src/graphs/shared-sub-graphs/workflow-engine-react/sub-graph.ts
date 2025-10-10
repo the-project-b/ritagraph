@@ -42,6 +42,7 @@ type BuildWorkflowEngineReActParams = {
     companyId: string,
     config: AnnotationRoot<any>,
     agentActionLogger: AgentActionLogger,
+    rolesRitaShouldBeVisibleTo: Array<number> | null,
   ) => Promise<Array<ToolInterface>>;
   preWorkflowResponse?: WorkflowEngineNode;
   quickUpdateNode?: WorkflowEngineNode;
@@ -86,6 +87,7 @@ export function buildWorkflowEngineReAct({
         state.selectedCompanyId,
         config,
         state.agentActionLogger,
+        state.rolesRitaShouldBeVisibleTo,
       );
 
       const toolNode = new ToolNode(tools);

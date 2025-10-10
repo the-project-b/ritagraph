@@ -199,6 +199,7 @@ export const changeEmployeeBaseDetails: ToolFactoryToolDefintion = (ctx) =>
           dataChangeProposals: newProposals,
           langgraphThreadId: thread_id,
           context: ctx,
+          rolesRitaShouldBeVisibleTo: ctx.rolesRitaShouldBeVisibleTo,
         });
 
       if (Result.isFailure(appendDataChangeProposalsAsThreadItemsResult)) {

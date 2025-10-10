@@ -67,6 +67,7 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
         appdataHeader,
         agentActionLogger,
         selectedCompanyId,
+        rolesRitaShouldBeVisibleTo: null,
       },
     });
 

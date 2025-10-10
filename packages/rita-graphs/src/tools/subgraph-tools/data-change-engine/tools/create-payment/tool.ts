@@ -140,7 +140,9 @@ export const createPaymentTool: ToolFactoryToolDefintion<
             accessToken: ctx.accessToken,
             appdataHeader: ctx.appdataHeader,
             selectedCompanyId: ctx.selectedCompanyId,
+            rolesRitaShouldBeVisibleTo: ctx.rolesRitaShouldBeVisibleTo,
           },
+          rolesRitaShouldBeVisibleTo: ctx.rolesRitaShouldBeVisibleTo,
         });
 
       agentActionLogger.appendLog({
