@@ -63,6 +63,12 @@ export type DataChangeProposal = {
 
 export const BaseGraphAnnotation = Annotation.Root({
   ...MessagesAnnotation.spec,
+  /**
+   * When rita is triggered, it should per default only be visible to the PSP
+   * However we want to give control to the backend to decide which roles should be able to see rita.
+   * Every thread item related to rita - that is being created - should use this value.
+   */
+  rolesRitaShouldBeVisibleTo: AnnotationWithDefault<Array<number> | null>(null),
   preferredLanguage: AnnotationWithDefault<"EN" | "DE">("DE"),
   isTriggeredByEmail: AnnotationWithDefault<boolean>(false),
   /**

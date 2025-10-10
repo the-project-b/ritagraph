@@ -54,7 +54,9 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
       accessToken: token,
       selectedCompanyId: state.selectedCompanyId,
       appdataHeader,
+      rolesRitaShouldBeVisibleTo: null, // user message always visible for now
     },
+    rolesRitaShouldBeVisibleTo: null, // user message always visible for now
     ownerId: user.id,
     emails: parsedEmail?.messages,
     people: parsedEmail?.people,

@@ -24,7 +24,12 @@ type AssumedConfigType = {
  * At the moment just a pass through node
  */
 export const quickResponse: Node = async (
-  { messages, preferredLanguage, selectedCompanyId },
+  {
+    messages,
+    preferredLanguage,
+    selectedCompanyId,
+    rolesRitaShouldBeVisibleTo,
+  },
   config,
   getAuthUser,
 ) => {
@@ -67,7 +72,9 @@ export const quickResponse: Node = async (
       accessToken,
       selectedCompanyId,
       appdataHeader,
+      rolesRitaShouldBeVisibleTo,
     },
+    rolesRitaShouldBeVisibleTo,
     ownerId: null,
   });
 

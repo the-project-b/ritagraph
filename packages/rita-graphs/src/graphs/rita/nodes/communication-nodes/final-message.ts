@@ -58,6 +58,7 @@ export const finalMessage: Node = async (
     messages,
     selectedCompanyId,
     agentActionLogger,
+    rolesRitaShouldBeVisibleTo,
   },
   config,
   getAuthUser,
@@ -116,7 +117,9 @@ export const finalMessage: Node = async (
       accessToken,
       selectedCompanyId,
       appdataHeader,
+      rolesRitaShouldBeVisibleTo,
     },
+    rolesRitaShouldBeVisibleTo,
     ownerId: null,
     runId,
   });

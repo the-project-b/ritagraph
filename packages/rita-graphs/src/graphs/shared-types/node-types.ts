@@ -1,6 +1,7 @@
 import { RunnableToolLike } from "@langchain/core/runnables";
 import { DynamicTool, StructuredToolInterface } from "@langchain/core/tools";
-import { Command } from "@langchain/langgraph";
+import { AnnotationRoot, Command } from "@langchain/langgraph";
+import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger";
 
 type NodeReturn<State> = Command | Partial<State> | null;
 
@@ -19,3 +20,10 @@ export type ToolInterface =
   | StructuredToolInterface
   | DynamicTool
   | RunnableToolLike;
+
+export type FetchToolsFunction = (
+  companyId: string,
+  config: AnnotationRoot<any>,
+  agentActionLogger: AgentActionLogger,
+  rolesRitaShouldBeVisibleTo: Array<number> | null,
+) => Promise<Array<ToolInterface>>;
