@@ -61,6 +61,7 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     emails: parsedEmail?.messages,
     people: parsedEmail?.people,
     company: parsedEmail?.company,
+    attachmentIds: state.attachmentIds,
   });
 
   return {
