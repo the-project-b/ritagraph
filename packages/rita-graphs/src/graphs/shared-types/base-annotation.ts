@@ -81,6 +81,7 @@ export const BaseGraphAnnotation = Annotation.Root({
    */
   selectedCompanyId: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
+  attachmentIds: Annotation<Array<string> | undefined>(),
   routingDecision: Annotation<
     "CASUAL_RESPONSE_WITHOUT_DATA" | "WORKFLOW_ENGINE" | undefined
   >(),
