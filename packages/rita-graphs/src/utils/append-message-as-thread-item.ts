@@ -72,6 +72,7 @@ type AppendMessageAsThreadItemParams = {
   people?: EmailPerson[];
   company?: EmailCompany;
   rolesRitaShouldBeVisibleTo: Array<number> | null;
+  attachmentIds?: Array<string>;
 };
 
 export async function appendMessageAsThreadItem({
@@ -85,6 +86,7 @@ export async function appendMessageAsThreadItem({
   people,
   company,
   rolesRitaShouldBeVisibleTo,
+  attachmentIds,
 }: AppendMessageAsThreadItemParams): Promise<Result<void, Error>> {
   try {
     const client = createGraphQLClient(context);
@@ -123,6 +125,7 @@ export async function appendMessageAsThreadItem({
         langgraphThreadId,
         data,
         ownerId,
+        attachmentIds,
       },
     });
 

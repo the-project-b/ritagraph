@@ -20,6 +20,10 @@ export const GraphState = Annotation.Root({
   ...BaseGraphAnnotation.spec,
   workflowEngineResponseDraft: Annotation<string | undefined>(),
   draftedResponse: Annotation<string | undefined>(),
+  attachmentIds: Annotation<Array<string> | undefined>({
+    reducer: (state, update) => update ?? state ?? undefined,
+    default: () => undefined,
+  }),
 });
 
 export type GraphStateType = typeof GraphState.State;

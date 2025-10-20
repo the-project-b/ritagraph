@@ -31,6 +31,10 @@ export const workflowEngineState = Annotation.Root({
   taskEngineLoopCounter: AnnotationWithDefault<number>(0),
   workflowEngineResponseDraft: Annotation<string | undefined>(),
   sanitizedUserRequest: Annotation<string | undefined>(),
+  attachmentIds: Annotation<Array<string> | undefined>({
+    reducer: (state, update) => update ?? state ?? undefined,
+    default: () => undefined,
+  }),
 });
 
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
