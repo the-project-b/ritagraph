@@ -5,10 +5,15 @@ import { DataChangeProposal } from "../../../shared-types/base-annotation.js";
 import { AssumedConfigType, EdgeDecision } from "../../graph-state.js";
 
 export const finalMessageEdgeDecision: EdgeDecision = async (
-  _,
+  { allWorkflowEnginesCompleted, todos },
   config,
   getAuthUser,
 ) => {
+  // We need to complete all workflows first
+  if (!allWorkflowEnginesCompleted && todos.length > 0) {
+    return "handleSingleWorkflowCompletion";
+  }
+
   const { thread_id: langgraphThreadId, run_id } =
     config.configurable as unknown as AssumedConfigType;
   const { token: accessToken, appdataHeader } = getAuthUser(config);

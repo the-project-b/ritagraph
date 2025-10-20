@@ -13,9 +13,9 @@ export const addTodoTool: ToolFactoryToolDefintion<{
       const { addTodo } = extendedContext;
 
       addTodo({
-        taskDescription: todo.taskDescription,
-        translatedTaskDescription: todo.translatedTaskDescription,
-        relatedEmployeeName: todo.relatedEmployeeName,
+        taskDescription: todo.changeDescription,
+        translatedTaskDescription: todo.translatedChangeDescription,
+        relatedEmployeeName: todo.nameOfAffectedEmployee,
         effectiveDate: todo.effectiveDate,
         createdAt: new Date().toISOString(),
         status: "pending",
@@ -27,16 +27,21 @@ export const addTodoTool: ToolFactoryToolDefintion<{
     },
     {
       name: "add_todo",
-      description: "Add a todo item to the list",
+      description:
+        "Extract a chnage request from the users message. One todo per change request per employee. Again only one employee change per todo.",
       schema: z.object({
         todo: z.object({
-          taskDescription: z.string(),
-          translatedTaskDescription: z
+          changeDescription: z.string(),
+          translatedChangeDescription: z
             .string()
             .describe(
               `The translated task description in ${localeToLanguage(extendedContext.locale)}`,
             ),
-          relatedEmployeeName: z.string(),
+          nameOfAffectedEmployee: z
+            .string()
+            .describe(
+              "The name of the employee whose data will be changed. (Only one employee per todo)",
+            ),
           effectiveDate: z.string(),
         }),
       }),

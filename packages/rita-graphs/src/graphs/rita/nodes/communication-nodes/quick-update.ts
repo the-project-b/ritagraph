@@ -7,7 +7,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { localeToLanguage } from "../../../../utils/format-helpers/locale-to-language.js";
-import { WorkflowEngineNode } from "../../../shared-sub-graphs/workflow-engine-react/sub-graph.js";
+import { WorkflowEngineNode } from "../../workflow-engine-react/sub-graph.js";
 import { Tags } from "../../../tags.js";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
 import { promptService } from "../../../../services/prompts/prompt.service.js";
