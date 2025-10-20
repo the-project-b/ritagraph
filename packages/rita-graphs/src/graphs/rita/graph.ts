@@ -25,7 +25,10 @@ import {
   routingDecision as routingDecisionFromLoadSettings,
 } from "./nodes/load-settings.js";
 import { generateTitle } from "./nodes/generate-title.js";
-import { buildWorkflowEngineReAct } from "../shared-sub-graphs/workflow-engine-react/sub-graph.js";
+import {
+  buildWorkflowEngineReAct,
+  BuildWorkflowEngineReActParams,
+} from "./workflow-engine-react/sub-graph.js";
 import { quickUpdate } from "./nodes/communication-nodes/quick-update.js";
 import { ToolInterface } from "../shared-types/node-types.js";
 import {
@@ -40,6 +43,8 @@ import { finalMessageEdgeDecision } from "./nodes/communication-nodes/final-mess
 import AgentActionLogger from "../../utils/agent-action-logger/AgentActionLogger.js";
 import { askUserAQuestion } from "../../tools/ask-user-a-question/tool.js";
 import { todoEngine } from "./nodes/todo-engine/todo-engine.js";
+import { buildAsyncWorkflowEngineReAct } from "./workflow-engine-react/async-sub-graph.js";
+import { handleSingleWorkflowCompletion } from "./workflow-engine-react/handle-single-workflow-completion.js";
 
 const logger = createLogger({ service: "rita-graphs" }).child({
   module: "GraphInitialization",
@@ -96,6 +101,14 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         };
       };
 
+      const workflowEngineParams: BuildWorkflowEngineReActParams = {
+        fetchTools: createFetchTools(getAuthUser),
+        configAnnotation: ConfigurableAnnotation,
+        quickUpdateNode: quickUpdate,
+        preWorkflowResponse,
+        getAuthUser,
+      };
+
       const workflow = new StateGraph(GraphState, ConfigurableAnnotation)
         // => Nodes
         .addNode("loadSettings", wrapNodeWithAuth(loadSettings))
@@ -105,15 +118,27 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
         .addNode("todoEngine", wrapNodeWithAuth(todoEngine))
         .addNode(
           "workflowEngine",
-          buildWorkflowEngineReAct({
-            fetchTools: createFetchTools(getAuthUser),
-            configAnnotation: ConfigurableAnnotation,
-            quickUpdateNode: quickUpdate,
-            preWorkflowResponse,
-            getAuthUser,
-          }),
+          buildWorkflowEngineReAct(workflowEngineParams),
           {
             ends: ["finalMessage", "finalMessageForChanges"],
+          },
+        )
+        .addNode(
+          "asyncWorkflowEngine",
+          buildAsyncWorkflowEngineReAct(workflowEngineParams),
+          {
+            ends: ["handleSingleWorkflowCompletion"],
+          },
+        )
+        .addNode(
+          "handleSingleWorkflowCompletion",
+          wrapNodeWithAuth(handleSingleWorkflowCompletion),
+          {
+            ends: [
+              "finalMessageForChanges",
+              "finalMessage",
+              "handleSingleWorkflowCompletion",
+            ],
           },
         )
         .addNode("finalMessage", wrapNodeWithAuth(finalMessage))
@@ -131,7 +156,17 @@ export function createRitaGraph(getAuthUser: (config: any) => any) {
           "workflowEngine",
           "todoEngine",
         ])
-        .addEdge("todoEngine", "workflowEngine")
+        .addEdge("todoEngine", "asyncWorkflowEngine")
+        .addEdge("asyncWorkflowEngine", "handleSingleWorkflowCompletion")
+        .addConditionalEdges(
+          "handleSingleWorkflowCompletion",
+          wrapEdgeDecisionWithAuth(finalMessageEdgeDecision),
+          [
+            "finalMessageForChanges",
+            "finalMessage",
+            "handleSingleWorkflowCompletion",
+          ],
+        )
         .addConditionalEdges(
           "workflowEngine",
           wrapEdgeDecisionWithAuth(finalMessageEdgeDecision),

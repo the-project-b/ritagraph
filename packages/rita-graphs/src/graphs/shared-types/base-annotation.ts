@@ -1,10 +1,13 @@
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
+import { Observable, Subscription } from "rxjs";
+
 import { QueryDefinition } from "../../utils/types/query-defintion";
 import { DataRepresentationLayerEntity } from "../../utils/data-representation-layer";
 import AgentActionLogger, {
   AgentLogEvent,
 } from "../../utils/agent-action-logger/AgentActionLogger";
 import { AgentTodoItem } from "../rita/nodes/todo-engine/todo-engine";
+import { BaseMessage } from "@langchain/core/messages";
 
 export function AnnotationWithDefault<T>(defaultValue: T) {
   return Annotation<T>({
@@ -90,4 +93,26 @@ export const BaseGraphAnnotation = Annotation.Root({
   dataRepresentationLayerStorage: AnnotationWithDefault<
     Record<string, DataRepresentationLayerEntity>
   >({}),
+  /**
+   * Since we are able to do multi tasking now we are running multiple workflows in parallel.
+   * That means we need to find ways to aggregate the results of the workflows.
+   * Therefore we are going to give each workflow a unique id and store the results of the workflows in a map.
+   */
+  asyncWorkflowEngineMessages: AnnotationWithDefault<
+    Record<string, Array<BaseMessage>>
+  >({}),
+  /**
+   * Workflow engine stream subscription (that runs all the workflows in parallel)
+   * This way we can tap into the stream and still pass it through the graph.
+   *
+   * I am setting unkown to prevent type errors since this is holding a type that is identical to itself.
+   * Typescript does not like the circular dependency.
+   */
+  workflowEngineStream: Annotation<Observable<unknown> | undefined>(),
+  worklowEngineStreamSubscription: Annotation<Subscription | undefined>(),
+
+  /**
+   * Tracks if all workflow engines have been completed.
+   */
+  allWorkflowEnginesCompleted: AnnotationWithDefault<boolean>(false),
 });

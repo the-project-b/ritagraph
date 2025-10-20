@@ -42,7 +42,7 @@ export * from "./mcp/client.js";
 export * from "./mcp/servers/index.js";
 
 // Export shared sub-graphs
-export * from "./graphs/shared-sub-graphs/workflow-engine-react/sub-graph.js";
+export * from "./graphs/rita/workflow-engine-react/sub-graph.js";
 
 // Export generated GraphQL types
 export * from "./generated/graphql.js";
