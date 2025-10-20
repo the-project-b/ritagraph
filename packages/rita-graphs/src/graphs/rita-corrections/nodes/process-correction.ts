@@ -60,6 +60,7 @@ export const processCorrection: Node = async (state, config, getAuthUser) => {
       hasToken: !!accessToken,
       companyId: selectedCompanyId,
     });
+
     const tools = toolFactory({
       toolDefinitions: [correctionEngine],
       ctx: {

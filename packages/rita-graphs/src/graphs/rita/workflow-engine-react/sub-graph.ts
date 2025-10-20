@@ -8,6 +8,8 @@ import {
   isCommand,
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { isAIMessage } from "@langchain/core/messages";
+import { createLogger } from "@the-project-b/logging";
 
 import { plan, planEdgeDecision } from "./nodes/plan.js";
 import { output } from "./nodes/output.js";
@@ -18,8 +20,7 @@ import {
   BaseGraphAnnotation,
 } from "../../shared-types/base-annotation.js";
 import { abortOutput } from "./nodes/abort-output.js";
-import { isAIMessage } from "@langchain/core/messages";
-import { createLogger } from "@the-project-b/logging";
+
 import AgentActionLogger from "../../../utils/agent-action-logger/AgentActionLogger.js";
 import { extractRequest } from "./nodes/extract-request.js";
 
@@ -31,13 +32,22 @@ export const workflowEngineState = Annotation.Root({
   taskEngineLoopCounter: AnnotationWithDefault<number>(0),
   workflowEngineResponseDraft: Annotation<string | undefined>(),
   sanitizedUserRequest: Annotation<string | undefined>(),
+  /**
+   * Used to identify the workflow in case of async workflows.
+   */
+  workflowId: Annotation<string | undefined>(),
+  /**
+   * Assgined todo id in case of async workflows.
+   * This way we can track of which todos have been done
+   */
+  assignedTodoId: Annotation<string | undefined>(),
 });
 
 export type WorkflowEngineStateType = typeof workflowEngineState.State;
 
 export type WorkflowEngineNode = NodeWithAuth<WorkflowEngineStateType, any>;
 
-type BuildWorkflowEngineReActParams = {
+export type BuildWorkflowEngineReActParams = {
   fetchTools: (
     companyId: string,
     config: AnnotationRoot<any>,

@@ -15,7 +15,7 @@ import {
 } from "../../../../utils/message-filter.js";
 import { getCurrentDataChangeProposals } from "../../../../utils/fetch-helper/get-current-data-change-proposals.js";
 import { createGraphQLClient } from "../../../../utils/graphql/client.js";
-import { AssumedConfigType } from "../../../rita/graph-state.js";
+import { AssumedConfigType } from "../../graph-state.js";
 import { getLiveViewOfProposedChanges } from "../utils/proposal-format-helper.js";
 
 const MAX_TASK_ENGINE_LOOP_COUNTER = 10;

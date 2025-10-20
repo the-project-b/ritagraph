@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { Node } from "../../graph-state.js";
+import { GraphStateType, Node } from "../../graph-state.js";
 
 import {
   from,
@@ -9,17 +9,23 @@ import {
   concatMap,
   toArray,
   lastValueFrom,
+  tap,
 } from "rxjs";
 import { BASE_MODEL_CONFIG } from "../../../model-config.js";
-import { PromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { randomUUID } from "crypto";
 import { isHumanMessage } from "@langchain/core/messages";
 import { addTodoTool } from "./add-todo-tool/tool.js";
+import z from "zod";
+import { createLogger } from "@the-project-b/logging";
 
-const WINDOW_SIZE = 5;
-const OVERLAP = 2;
+const WINDOW_SIZE = 3;
+const OVERLAP = 1;
+
+const INFINITE_LOOP_COUNTER_INTERVAL = 2;
+const MAX_AMOUNT_OF_WORDS_PER_LINE = 10;
 
 export type AgentTodoItem = {
   id: string; // Id that is first four letters of a UUID and then an index number
@@ -33,21 +39,47 @@ export type AgentTodoItem = {
   iteration: number;
 };
 
-const PROMPT_TEMPLATE = `You are part of a payroll agent system.
+const PROMPT_EXTRACT_GENERAL_CONTEXT = `You are part of a payroll agent system.
+Your successor will be responsible to extract todos. I want you to give him a general context of the whole email.
+So that it is clear what the email is about. Add details like date and employees but mention that this is just a general context
+and not the actual user request. Also mention if the user request is an email chain or a single message.
+
+{userMessage}
+`;
+
+const PROMPT_TEMPLATE_EXTRACT_TODOS = `You are part of a payroll agent system.
 You will be given text step by step so you might even see partial sentences.
 If there is no todo left just say "No more tool calls".
 
 Your task is to extract todos from the following text (if any are present):
 Do not repeat existing todos.
 
+<context>
+Use this context to understand the overall picture not to extract todos.
+{context}
+</context>
+
 <existingTodos>
 {existingTodos}
 </existingTodos>
+
+Again do not repeat existing todos.
 
 This is the user message:
 <userMessage>
 {input}
 </userMessage>
+`;
+
+const PROMPT_TEMPLATE_LOOP_CHECKS = `
+You are double checking your counter part who has the job to extract todos from the user message.
+You will be given the rest of messages and you have to decide if the counter part is repeating itself.
+
+Tool calls:
+{toolCalls}
+
+Rest of the messages:
+{restOfMessages}
 `;
 
 /**
@@ -62,6 +94,41 @@ This is the user message:
 export const todoEngine: Node = async (state, config, getAuthUser) => {
   const { token } = getAuthUser(config);
   const { preferredLanguage } = state;
+  const lastUserMessage = state.messages
+    .filter(isHumanMessage)
+    .at(-1)
+    ?.content.toString();
+
+  const generalContext = await generateContextOfMessage(lastUserMessage);
+
+  const todos = await extractTodos({
+    preferredLanguage,
+    token,
+    state,
+    lastUserMessage,
+    generalContext,
+  });
+
+  return { todos };
+};
+
+async function extractTodos({
+  preferredLanguage,
+  token,
+  state,
+  lastUserMessage,
+  generalContext,
+}: {
+  preferredLanguage: "EN" | "DE";
+  token: string;
+  state: GraphStateType;
+  lastUserMessage: string;
+  generalContext: string;
+}) {
+  const logger = createLogger({ service: "rita-graphs" }).child({
+    module: "TodoEngine",
+    node: "extractTodos",
+  });
 
   const llm = new ChatOpenAI({ ...BASE_MODEL_CONFIG, temperature: 0.1 });
 
@@ -89,18 +156,27 @@ export const todoEngine: Node = async (state, config, getAuthUser) => {
   }) => {
     const input = chunk.join("\n");
 
+    // Repeat until the LLM decides to stop calling tools but check if its repeating itself
+    let loopCounter = 0;
+    const toolCallHistory = [];
+
     while (true) {
+      loopCounter++;
+      const formattedTodos = existingTodos
+        .map(
+          (todo) =>
+            `${todo.taskDescription} for ${todo.relatedEmployeeName} - Effective at: ${todo.effectiveDate}`,
+        )
+        .join("\n");
+
       const promptTemplate = await PromptTemplate.fromTemplate(
-        PROMPT_TEMPLATE,
+        PROMPT_TEMPLATE_EXTRACT_TODOS,
       ).format({
         input,
-        existingTodos: existingTodos
-          .map(
-            (todo) =>
-              `${todo.taskDescription} for ${todo.relatedEmployeeName} - Effective at: ${todo.effectiveDate}`,
-          )
-          .join("\n"),
+        context: generalContext,
+        existingTodos: formattedTodos,
       });
+
       const response = await llm.bindTools(tools).invoke(promptTemplate);
 
       // If the LLM decided to call a tool, execute it via a ToolNode
@@ -111,6 +187,7 @@ export const todoEngine: Node = async (state, config, getAuthUser) => {
       }
 
       if (Array.isArray(maybeToolCalls) && maybeToolCalls.length > 0) {
+        toolCallHistory.push(...maybeToolCalls);
         const toolNode = new ToolNode(tools);
         try {
           await toolNode.invoke({ messages: [response] });
@@ -118,34 +195,90 @@ export const todoEngine: Node = async (state, config, getAuthUser) => {
           console.error("[todo-engine] tool execution failed", e);
         }
       }
+
+      if (loopCounter % INFINITE_LOOP_COUNTER_INTERVAL === 0) {
+        const systemPromptForLoopCheck = await PromptTemplate.fromTemplate(
+          PROMPT_TEMPLATE_LOOP_CHECKS,
+        ).format({
+          toolCalls: JSON.stringify(toolCallHistory),
+          restOfMessages: input,
+        });
+        const responseForLoopCheck = await llm
+          .withStructuredOutput(
+            z.object({
+              decision: z.enum(["LOOP", "NO_REPEATS"]),
+            }),
+          )
+          .invoke(systemPromptForLoopCheck);
+
+        if (responseForLoopCheck.decision === "LOOP") {
+          break;
+        }
+      }
     }
 
     return "No more tool calls";
   };
 
-  const lastUserMessage = state.messages
-    .filter(isHumanMessage)
-    .at(-1)
-    ?.content.toString();
-
   const stride = Math.max(1, WINDOW_SIZE - OVERLAP);
-  const exampleLines = lastUserMessage
+  const userMessageSlices = lastUserMessage
     .split(/\r?\n/)
     .filter((l) => l.length > 0);
 
-  const processing$ = from(exampleLines).pipe(
+  logger.info("🚀🚀🚀 userMessageSlices %s \n\n", {
+    messageSlices: userMessageSlices,
+  });
+
+  const extractionProcess = from(userMessageSlices).pipe(
     bufferCount(WINDOW_SIZE, stride),
     filter((chunk) => chunk.length > 0),
     map((chunk, index) => ({ chunk, index })),
-    concatMap((payload) => handleChunkWithLLM(payload)),
+    concatMap(handleChunkWithLLM),
+    tap((result) => logger.info("🚀🚀🚀 result %s \n\n", { result })),
+    map(ensureLineBreaks),
     toArray(),
   );
 
   try {
-    await lastValueFrom(processing$);
+    await lastValueFrom(extractionProcess);
   } catch (err) {
     console.error("[todo-engine rxjs] error", err);
   }
 
-  return { todos: existingTodos };
-};
+  return existingTodos;
+}
+
+async function generateContextOfMessage(lastUserMessage: string) {
+  const generalContextLlm = new ChatOpenAI({
+    ...BASE_MODEL_CONFIG,
+    temperature: 0.1,
+  });
+
+  const createContextPrompt = await ChatPromptTemplate.fromTemplate(
+    PROMPT_EXTRACT_GENERAL_CONTEXT,
+  ).format({ userMessage: lastUserMessage });
+
+  const generalContext = await generalContextLlm.invoke(createContextPrompt);
+  return generalContext.content.toString();
+}
+
+/**
+ * If a line has more then 10 words we should split it into multiple lines.
+ */
+function ensureLineBreaks(text: string) {
+  const lines = text.split("\n");
+  const newLines = [];
+  for (const line of lines) {
+    if (line.split(" ").length > MAX_AMOUNT_OF_WORDS_PER_LINE) {
+      newLines.push(
+        line.split(" ").slice(0, MAX_AMOUNT_OF_WORDS_PER_LINE).join(" "),
+      );
+      newLines.push(
+        line.split(" ").slice(MAX_AMOUNT_OF_WORDS_PER_LINE).join(" "),
+      );
+    } else {
+      newLines.push(line);
+    }
+  }
+  return newLines.join("\n");
+}
