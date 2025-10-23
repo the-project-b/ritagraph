@@ -70,6 +70,106 @@ export class TextractAdapter implements ExtractionAdapter {
   }
 
   /**
+   * Extracts text from a buffer directly using Textract synchronous API.
+   * Suitable for files under 5MB and CLI usage.
+   */
+  async extractTextFromBuffer(
+    buffer: Buffer,
+    filename: string,
+    config: ExtractionConfig,
+  ): Promise<Result<ExtractionResultDto, ExternalServiceError>> {
+    const startTime = Date.now();
+    const costTracker = new TextractCostTracker();
+
+    logger.info("Starting extraction from buffer", {
+      filename,
+      sizeMB: (buffer.length / (1024 * 1024)).toFixed(2),
+      detailLevel: config.getDetailLevel(),
+    });
+
+    try {
+      const features = this.mapFeatures(config);
+      const analyzeResult = await this.textractClient.analyzeDocument(
+        buffer,
+        features,
+      );
+
+      if (isErr(analyzeResult)) {
+        return err(analyzeResult.error);
+      }
+
+      const { blocks, metadata } = analyzeResult.value;
+      const parseResult = this.parser.parse(blocks);
+
+      if (isErr(parseResult)) {
+        return err(
+          new ExternalServiceError(
+            "TextractAdapter",
+            "Failed to parse Textract response",
+            500,
+            { error: parseResult.error },
+          ),
+        );
+      }
+
+      const { text, structuredData, confidence } = parseResult.value;
+      const confidenceScoreResult = ConfidenceScore.create(confidence);
+
+      if (isErr(confidenceScoreResult)) {
+        return err(
+          new ExternalServiceError(
+            "TextractAdapter",
+            "Invalid confidence score",
+            500,
+            { error: confidenceScoreResult.error },
+          ),
+        );
+      }
+
+      const pageCount = metadata?.Pages || 1;
+      costTracker.trackApiCall("AnalyzeDocument", pageCount);
+
+      const processingTimeMs = Date.now() - startTime;
+      const result: ExtractionResultDto = {
+        attachmentId: "local-file",
+        filename,
+        extractedText: text,
+        structuredData,
+        metadata: {
+          pageCount,
+          confidence,
+          language: "unknown",
+          processingTimeMs,
+        },
+        cost: costTracker.getCurrentCost(),
+      };
+
+      logger.info("Extraction from buffer completed", {
+        filename,
+        textLength: text.length,
+        confidence,
+        processingTimeMs,
+        cost: costTracker.getCurrentCost(),
+      });
+
+      return ok(result);
+    } catch (error) {
+      logger.error("Extraction from buffer failed", error as Error, {
+        filename,
+      });
+
+      return err(
+        new ExternalServiceError(
+          "TextractAdapter",
+          `Extraction failed: ${(error as Error).message}`,
+          500,
+          { filename },
+        ),
+      );
+    }
+  }
+
+  /**
    * Extracts text and structured data from a document (blocking).
    * Starts async job and polls until completion.
    */
