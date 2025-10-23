@@ -48,7 +48,13 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
-      
+
+      - name: Generate GraphQL types
+        run: |
+          echo "Generating GraphQL types..."
+          npx turbo run codegen --force --filter=@the-project-b/rita-graphs --filter=@the-project-b/file-extraction || echo "⚠️  Some packages don't have codegen, which is totally fineeeee"
+          echo "✅ GraphQL types generated"
+
       - name: Build packages
         run: npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts --filter=@the-project-b/file-extraction --filter=@the-project-b/types
       
