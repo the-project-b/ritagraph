@@ -28,6 +28,7 @@
     "@langchain/mcp-adapters": "0.6.0",
     "@langchain/openai": "0.6.14",
     "@modelcontextprotocol/sdk": "^1.13.0",
+    "@the-project-b/file-extraction": "*",
     "@the-project-b/graphql": "*",
     "@the-project-b/logging": "*",
     "@the-project-b/prompts": "*",

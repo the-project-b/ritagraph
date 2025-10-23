@@ -1,0 +1,24 @@
+query GetAttachment($data: GetAttachmentDto!) {
+  getAttachment(data: $data) {
+    id
+    ritaThreadItemId
+    fileName
+    contentType
+    fileSize
+    filePathS3
+    fileS3Bucket
+    copied
+    copyError
+    savedAt
+    fileExpiresAt
+    ritaProcessedAt
+    ritaContextRelevant
+    createdAt
+    updatedAt
+    cloudmailinMetadata
+  }
+}
+
+query Login($data: LoginInput!) {
+  login(data: $data)
+}
