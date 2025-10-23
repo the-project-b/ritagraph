@@ -10,34 +10,31 @@ Domain-Driven Design package for extracting text from documents using AWS Textra
 - Dual extraction patterns:
   - **Blocking**: `extractText()` waits for job completion
   - **Non-blocking**: Job-based pattern with status polling
-- GraphQL integration for attachment metadata
-- Retry logic with exponential backoff
+- GraphQL integration for attachment metadata pulling from our backend
+- Retry logic with exponential backoff, fully configurable if needed
 - Cost tracking and confidence scoring
-- Interactive CLI tool for testing
+- Interactive CLI tool for testing `npm run extract`
 - Adapter pattern for extensibility
 
-## Architecture
+Example output: `packages/file-extraction/extraction-cmgz6qntm0008xzodncq174qi-1761231410094.json`
 
-Follows strict Domain-Driven Design principles:
+## Local testing
 
-- **Domain Layer**: Pure business logic (entities, value objects, repository interfaces)
-- **Application Layer**: Use cases and orchestration
-- **Infrastructure Layer**: External integrations (AWS SDK, adapters, repositories)
+Want to test this without all the attachment and emailing and stuff but just referencing a local file?
+`npm run extract:file ~/Downloads/INV25_0010.pdf`
 
 ## Usage
 
 ### CLI Tool
 
-Extract attachment text interactively:
+Extract attachment text interactively, pretty cool stuff for local testing (does require you to actually have some attachments available in the database)
 
 ```bash
 npm run extract
 
 # Follow prompts for:
-# - GraphQL endpoint
-# - Auth token
 # - Attachment ID
-# - Output format (json/markdown/text)
+# - Username / password
 
 # Results automatically saved to: extraction-{attachmentId}-{timestamp}.json
 ```
@@ -92,7 +89,7 @@ const result = await textractAdapter.extractText(buffer, "file.pdf");
 
 ### Non-Blocking Pattern
 
-Use job-based methods for LangGraph integration:
+Use job-based methods, this is where the services shines for integration into a graph, we can build a 'waiting' node that does this waiting for completion while communicating this status over the stream.
 
 ```typescript
 // Start job
