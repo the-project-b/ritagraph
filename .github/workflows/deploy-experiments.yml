@@ -50,7 +50,7 @@ jobs:
         run: npm ci
       
       - name: Build packages
-        run: npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging
+        run: npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts --filter=@the-project-b/file-extraction --filter=@the-project-b/types
       
       - name: Setup Fly CLI
         uses: superfly/flyctl-actions/setup-flyctl@master

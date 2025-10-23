@@ -17,6 +17,7 @@ COPY packages/rita-graphs/package.json ./packages/rita-graphs/
 COPY packages/projectb-graphql/package.json ./packages/projectb-graphql/
 COPY packages/logging/package.json ./packages/logging/
 COPY packages/prompts/package.json ./packages/prompts/
+COPY packages/file-extraction/package.json ./packages/file-extraction/
 
 # Install all dependencies (including tsx for runtime)
 RUN npm ci
@@ -28,7 +29,7 @@ COPY . .
 RUN find . -name ".env*" -type f -exec sed -i 's|PROJECTB_GRAPHQL_ENDPOINT=.*|PROJECTB_GRAPHQL_ENDPOINT="https://qa4-dashboard.dev.project-b.dev/graphqlapi"|g' {} \;
 
 # Build the local packages first
-RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts --filter=@the-project-b/experiments --filter=@the-project-b/types
+RUN npm run build -- --filter=@the-project-b/graphql --filter=@the-project-b/rita-graphs --filter=@the-project-b/logging --filter=@the-project-b/prompts --filter=@the-project-b/file-extraction --filter=@the-project-b/experiments --filter=@the-project-b/types
 
 # Generate GraphQL types for experiments app
 WORKDIR /app/apps/evaluation
