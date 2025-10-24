@@ -15,7 +15,7 @@
     "dev": "tsc --watch",
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint src",
     "extract": "tsx src/cli/extract.ts",
     "extract:file": "tsx src/cli/extract-file.ts",

@@ -33,6 +33,13 @@ jobs:
           echo "Checking for version mismatches with syncpack..."
           npm run syncpack:check
 
+      # Generate GraphQL types BEFORE any builds/tests
+      - name: Generate GraphQL types
+        run: |
+          echo "Generating GraphQL types..."
+          npx turbo run codegen --force || echo "⚠️  Some packages don't have codegen (this is expected bruh)"
+          echo "✅ GraphQL types generated"
+
       - name: Cache turbo build artifacts
         uses: actions/cache@v4
         with:
@@ -65,13 +72,6 @@ jobs:
           fi
 
           echo "✅ All tests passed"
-
-      # Generate GraphQL types for all packages
-      - name: Generate GraphQL types
-        run: |
-          echo "Generating GraphQL types..."
-          npx turbo run codegen --force || echo "⚠️  Some packages don't have codegen (this is expected bruh)"
-          echo "✅ GraphQL types generated"
 
       # Always run build to ensure everything compiles
       - name: Run build
