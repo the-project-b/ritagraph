@@ -64,10 +64,14 @@ export class MockAdapter implements ExtractionAdapter {
 
   async getExtractionJobResult(
     jobId: string,
+    metadata: {
+      document: Document;
+      startTime: number;
+    },
   ): Promise<Result<ExtractionResultDto, ExternalServiceError>> {
     const result: ExtractionResultDto = {
-      attachmentId: "mock-attachment-id",
-      filename: "mock-document.pdf",
+      attachmentId: metadata.document.getId().toString(),
+      filename: metadata.document.getFilename(),
       extractedText: "Mock extracted text from job result",
       structuredData: {
         tables: [],

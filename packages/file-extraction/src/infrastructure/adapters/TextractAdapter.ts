@@ -39,15 +39,6 @@ export class TextractAdapter implements ExtractionAdapter {
   private readonly textractClient: TextractClient;
   private readonly s3Client: S3Client;
   private readonly parser: TextractResponseParser;
-  private readonly jobMetadata: Map<
-    string,
-    {
-      document: Document;
-      config: ExtractionConfig;
-      costTracker: TextractCostTracker;
-      startTime: number;
-    }
-  >;
 
   constructor(
     textractClient?: TextractClient,
@@ -57,7 +48,6 @@ export class TextractAdapter implements ExtractionAdapter {
     this.textractClient = textractClient || new TextractClient(region);
     this.s3Client = s3Client || new S3Client(region);
     this.parser = new TextractResponseParser();
-    this.jobMetadata = new Map();
 
     logger.info("TextractAdapter initialized");
   }
@@ -281,13 +271,6 @@ export class TextractAdapter implements ExtractionAdapter {
 
     const jobId = startJobResult.value;
 
-    this.jobMetadata.set(jobId, {
-      document,
-      config,
-      costTracker: new TextractCostTracker(),
-      startTime: Date.now(),
-    });
-
     logger.info("Extraction job started", {
       jobId,
       filename: document.getFilename(),
@@ -324,20 +307,11 @@ export class TextractAdapter implements ExtractionAdapter {
    */
   async getExtractionJobResult(
     jobId: string,
+    metadata: {
+      document: Document;
+      startTime: number;
+    },
   ): Promise<Result<ExtractionResultDto, ExternalServiceError>> {
-    const metadata = this.jobMetadata.get(jobId);
-
-    if (!metadata) {
-      return err(
-        new ExternalServiceError(
-          "TextractAdapter",
-          "Job metadata not found. Job may have been started externally or cleaned up.",
-          404,
-          { jobId },
-        ),
-      );
-    }
-
     const result = await this.textractClient.getDocumentAnalysis(jobId);
 
     if (isErr(result)) {
@@ -367,17 +341,16 @@ export class TextractAdapter implements ExtractionAdapter {
     }
 
     const pageCount = result.value.response.metadata?.Pages || 1;
-    metadata.costTracker.trackApiCall("AnalyzeDocument", pageCount);
+    const costTracker = new TextractCostTracker();
+    costTracker.trackApiCall("AnalyzeDocument", pageCount);
 
     const extractionResult = await this.buildExtractionResult(
       metadata.document,
       result.value.response.blocks,
       result.value.response.metadata,
-      metadata.costTracker,
+      costTracker,
       metadata.startTime,
     );
-
-    this.jobMetadata.delete(jobId);
 
     return extractionResult;
   }
