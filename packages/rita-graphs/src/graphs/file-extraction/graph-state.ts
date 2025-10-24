@@ -25,7 +25,10 @@ export type ExtractionJob = {
   jobId: string;
   status: "STARTED" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED";
   filename: string;
-  s3Location?: string;
+  s3Bucket: string;
+  s3Path: string;
+  fileSize: number;
+  startTime: number;
 };
 
 export type FailedAttachment = {

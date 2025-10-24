@@ -1,8 +1,11 @@
 import { createLogger, normalizeError } from "@the-project-b/logging";
 import { isErr } from "@the-project-b/types";
 import {
-  TextractClient,
+  ExtractionAdapterFactory,
   ExtractionResultDto,
+  Document,
+  DocumentType,
+  AttachmentId,
 } from "@the-project-b/file-extraction";
 import { getThreadIdFromConfig } from "../../../utils/config-helper.js";
 import type { Node, FailedAttachment, CostMetrics } from "../graph-state.js";
@@ -62,7 +65,48 @@ export const retrieveResults: Node = async (state, config) => {
     }
 
     try {
-      const resultData = await adapter.getExtractionJobResult(job.jobId);
+      const attachmentIdResult = AttachmentId.create(job.attachmentId);
+      if (isErr(attachmentIdResult)) {
+        failedAttachments.push({
+          attachmentId: job.attachmentId,
+          filename: job.filename,
+          error: `Invalid attachment ID: ${attachmentIdResult.error.message}`,
+        });
+        continue;
+      }
+
+      const documentTypeResult = DocumentType.fromFilename(job.filename);
+      if (isErr(documentTypeResult)) {
+        failedAttachments.push({
+          attachmentId: job.attachmentId,
+          filename: job.filename,
+          error: `Unsupported file type: ${documentTypeResult.error.message}`,
+        });
+        continue;
+      }
+
+      const documentResult = Document.create({
+        id: attachmentIdResult.value,
+        filename: job.filename,
+        type: documentTypeResult.value,
+        sizeBytes: job.fileSize,
+        s3Path: job.s3Path,
+        s3Bucket: job.s3Bucket,
+      });
+
+      if (isErr(documentResult)) {
+        failedAttachments.push({
+          attachmentId: job.attachmentId,
+          filename: job.filename,
+          error: `Invalid document: ${documentResult.error.message}`,
+        });
+        continue;
+      }
+
+      const resultData = await adapter.getExtractionJobResult(job.jobId, {
+        document: documentResult.value,
+        startTime: job.startTime,
+      });
 
       if (isErr(resultData)) {
         logger.error("Failed to retrieve extraction result", resultData.error, {

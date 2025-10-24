@@ -166,7 +166,10 @@ export const startExtractionJobs: Node = async (state, config, getAuthUser) => {
         jobId,
         status: "STARTED",
         filename,
-        s3Location: `s3://${document.getS3Bucket()}/${document.getS3Path()}`,
+        s3Bucket: document.getS3Bucket(),
+        s3Path: document.getS3Path(),
+        fileSize: document.getSizeBytes(),
+        startTime: Date.now(),
       });
     } catch (error) {
       const { message } = normalizeError(error);
