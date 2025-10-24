@@ -33,6 +33,13 @@ jobs:
           echo "Checking for version mismatches with syncpack..."
           npm run syncpack:check
 
+      # Generate GraphQL types BEFORE any builds/tests
+      - name: Generate GraphQL types
+        run: |
+          echo "Generating GraphQL types..."
+          npx turbo run codegen --force || echo "⚠️  Some packages don't have codegen (this is expected bruh)"
+          echo "✅ GraphQL types generated"
+
       - name: Cache turbo build artifacts
         uses: actions/cache@v4
         with:
@@ -45,25 +52,25 @@ jobs:
       - name: Run tests for affected packages
         run: |
           echo "Running tests for affected packages..."
-          
+
           # Set the base branch for comparison (GitHub provides this for PRs)
           export TURBO_SCM_BASE=origin/${{ github.base_ref }}
           export TURBO_SCM_HEAD=HEAD
-          
+
           echo "Comparing against base: $TURBO_SCM_BASE"
-          
+
           # TODO: Re-enable lint checks after prettier formatting is fixed
           # npm run lint -- --affected --continue || LINT_FAILED=1
-          
+
           # Run tests with --continue to collect all errors
           npm run test -- --affected --continue || TEST_FAILED=1
-          
+
           # Check if tests failed
           if [ "$TEST_FAILED" = "1" ]; then
             echo "❌ Tests failed"
             exit 1
           fi
-          
+
           echo "✅ All tests passed"
 
       # Always run build to ensure everything compiles

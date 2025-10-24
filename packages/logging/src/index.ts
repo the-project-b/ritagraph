@@ -32,6 +32,8 @@ export {
   REDACTED,
 } from "./utils/redaction.js";
 export { shouldSample, parseSampleRate } from "./utils/sampling.js";
+export { normalizeError } from "./utils/error.js";
+export type { NormalizedError } from "./utils/error.js";
 
 // Formatters
 export {
