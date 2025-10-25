@@ -109,8 +109,18 @@ export const BaseGraphAnnotation = Annotation.Root({
    * I am setting unkown to prevent type errors since this is holding a type that is identical to itself.
    * Typescript does not like the circular dependency.
    */
-  workflowEngineStream: Annotation<Observable<unknown> | undefined>(),
+  workflowEngineResultSubject: Annotation<Observable<unknown> | undefined>(),
   workflowEngineStreamSubscription: Annotation<Subscription | undefined>(),
+
+  workflowEngineTaskHandles: Annotation<
+    | Array<{
+        workflowPromise?: Promise<unknown>;
+        workflowFactory: () => () => Promise<unknown>;
+        processed: boolean;
+        id: string;
+      }>
+    | undefined
+  >(),
 
   /**
    * Tracks if all workflow engines have been completed.

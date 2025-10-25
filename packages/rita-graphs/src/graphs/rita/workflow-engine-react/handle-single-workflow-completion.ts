@@ -1,52 +1,80 @@
-import { firstValueFrom, Observable } from "rxjs";
-
-import { WorkflowEngineStateType } from "./sub-graph.js";
 import { Node } from "../graph-state.js";
+
+const MAX_CONCURRENT_WORKFLOWS = 5;
 
 /**
  * This node is used to handle the completion of a single workflow engine.
  * It will loop itself until all workflow engines have been completed.
  */
 export const handleSingleWorkflowCompletion: Node = async ({
-  asyncWorkflowEngineMessages,
   todos,
-  workflowEngineStream,
-  workflowEngineStreamSubscription,
+  workflowEngineTaskHandles,
 }) => {
-  const NONE = Symbol("NONE");
+  const handles = workflowEngineTaskHandles ?? [];
 
-  const nextWorkflowEngineResult = await firstValueFrom(
-    workflowEngineStream as Observable<WorkflowEngineStateType>,
-    {
-      defaultValue: NONE,
-    },
+  // 1) If everything processed, signal completion
+  if (handles.length === 0 || handles.every((h) => h.processed)) {
+    return { allWorkflowEnginesCompleted: true };
+  }
+
+  // Partition handles
+  const running = handles.filter(
+    (h) => !h.processed && h.workflowPromise !== undefined,
+  );
+  const idle = handles.filter(
+    (h) => !h.processed && h.workflowPromise === undefined,
   );
 
-  if (nextWorkflowEngineResult !== NONE) {
-    const result = nextWorkflowEngineResult as WorkflowEngineStateType;
+  // 2) Schedule new tasks up to capacity, if any capacity left
+  const capacity = Math.max(MAX_CONCURRENT_WORKFLOWS - running.length, 0);
+  if (capacity > 0 && idle.length > 0) {
+    const toStart = idle.slice(0, capacity);
+    const updated = handles.map((h) => {
+      if (toStart.find((s) => s.id === h.id)) {
+        const base = h.workflowFactory()();
+        const wrapped = base
+          .then(() => ({ id: h.id, ok: true as const }))
+          .catch(() => ({ id: h.id, ok: false as const }));
+        return { ...h, workflowPromise: wrapped };
+      }
+      return h;
+    });
+    return { workflowEngineTaskHandles: updated };
+  }
 
-    // Aggregate the workflow results
-    const newAsyncWorkflowEngineMessages = {
-      ...asyncWorkflowEngineMessages,
-      [result.workflowId]: [
-        ...(asyncWorkflowEngineMessages?.[result.workflowId] ?? []),
-        ...result.messages,
-      ],
-    };
-
-    return {
-      asyncWorkflowEngineMessages: newAsyncWorkflowEngineMessages,
-      // mark associated todo as completed
-      todos: todos.map((todo) =>
-        result.assignedTodoId === todo.id
-          ? { ...todo, status: "completed" }
-          : todo,
+  // 3) If there are running tasks, wait for the first one to settle, then mark processed
+  if (running.length > 0) {
+    const raced = await Promise.race(
+      running.map(
+        (h) => h.workflowPromise as Promise<{ id: string; ok: boolean }>,
       ),
-      allWorkflowEnginesCompleted: false,
+    );
+    const winnerId = raced.id;
+    return {
+      todos: todos.map((t) =>
+        t.id === winnerId ? { ...t, status: "completed" } : t,
+      ),
+      workflowEngineTaskHandles: handles.map((h) =>
+        h.id === winnerId
+          ? { ...h, processed: true, workflowPromise: undefined }
+          : h,
+      ),
     };
   }
-  workflowEngineStreamSubscription?.unsubscribe();
-  return {
-    allWorkflowEnginesCompleted: true,
-  };
+
+  // 4) If we got here: there are unprocessed tasks but none running (shouldn't happen), start one
+  if (idle.length > 0) {
+    const next = idle[0];
+    const base = next.workflowFactory()();
+    const wrapped = base
+      .then(() => ({ id: next.id, ok: true as const }))
+      .catch(() => ({ id: next.id, ok: false as const }));
+    return {
+      workflowEngineTaskHandles: handles.map((h) =>
+        h.id === next.id ? { ...h, workflowPromise: wrapped } : h,
+      ),
+    };
+  }
+
+  return {};
 };

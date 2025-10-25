@@ -1,4 +1,3 @@
-import { mergeMap, from, share } from "rxjs";
 import { randomUUID } from "crypto";
 
 import { Node } from "../graph-state.js";
@@ -8,8 +7,6 @@ import {
   BuildWorkflowEngineReActParams,
 } from "./sub-graph.js";
 import { AgentTodoItem } from "../nodes/todo-engine/todo-engine.js";
-
-const MAX_CONCURRENT_WORKFLOWS = 5;
 
 type Factory = (params: BuildWorkflowEngineReActParams) => Node;
 
@@ -43,20 +40,12 @@ export const buildAsyncWorkflowEngineReAct: Factory =
       });
     }
 
-    // Using rxjs to parallelize the workflow engines with a maximum of 5 concurrent workflows
-    // This stream will return the result of the invoked sub-graph
-    const workflowEngineStream = from(todos).pipe(
-      mergeMap(runWorkflowEngine, MAX_CONCURRENT_WORKFLOWS),
-      share({
-        resetOnComplete: false,
-      }),
-    );
-
-    // Keep subscription alive
-    const subscription = workflowEngineStream.subscribe();
-
     return {
-      workflowEngineStream,
-      workflowEngineStreamSubscription: subscription,
+      workflowEngineTaskHandles: todos.map((todo) => ({
+        workflowFactory: () => () => runWorkflowEngine(todo),
+        id: todo.id,
+        processed: false,
+      })),
+      // workflowEngineStreamSubscription: subscription,
     };
   };
