@@ -11,7 +11,7 @@ export const handleSingleWorkflowCompletion: Node = async ({
   asyncWorkflowEngineMessages,
   todos,
   workflowEngineStream,
-  worklowEngineStreamSubscription,
+  workflowEngineStreamSubscription,
 }) => {
   const NONE = Symbol("NONE");
 
@@ -45,7 +45,7 @@ export const handleSingleWorkflowCompletion: Node = async ({
       allWorkflowEnginesCompleted: false,
     };
   }
-  worklowEngineStreamSubscription?.unsubscribe();
+  workflowEngineStreamSubscription?.unsubscribe();
   return {
     allWorkflowEnginesCompleted: true,
   };

@@ -21,7 +21,7 @@ type Factory = (params: BuildWorkflowEngineReActParams) => Node;
  * over to node that will loop until all workflow engines have been completed.
  */
 export const buildAsyncWorkflowEngineReAct: Factory =
-  (params) => async (state) => {
+  (params) => async (state, config) => {
     const { todos } = state;
 
     async function runWorkflowEngine(todo: AgentTodoItem) {
@@ -36,14 +36,20 @@ export const buildAsyncWorkflowEngineReAct: Factory =
         assignedTodoId: todo.id,
       };
 
-      return await workflowEngine.invoke(newState);
+      return await workflowEngine.invoke(newState, {
+        runName: `workflow-engine-${workflowId}`,
+        runId: config.runId,
+        configurable: config.configurable,
+      });
     }
 
     // Using rxjs to parallelize the workflow engines with a maximum of 5 concurrent workflows
     // This stream will return the result of the invoked sub-graph
     const workflowEngineStream = from(todos).pipe(
       mergeMap(runWorkflowEngine, MAX_CONCURRENT_WORKFLOWS),
-      share(),
+      share({
+        resetOnComplete: false,
+      }),
     );
 
     // Keep subscription alive
@@ -51,6 +57,6 @@ export const buildAsyncWorkflowEngineReAct: Factory =
 
     return {
       workflowEngineStream,
-      worklowEngineStreamSubscription: subscription,
+      workflowEngineStreamSubscription: subscription,
     };
   };

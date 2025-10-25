@@ -110,10 +110,19 @@ export const BaseGraphAnnotation = Annotation.Root({
    * Typescript does not like the circular dependency.
    */
   workflowEngineStream: Annotation<Observable<unknown> | undefined>(),
-  worklowEngineStreamSubscription: Annotation<Subscription | undefined>(),
+  workflowEngineStreamSubscription: Annotation<Subscription | undefined>(),
 
   /**
    * Tracks if all workflow engines have been completed.
    */
   allWorkflowEnginesCompleted: AnnotationWithDefault<boolean>(false),
+
+  /**
+   * original message chain
+   * All human and ai messages that have been processed by the graph.
+   * updated every time a run starts.
+   *
+   * Used for things like the sanitize_quote_for_proposal tool.
+   */
+  originalMessageChain: AnnotationWithDefault<Array<BaseMessage>>([]),
 });

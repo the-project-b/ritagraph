@@ -8,6 +8,7 @@ import type {
   EmailPerson,
 } from "../../../utils/types/email";
 import { buildEmailContextForLLM } from "../../../utils/email-context-builder";
+import { onHumanAndAiMessage } from "../../../utils/message-filter";
 
 type AssumedConfigurableType = {
   thread_id: string;
@@ -19,6 +20,7 @@ type AssumedConfigurableType = {
 export const loadSettings: Node = async (state, config, getAuthUser) => {
   const { user, token, appdataHeader } = getAuthUser(config);
   const { backupCompanyId } = getContextFromConfig(config);
+
   const { thread_id } =
     config.configurable as unknown as AssumedConfigurableType;
 
@@ -70,6 +72,7 @@ export const loadSettings: Node = async (state, config, getAuthUser) => {
     selectedCompanyId:
       state.selectedCompanyId ?? user.company.id ?? backupCompanyId,
     agentActionLogger: AgentActionLogger.fromLogs(state.agentActionEvents),
+    originalMessageChain: state.messages.filter(onHumanAndAiMessage),
   };
 };
 
