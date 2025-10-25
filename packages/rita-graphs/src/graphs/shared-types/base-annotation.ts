@@ -1,5 +1,4 @@
 import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
-import { Observable, Subscription } from "rxjs";
 
 import { QueryDefinition } from "../../utils/types/query-defintion";
 import { DataRepresentationLayerEntity } from "../../utils/data-representation-layer";
@@ -103,17 +102,31 @@ export const BaseGraphAnnotation = Annotation.Root({
     Record<string, Array<BaseMessage>>
   >({}),
   /**
-   * Workflow engine stream subscription (that runs all the workflows in parallel)
-   * This way we can tap into the stream and still pass it through the graph.
-   *
+   * Reference the workflow description and reference to the promise that will be resolved when the workflow is completed.
    * I am setting unkown to prevent type errors since this is holding a type that is identical to itself.
    * Typescript does not like the circular dependency.
    */
-  workflowEngineStream: Annotation<Observable<unknown> | undefined>(),
-  worklowEngineStreamSubscription: Annotation<Subscription | undefined>(),
+  workflowEngineTaskHandles: Annotation<
+    | Array<{
+        workflowPromise?: Promise<unknown>;
+        workflowFactory: () => () => Promise<unknown>;
+        processed: boolean;
+        id: string;
+      }>
+    | undefined
+  >(),
 
   /**
    * Tracks if all workflow engines have been completed.
    */
   allWorkflowEnginesCompleted: AnnotationWithDefault<boolean>(false),
+
+  /**
+   * original message chain
+   * All human and ai messages that have been processed by the graph.
+   * updated every time a run starts.
+   *
+   * Used for things like the sanitize_quote_for_proposal tool.
+   */
+  originalMessageChain: AnnotationWithDefault<Array<BaseMessage>>([]),
 });

@@ -87,7 +87,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
 
       // We need to know the original message chain to get the well formatted quote
       const callerGraphState = (await getCurrentTaskInput(config)) as {
-        messages: Array<BaseMessage>;
+        originalMessageChain: Array<BaseMessage>;
         preferredLanguage: "EN" | "DE";
       };
 
@@ -123,7 +123,7 @@ Remember to put those into the sanitize_quote_for_proposal tool to get a well fo
           ...toolContext,
           extendedContext: {
             paymentTypes,
-            originalMessageChain: callerGraphState.messages,
+            originalMessageChain: callerGraphState.originalMessageChain,
             preferredLanguage: callerGraphState.preferredLanguage,
           },
         },
