@@ -17,12 +17,13 @@ import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { randomUUID } from "crypto";
 import { isHumanMessage } from "@langchain/core/messages";
-import { addTodoTool } from "./add-todo-tool/tool.js";
 import z from "zod";
 import { createLogger } from "@the-project-b/logging";
+import { addMultipleTodosTool } from "./tools/add-multiple-todos-tool/tool.js";
+import { filterDuplicates } from "./util/detect-duplicates.js";
 
-const WINDOW_SIZE = 3;
-const OVERLAP = 1;
+const WINDOW_SIZE = 5;
+const OVERLAP = 2;
 
 const INFINITE_LOOP_COUNTER_INTERVAL = 2;
 const MAX_AMOUNT_OF_WORDS_PER_LINE = 10;
@@ -41,8 +42,9 @@ export type AgentTodoItem = {
 
 const PROMPT_EXTRACT_GENERAL_CONTEXT = `You are part of a payroll agent system.
 Your successor will be responsible to extract todos. I want you to give him a general context of the whole email.
-So that it is clear what the email is about. Add details like date and employees but mention that this is just a general context
+So that it is clear what the email is about. Add details like effective date but mention that this is just a general context
 and not the actual user request. Also mention if the user request is an email chain or a single message.
+Do not mention the employee names or the actual precise change description but only the general context.
 
 {userMessage}
 `;
@@ -55,20 +57,24 @@ Your task is to extract todos from the following text (if any are present):
 Do not repeat existing todos.
 
 <context>
-Use this context to understand the overall picture not to extract todos.
+# IMPORTANT: Use this context to understand the overall picture not to extract todos.
+# IMPORTANT: DO NOT USE THIS CONTEXT TO EXTRACT TODOS.
 {context}
 </context>
 
-<existingTodos>
-{existingTodos}
-</existingTodos>
-
-Again do not repeat existing todos.
 
 This is the user message:
+# USE THIS AS REFERENCE TO EXTRACT TODOS.
 <userMessage>
 {input}
 </userMessage>
+
+
+# DO NOT REPEAT EXISTING TODOS.
+# HERE THE EXISTING TODOS ARE LISTED.
+<existingTodos>
+{existingTodos}
+</existingTodos>
 `;
 
 const PROMPT_TEMPLATE_LOOP_CHECKS = `
@@ -138,9 +144,22 @@ async function extractTodos({
     const todoId = `${uuid.slice(0, 4)}-${existingTodos.length}`;
     existingTodos.push({ ...todo, id: todoId });
   };
+  const addMultipleTodos = (todos: Omit<AgentTodoItem, "id">[]) => {
+    todos.forEach(addTodo);
+  };
+
   const tools = [
+    /*
     addTodoTool({
       extendedContext: { addTodo, locale: preferredLanguage },
+      accessToken: token,
+      selectedCompanyId: state.selectedCompanyId,
+      agentActionLogger: state.agentActionLogger,
+      rolesRitaShouldBeVisibleTo: state.rolesRitaShouldBeVisibleTo,
+    }),
+    */
+    addMultipleTodosTool({
+      extendedContext: { addMultipleTodos, locale: preferredLanguage },
       accessToken: token,
       selectedCompanyId: state.selectedCompanyId,
       agentActionLogger: state.agentActionLogger,
@@ -230,12 +249,12 @@ async function extractTodos({
   });
 
   const extractionProcess = from(userMessageSlices).pipe(
+    concatMap(ensureLineBreaks),
     bufferCount(WINDOW_SIZE, stride),
     filter((chunk) => chunk.length > 0),
+    tap((windows) => logger.info("🚀🚀🚀 windows \n\n", { windows })),
     map((chunk, index) => ({ chunk, index })),
     concatMap(handleChunkWithLLM),
-    tap((result) => logger.info("🚀🚀🚀 result %s \n\n", { result })),
-    map(ensureLineBreaks),
     toArray(),
   );
 
@@ -245,7 +264,9 @@ async function extractTodos({
     console.error("[todo-engine rxjs] error", err);
   }
 
-  return existingTodos;
+  const filteredTodos = filterDuplicates(existingTodos, logger);
+
+  return filteredTodos;
 }
 
 async function generateContextOfMessage(lastUserMessage: string) {
@@ -263,22 +284,13 @@ async function generateContextOfMessage(lastUserMessage: string) {
 }
 
 /**
- * If a line has more then 10 words we should split it into multiple lines.
+ * If a line has more then MAX_AMOUNT_OF_WORDS_PER_LINE words we should split it into multiple lines.
  */
-function ensureLineBreaks(text: string) {
-  const lines = text.split("\n");
-  const newLines = [];
-  for (const line of lines) {
-    if (line.split(" ").length > MAX_AMOUNT_OF_WORDS_PER_LINE) {
-      newLines.push(
-        line.split(" ").slice(0, MAX_AMOUNT_OF_WORDS_PER_LINE).join(" "),
-      );
-      newLines.push(
-        line.split(" ").slice(MAX_AMOUNT_OF_WORDS_PER_LINE).join(" "),
-      );
-    } else {
-      newLines.push(line);
-    }
+function ensureLineBreaks(line: string) {
+  const words = line.split(/\s+/).filter(Boolean);
+  const chunks: string[] = [];
+  for (let i = 0; i < words.length; i += MAX_AMOUNT_OF_WORDS_PER_LINE) {
+    chunks.push(words.slice(i, i + MAX_AMOUNT_OF_WORDS_PER_LINE).join(" "));
   }
-  return newLines.join("\n");
+  return from(chunks);
 }
