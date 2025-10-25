@@ -46,6 +46,5 @@ export const buildAsyncWorkflowEngineReAct: Factory =
         id: todo.id,
         processed: false,
       })),
-      // workflowEngineStreamSubscription: subscription,
     };
   };
