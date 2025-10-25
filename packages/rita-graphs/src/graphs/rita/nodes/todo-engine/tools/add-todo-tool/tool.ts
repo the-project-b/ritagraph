@@ -1,8 +1,8 @@
 import { tool } from "@langchain/core/tools";
-import z from "../../../../../../../../node_modules/zod/v3/external.cjs";
-import { ToolFactoryToolDefintion } from "../../../../../tools/tool-factory";
-import { localeToLanguage } from "../../../../../utils/format-helpers/locale-to-language";
-import { AgentTodoItem } from "../todo-engine";
+import z from "../../../../../../../../../node_modules/zod/v3/external.cjs";
+import { ToolFactoryToolDefintion } from "../../../../../../tools/tool-factory";
+import { localeToLanguage } from "../../../../../../utils/format-helpers/locale-to-language";
+import { AgentTodoItem } from "../../todo-engine";
 
 export const addTodoTool: ToolFactoryToolDefintion<{
   addTodo: (todo: Omit<AgentTodoItem, "id">) => void;
@@ -28,7 +28,7 @@ export const addTodoTool: ToolFactoryToolDefintion<{
     {
       name: "add_todo",
       description:
-        "Extract a chnage request from the users message. One todo per change request per employee. Again only one employee change per todo.",
+        "Extract a change request from the users message. One todo per change request per employee. Again only one employee change per todo.",
       schema: z.object({
         todo: z.object({
           changeDescription: z.string(),

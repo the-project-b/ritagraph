@@ -16,7 +16,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
-    "codegen": "graphql-codegen --config codegen.ts"
+    "codegen": "graphql-codegen --config codegen.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "author": "Dmitry Zhorov / Andries Verbanck / Pascal Lohscheidt | project-b",
   "dependencies": {
@@ -50,6 +53,9 @@
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-unused-imports": "^4.1.4",
     "graphql-request": "^7.2.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.1.3",
+    "ts-jest": "^29.4.3",
     "prettier": "^3.6.2",
     "typescript": "^5.8.3"
   }
