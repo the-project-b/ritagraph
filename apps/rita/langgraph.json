@@ -4,7 +4,8 @@
   "dependencies": ["."],
   "graphs": {
     "rita": "./src/graphs/rita/graph.ts:graph",
-    "rita-corrections": "./src/graphs/rita-corrections/graph.ts:graph"
+    "rita-corrections": "./src/graphs/rita-corrections/graph.ts:graph",
+    "file-extraction": "./src/graphs/file-extraction/graph.ts:graph"
   },
   "auth": {
     "path": "./src/graphs/rita/graph.ts:auth"

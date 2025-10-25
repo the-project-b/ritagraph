@@ -40,9 +40,14 @@ export interface ExtractionAdapter {
   /**
    * Gets the result of a completed extraction job.
    * Only call this after status returns SUCCEEDED.
+   * @param metadata - Job metadata including document and startTime
    */
   getExtractionJobResult(
     jobId: string,
+    metadata: {
+      document: Document;
+      startTime: number;
+    },
   ): Promise<Result<ExtractionResultDto, ExternalServiceError>>;
 
   /**

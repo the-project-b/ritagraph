@@ -27,6 +27,7 @@
     "langgraph:dev": "langgraphjs dev",
     "langgraph:dev:tunnel": "langgraphjs dev --tunnel",
     "test": "echo \"No tests implemented yet\"",
+    "test:extraction": "DOTENV_CONFIG_PATH=../../.env tsx --import=dotenv/config src/test-file-extraction.ts",
     "codegen": "echo 'Codegen not needed - using shared package'"
   },
   "author": "Dmitry Zhorov / Andries Verbanck | project-b",
@@ -60,6 +61,7 @@
     "graphql-request": "^7.2.0",
     "jest": "^30.1.3",
     "prettier": "^3.6.2",
+    "prompts": "^2.4.2",
     "ts-jest": "^29.4.3",
     "tsx": "^4.16.2",
     "typescript": "^5.8.3"

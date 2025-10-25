@@ -28,6 +28,9 @@ export * from "./infrastructure/adapters/MockAdapter.js";
 export * from "./infrastructure/clients/S3Client.js";
 export * from "./infrastructure/clients/TextractClient.js";
 
+export * from "./infrastructure/repositories/S3DocumentStorageRepository.js";
+export * from "./infrastructure/repositories/GraphQLAttachmentRepository.js";
+
 export * from "./infrastructure/factories/ExtractionAdapterFactory.js";
 export * from "./infrastructure/factories/FormatterFactory.js";
 

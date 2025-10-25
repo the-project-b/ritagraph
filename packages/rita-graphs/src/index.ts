@@ -1,6 +1,7 @@
 // Export main graphs
 export { graph as rita, createRitaGraph } from "./graphs/rita/graph.js";
 export { createRitaCorrectionsGraph } from "./graphs/rita-corrections/graph.js";
+export { createFileExtractionGraph } from "./graphs/file-extraction/graph.js";
 // Commented out ritmail - not used
 // export { graph as ritmail } from './graphs/ritmail/graph.js';
 
@@ -13,6 +14,10 @@ export {
   GraphState as RitaCorrectionsGraphState,
   GraphStateType as RitaCorrectionsGraphStateType,
 } from "./graphs/rita-corrections/graph-state.js";
+export {
+  GraphState as FileExtractionGraphState,
+  GraphStateType as FileExtractionGraphStateType,
+} from "./graphs/file-extraction/graph-state.js";
 // export { GraphState as RitmailGraphState, GraphStateType as RitmailGraphStateType } from './graphs/ritmail/graph-state.js';
 
 // Export shared types
